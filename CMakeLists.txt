@@ -7,7 +7,9 @@ set(PICO_TINYUSB_PATH "${CMAKE_SOURCE_DIR}/tinyusb/")
 
 include(cmake/pico_sdk_import.cmake)
 
-add_compile_options(-Wall -Werror)
+add_compile_options(-Wall)
+# Note: -Werror removed to allow btstack (pico-sdk) to compile with warnings
+# TODO: Re-enable -Werror once btstack warnings are resolved
 
 # configuration options
 

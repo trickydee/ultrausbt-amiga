@@ -26,6 +26,10 @@
 #include "util/output.h"
 #include "util/debug_cons.h"
 
+#if ENABLE_BLUEPAD32
+#include "bluepad32_platform.h"
+#endif
+
 // maximum number of reports per hid device
 #define MAX_REPORT 4
 
@@ -318,3 +322,80 @@ static void handle_event_keyboard(uint8_t dev_addr, uint8_t instance, hid_keyboa
 
     last_report = *report;
 }
+
+#if ENABLE_BLUEPAD32
+// Bluepad32 keyboard processing
+// Converts uni_keyboard_t format to hid_keyboard_report_t format and processes it
+// This allows Bluetooth keyboards to use the same processing logic as USB keyboards
+void process_bluepad32_keyboard(void)
+{
+    // uni_keyboard_t structure (matches bluepad32 format)
+    typedef struct {
+        uint8_t modifiers;
+        uint8_t pressed_keys[10];  // UNI_KEYBOARD_PRESSED_KEYS_MAX = 10
+    } bt_keyboard_t;
+    
+    bt_keyboard_t bt_kb;
+    int bt_kb_count = bluepad32_get_keyboard_count();
+    
+    // Process first connected Bluetooth keyboard
+    if (bt_kb_count > 0) {
+        bool has_data = bluepad32_get_keyboard(0, &bt_kb);
+        
+        if (has_data) {
+            // Convert Bluepad32 keyboard format to HID format
+            hid_keyboard_report_t kb_report;
+            kb_report.modifier = bt_kb.modifiers;
+            kb_report.reserved = 0;
+            
+            // Copy pressed keys (up to 6 keys for HID standard)
+            int key_count = 0;
+            for (int i = 0; i < 10 && key_count < 6; i++) {
+                if (bt_kb.pressed_keys[i] != 0) {
+                    kb_report.keycode[key_count++] = bt_kb.pressed_keys[i];
+                }
+            }
+            // Zero out remaining slots
+            for (int i = key_count; i < 6; i++) {
+                kb_report.keycode[i] = 0;
+            }
+            
+            // Process the keyboard report using the same logic as USB keyboards
+            // Use a static last report to track key state
+            static hid_keyboard_report_t last_bt_report = { 0, 0, {0} };
+            uint8_t pos;
+            
+            // Check for new keypresses or releases
+            for (pos = 0; pos < 6; pos++) {
+                if (kb_report.keycode[pos] && !key_pressed(&last_bt_report, kb_report.keycode[pos])) {
+                    // New keypress
+                    amiga_hid_send(kb_report.keycode[pos], false);
+                }
+                
+                if (last_bt_report.keycode[pos] && !key_pressed(&kb_report, last_bt_report.keycode[pos])) {
+                    // Key released
+                    amiga_hid_send(last_bt_report.keycode[pos], true);
+                }
+            }
+            
+            // Check modifier state (macros expect 'report' and 'last_report' in scope)
+            hid_keyboard_report_t* report = &kb_report;
+            hid_keyboard_report_t last_report = last_bt_report;
+            _MULTI_MOD_CHECK(KEYBOARD_MODIFIER_LEFTCTRL, KEYBOARD_MODIFIER_RIGHTCTRL);
+            _SINGLE_MOD_CHECK(KEYBOARD_MODIFIER_LEFTALT);
+            _SINGLE_MOD_CHECK(KEYBOARD_MODIFIER_RIGHTALT);
+            _SINGLE_MOD_CHECK(KEYBOARD_MODIFIER_LEFTSHIFT);
+            _SINGLE_MOD_CHECK(KEYBOARD_MODIFIER_RIGHTSHIFT);
+            _SINGLE_MOD_CHECK(KEYBOARD_MODIFIER_LEFTGUI);
+            _SINGLE_MOD_CHECK(KEYBOARD_MODIFIER_RIGHTGUI);
+            
+            last_bt_report = kb_report;
+        }
+    }
+}
+#else
+void process_bluepad32_keyboard(void)
+{
+    // No-op when bluepad32 is disabled
+}
+#endif // ENABLE_BLUEPAD32
