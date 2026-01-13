@@ -1,2 +1,26 @@
 /build
 /.dccache
+
+# Build directories
+build/
+build-*/
+CMakeCache.txt
+CMakeFiles/
+*.cmake
+!cmake/*.cmake
+
+# Submodule directories (tracked as submodules, not as regular directories)
+# Note: These are already tracked as submodules, but adding here for safety
+pico-sdk/
+tinyusb/
+bluepad32/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Documentation files (optional, remove if you want to track these)
+BLUETOOTH_INTEGRATION.md
