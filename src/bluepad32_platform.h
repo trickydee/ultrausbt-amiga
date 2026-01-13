@@ -35,6 +35,15 @@ bool bluepad32_peek_keyboard(int idx, void* out_keyboard);
 // Get count of connected Bluetooth keyboards
 int bluepad32_get_keyboard_count(void);
 
+// Get mouse data for a specific index (0-1)
+// Returns true if mouse is connected and has data
+// out_mouse must point to a struct matching uni_mouse_t layout
+// Marks data as read (clears updated flag)
+bool bluepad32_get_mouse(int idx, void* out_mouse);
+
+// Get count of connected Bluetooth mice
+int bluepad32_get_mouse_count(void);
+
 // Delete all stored Bluetooth pairing keys
 void bluepad32_delete_pairing_keys(void);
 

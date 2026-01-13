@@ -29,6 +29,7 @@
 // defined within usb_hid.c
 extern void hid_app_task(void);
 extern void process_bluepad32_keyboard(void);
+extern void process_bluepad32_mouse(void);
 
 // main entry point
 int main(void)
@@ -73,6 +74,9 @@ int main(void)
         
         // process Bluetooth keyboard events
         process_bluepad32_keyboard();
+        
+        // process Bluetooth mouse events
+        process_bluepad32_mouse();
 #endif
     }
 

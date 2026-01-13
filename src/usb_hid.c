@@ -329,6 +329,49 @@ static void handle_event_keyboard(uint8_t dev_addr, uint8_t instance, hid_keyboa
 }
 
 #if ENABLE_BLUEPAD32
+// Bluepad32 mouse processing
+// Converts uni_mouse_t format and processes it using the existing mouse handling logic
+// This allows Bluetooth mice to use the same processing logic as USB mice
+void process_bluepad32_mouse(void)
+{
+    // uni_mouse_t structure (matches bluepad32 format)
+    typedef struct {
+        int32_t delta_x;
+        int32_t delta_y;
+        uint16_t buttons;
+        int8_t scroll_wheel;
+        uint8_t misc_buttons;
+    } bt_mouse_t;
+    
+    bt_mouse_t bt_mouse;
+    int bt_mouse_count = bluepad32_get_mouse_count();
+    
+    // Process first connected Bluetooth mouse
+    if (bt_mouse_count > 0) {
+        bool has_data = bluepad32_get_mouse(0, &bt_mouse);
+        
+        if (has_data) {
+            // Convert Bluepad32 mouse format to HID format
+            // Clamp delta_x/delta_y (int32_t) to int8_t range for hid_mouse_report_t
+            int8_t x = (bt_mouse.delta_x > 127) ? 127 : (bt_mouse.delta_x < -128) ? -128 : (int8_t)bt_mouse.delta_x;
+            int8_t y = (bt_mouse.delta_y > 127) ? 127 : (bt_mouse.delta_y < -128) ? -128 : (int8_t)bt_mouse.delta_y;
+            
+            // Convert buttons (uint16_t) to uint8_t (take low 8 bits)
+            // UNI_MOUSE_BUTTON values match MOUSE_BUTTON values (both use BIT(0), BIT(1), BIT(2))
+            uint8_t buttons = (uint8_t)(bt_mouse.buttons & 0xFF);
+            
+            // Create a temporary mouse report to use existing mouse handling logic
+            hid_mouse_report_t mouse_report;
+            mouse_report.buttons = buttons;
+            mouse_report.x = x;
+            mouse_report.y = y;
+            
+            // Use the existing mouse event handler
+            handle_event_mouse(0, 0, &mouse_report);
+        }
+    }
+}
+
 // Bluepad32 keyboard processing
 // Converts uni_keyboard_t format to hid_keyboard_report_t format and processes it
 // This allows Bluetooth keyboards to use the same processing logic as USB keyboards
@@ -400,6 +443,11 @@ void process_bluepad32_keyboard(void)
 }
 #else
 void process_bluepad32_keyboard(void)
+{
+    // No-op when bluepad32 is disabled
+}
+
+void process_bluepad32_mouse(void)
 {
     // No-op when bluepad32 is disabled
 }
