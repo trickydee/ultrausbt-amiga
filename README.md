@@ -38,6 +38,14 @@ the rp2040 made sense as a target because it is widely available, has sufficient
 
 i have not measured the latency, but the keyboard signals are sent out the moment they are received on the usb bus. the potential latency is likely fractionally longer than the amiga mcu but bear in mind the rp2040 is significantly faster than the standard amiga keyboard controller.
 
+## release notes
+
+### Bluetooth Fix (revision5-wip branch)
+- **Fixed Bluetooth pairing issue**: Added `pico_btstack_ble` library to linker dependencies
+  - Provides GATT client functions required for HID service discovery
+  - Fixes issue where Bluetooth keyboards would pair then immediately unpair
+  - Required for proper Bluepad32 HID service discovery and connection maintenance
+
 ## roadmap
 
 please see the issues tab on the [github repository](https://github.com/borb/amigahid-pico) for the current list of planned features. the tl;dr is:
@@ -46,6 +54,7 @@ normal:
 * i<sup>2</sup>c display for config/status
 * controller emulation
     * keyboard-based controller emulation (use udlr for directions?)
+    * USB mouse to joystick port 1 emulation
 * flash memory-based configuration
 * possible amiga-side control panel (using bidirectional controller port signals)
 * rotary control simulation (for controlling gotek drives)

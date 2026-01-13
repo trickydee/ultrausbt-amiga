@@ -23,6 +23,7 @@
 #include "platform/amiga/keyboard_serial_io.h"  // amiga only, for now, until i get hold of an ST :D
 #include "platform/amiga/keyboard.h"
 #include "platform/amiga/quad_mouse.h"
+#include "platform/amiga/joystick_port1.h"
 #include "util/output.h"
 #include "util/debug_cons.h"
 
@@ -260,6 +261,10 @@ static void handle_event_mouse(uint8_t dev_addr, uint8_t instance, hid_mouse_rep
 
     if (report->x || report->y)
         amiga_quad_mouse_set_motion(report->x, report->y);
+
+    // Also send mouse input to joystick port 1
+    // This allows USB mouse to control joystick port 1 for games that need joystick input
+    amiga_joystick_port1_set_from_mouse(report->x, report->y, report->buttons);
 
     last_report = *report;
 }

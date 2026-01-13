@@ -15,6 +15,7 @@
 #include "display/disp_ssd.h"
 #include "platform/amiga/keyboard_serial_io.h"
 #include "platform/amiga/quad_mouse.h"
+#include "platform/amiga/joystick_port1.h"
 #include "util/debug_cons.h"
 #include "util/output.h"
 
@@ -50,6 +51,9 @@ int main(void)
 
     // start amiga mouse emulation
     amiga_quad_mouse_init();
+
+    // initialize joystick port 1 (shares GPIO pins with mouse)
+    amiga_joystick_port1_init();
 
 #if ENABLE_BLUEPAD32
     // initialize bluepad32 for Bluetooth keyboard support (Pico 2 W only)
