@@ -62,6 +62,7 @@ if(ENABLE_BLUEPAD32)
     
     target_link_libraries(amigahid-pico PUBLIC
         pico_cyw43_arch_none
+        pico_btstack_ble      # Required for GATT client functions (HID service discovery)
         pico_btstack_classic
         pico_btstack_cyw43
         pico_async_context_poll  # For async_context_poll_init_with_defaults
