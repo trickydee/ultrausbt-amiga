@@ -1,3 +1,28 @@
+# Overclock to 200 MHz for all Pico boards (pico, pico_w, pico2_w)
+if(PICO_BOARD STREQUAL "pico" OR PICO_BOARD STREQUAL "pico_w" OR PICO_BOARD STREQUAL "pico2_w")
+    add_compile_definitions(SYS_CLK_MHZ=200)
+    
+    # RP2350 (pico2_w) requires manual PLL configuration for 200 MHz
+    # RP2040 (pico, pico_w) has automatic PLL configuration in the SDK
+    if(PICO_BOARD STREQUAL "pico2_w")
+        # PLL settings for 200 MHz on RP2350
+        # VCO = 1200 MHz, POSTDIV1 = 6, POSTDIV2 = 1 => 1200 / 6 / 1 = 200 MHz
+        # VREG_VOLTAGE_1_15 = 0b01100 = 12 (decimal)
+        add_compile_definitions(
+            PLL_SYS_VCO_FREQ_HZ=1200000000
+            PLL_SYS_POSTDIV1=6
+            PLL_SYS_POSTDIV2=1
+            SYS_CLK_VREG_VOLTAGE_AUTO_ADJUST=1
+            SYS_CLK_VREG_VOLTAGE_MIN=12
+        )
+        message(STATUS "Overclock: 200 MHz enabled for ${PICO_BOARD} with manual PLL configuration")
+    else()
+        message(STATUS "Overclock: 200 MHz enabled for ${PICO_BOARD} (automatic PLL configuration)")
+    endif()
+else()
+    message(STATUS "Overclock: Using default clock for ${PICO_BOARD}")
+endif()
+
 # Bluepad32 Bluetooth support (wireless boards only)
 # Pico 2 W (pico2_w) has CYW43 for Bluetooth
 if(PICO_BOARD STREQUAL "pico2_w" OR PICO_BOARD STREQUAL "pico_w")
