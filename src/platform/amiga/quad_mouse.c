@@ -22,7 +22,6 @@
 // mouse motion values, used between core0 and core1
 volatile int8_t x = 0, y = 0;
 volatile bool motion_flag = false;
-volatile uint8_t motion_divider = 2;
 
 enum _mouse_pin_state { LOW, HIGH };
 
@@ -89,9 +88,14 @@ void amiga_quad_mouse_button(enum amiga_quad_mouse_buttons button, bool pressed)
 
 void amiga_quad_mouse_set_motion(int8_t in_x, int8_t in_y)
 {
-    x = in_x;
-    y = in_y;
-    motion_flag = true;
+    // Store motion directly - processing loop checks frequently for smooth movement
+    // For race conditions: if values are being processed, add to existing values
+    // This allows small movements to be processed immediately without accumulation delay
+    if (in_x != 0 || in_y != 0) {
+        x = in_x;
+        y = in_y;
+        motion_flag = true;
+    }
 
     // @todo use fifo write here to unblock core1 thread?
 }
@@ -101,7 +105,6 @@ void amiga_quad_mouse_motion()
     // ahprintf("[aqm] hello from core1, mouse motion output loop starting\n");
     int8_t out_x, out_y;
     uint8_t quad_mx_state = 0, quad_my_state = 0;
-    bool motion_x_skip = false, motion_y_skip = false;
 
     /**
      * a little note about quadrature motion state.
@@ -116,22 +119,24 @@ void amiga_quad_mouse_motion()
      */
 
     while (1) {
-        // @todo use blocking fifo read here to prevent wasting cycles?
+        // Check for new motion frequently to ensure smooth processing of slow movements
+        // This prevents accumulation and jerky behavior
+        if (!motion_flag) {
+            // No new motion - sleep briefly and check again
+            sleep_us(100);
+            continue;
+        }
+
+        // Read motion atomically
         out_x = x;
         out_y = y;
         x = y = 0;
         motion_flag = false;
 
-        while (((out_x != 0) || (out_y != 0)) && !motion_flag) {
-            motion_x_skip = false;
-            motion_y_skip = false;
-
-            if ((out_x % motion_divider) != 0)
-                motion_x_skip = true;
-            if ((out_y % motion_divider) != 0)
-                motion_y_skip = true;
-
-            if ((out_x != 0) && !motion_x_skip) {
+        // Process all motion immediately - no accumulation delay
+        while ((out_x != 0) || (out_y != 0)) {
+            // Process all x-axis motion (removed divider skip logic for better sensitivity)
+            if (out_x != 0) {
                 // handle x-axis motion
                 if (out_x < 0)
                     quad_mx_state--;
@@ -154,7 +159,8 @@ void amiga_quad_mouse_motion()
             if (out_x < 0) out_x++;
             if (out_x > 0) out_x--;
 
-            if ((out_y != 0) && !motion_y_skip) {
+            // Process all y-axis motion (removed divider skip logic for better sensitivity)
+            if (out_y != 0) {
                 // handle y-axis motion
                 if (out_y < 0)
                     quad_my_state--;
@@ -176,9 +182,6 @@ void amiga_quad_mouse_motion()
 
             if (out_y < 0) out_y++;
             if (out_y > 0) out_y--;
-
-            //if (motion_x_skip && motion_y_skip)
-            //    continue;
 
             sleep_us(300); // delay before next iteration to prevent missing state change
         }
