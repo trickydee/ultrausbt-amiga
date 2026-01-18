@@ -24,6 +24,7 @@
 #include "platform/amiga/keyboard.h"
 #include "platform/amiga/quad_mouse.h"
 #include "platform/amiga/joystick_port1.h"
+#include "platform/amiga/joystick_port2.h"
 #include "util/output.h"
 #include "util/debug_cons.h"
 
@@ -64,6 +65,11 @@ static struct _hid_info
 static void process_report(uint8_t dev_addr, uint8_t instance, uint8_t const *report, uint16_t len);
 static void handle_event_keyboard(uint8_t dev_addr, uint8_t instance, hid_keyboard_report_t const *report);
 static void handle_event_mouse(uint8_t dev_addr, uint8_t instance, hid_mouse_report_t const *report);
+static void handle_event_gamepad(uint8_t dev_addr, uint8_t instance, uint8_t const *report, uint16_t len);
+
+// Track first gamepad device (mapped to joystick port 2)
+static uint8_t first_gamepad_dev_addr = 0;
+static uint8_t first_gamepad_instance = 0;
 
 void hid_app_task(void)
 {
@@ -112,6 +118,13 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance)
     uint8_t hid_protocol = tuh_hid_interface_protocol(dev_addr, instance);
 
     dbgcons_unplug(hid_protocol_type[hid_protocol]);
+    
+    // Clear first gamepad if it was disconnected
+    if (first_gamepad_dev_addr == dev_addr && first_gamepad_instance == instance) {
+        first_gamepad_dev_addr = 0;
+        first_gamepad_instance = 0;
+        amiga_joystick_port2_reset();
+    }
 }
 
 /**
@@ -218,6 +231,19 @@ static void process_report(uint8_t dev_addr, uint8_t instance, uint8_t const *re
                 handle_event_mouse(dev_addr, instance, (hid_mouse_report_t const *) report);
                 break;
 
+            case HID_USAGE_DESKTOP_JOYSTICK:
+            case HID_USAGE_DESKTOP_GAMEPAD:
+                // gamepad/joystick event - map first one to joystick port 2
+                if (first_gamepad_dev_addr == 0 || (first_gamepad_dev_addr == dev_addr && first_gamepad_instance == instance)) {
+                    // Track first gamepad or update existing one
+                    if (first_gamepad_dev_addr == 0) {
+                        first_gamepad_dev_addr = dev_addr;
+                        first_gamepad_instance = instance;
+                    }
+                    handle_event_gamepad(dev_addr, instance, report, len);
+                }
+                break;
+
             default:
                 break;
         }
@@ -267,6 +293,91 @@ static void handle_event_mouse(uint8_t dev_addr, uint8_t instance, hid_mouse_rep
     amiga_joystick_port1_set_from_mouse(report->x, report->y, report->buttons);
 
     last_report = *report;
+}
+
+/**
+ * Handle gamepad/joystick event and map to joystick port 2
+ * This is a basic implementation that attempts to parse common gamepad formats
+ * 
+ * @param dev_addr  Device address of report
+ * @param instance  Instance number of reporting device
+ * @param report    Address of gamepad report structure
+ * @param len       Length of report
+ */
+static void handle_event_gamepad(uint8_t dev_addr, uint8_t instance, uint8_t const *report, uint16_t len)
+{
+    (void)dev_addr;  // Unused for now
+    (void)instance;  // Unused for now
+    
+    if (report == NULL || len == 0) {
+        return;
+    }
+    
+    // Basic gamepad report parsing - this is a simplified implementation
+    // Most gamepads report X/Y for left stick and buttons
+    // We'll use a simple heuristic: if the report has X/Y/Button data, parse it
+    
+    // Common gamepad report format (simplified):
+    // Byte 0: Buttons (bitmap)
+    // Byte 1-2: X axis (signed, -128 to 127 or 0-255)
+    // Byte 2-3: Y axis (signed, -128 to 127 or 0-255)
+    // Additional bytes: more buttons, analog triggers, etc.
+    
+    // For now, use a very basic approach: check if we have at least 3 bytes
+    // and try to extract directions from X/Y and buttons
+    if (len < 3) {
+        return;  // Report too short
+    }
+    
+    // Extract button state (assume first byte is buttons, bit 0 = button 1/fire)
+    uint8_t buttons = report[0];
+    
+    // Extract X/Y axes (assume bytes 1-2 are X and Y, signed)
+    // Map 0-255 to -128 to 127 range, or handle as signed directly
+    int8_t x = 0, y = 0;
+    if (len >= 3) {
+        // Common format: X and Y are signed bytes
+        x = (int8_t)report[1];
+        y = (int8_t)report[2];
+    }
+    
+    // Convert analog stick/D-pad to directions with threshold
+    const int8_t deadzone = 10;  // Deadzone to avoid drift
+    
+    // Horizontal direction
+    if (x < -deadzone) {
+        // Left
+        amiga_joystick_port2_set_direction(AJ2_LEFT, true);
+        amiga_joystick_port2_set_direction(AJ2_RIGHT, false);
+    } else if (x > deadzone) {
+        // Right
+        amiga_joystick_port2_set_direction(AJ2_LEFT, false);
+        amiga_joystick_port2_set_direction(AJ2_RIGHT, true);
+    } else {
+        // No horizontal
+        amiga_joystick_port2_set_direction(AJ2_LEFT, false);
+        amiga_joystick_port2_set_direction(AJ2_RIGHT, false);
+    }
+    
+    // Vertical direction (note: Y axis is often inverted in gamepads)
+    if (y < -deadzone) {
+        // Up (Y is inverted in most gamepads)
+        amiga_joystick_port2_set_direction(AJ2_UP, true);
+        amiga_joystick_port2_set_direction(AJ2_DOWN, false);
+    } else if (y > deadzone) {
+        // Down
+        amiga_joystick_port2_set_direction(AJ2_UP, false);
+        amiga_joystick_port2_set_direction(AJ2_DOWN, true);
+    } else {
+        // No vertical
+        amiga_joystick_port2_set_direction(AJ2_UP, false);
+        amiga_joystick_port2_set_direction(AJ2_DOWN, false);
+    }
+    
+    // Map buttons (bit 0 = Fire, bit 1 = Button 2, bit 2 = Button 3)
+    amiga_joystick_port2_set_button(AJ2_FIRE, (buttons & 0x01) != 0);
+    amiga_joystick_port2_set_button(AJ2_BUTTON2, (buttons & 0x02) != 0);
+    amiga_joystick_port2_set_button(AJ2_BUTTON3, (buttons & 0x04) != 0);
 }
 
 static uint8_t led_report = 0;
@@ -441,6 +552,103 @@ void process_bluepad32_keyboard(void)
         }
     }
 }
+
+// Bluepad32 gamepad processing
+// Converts uni_gamepad_t format and maps it to joystick port 2
+// The first Bluetooth gamepad is mapped to joystick port 2
+void process_bluepad32_gamepad(void)
+{
+    // uni_gamepad_t structure (matches bluepad32 format exactly)
+    // Note: We can't include uni.h directly due to HID type conflicts with TinyUSB
+    // IMPORTANT: This struct MUST match uni_gamepad_t exactly, including gyro and accel fields
+    // to prevent memory corruption during struct copy operations
+    typedef struct {
+        uint8_t dpad;          // D-pad bitmap (DPAD_UP=1, DPAD_DOWN=2, DPAD_RIGHT=4, DPAD_LEFT=8)
+        int32_t axis_x;        // Left stick X (-512 to 511)
+        int32_t axis_y;        // Left stick Y (-512 to 511)
+        int32_t axis_rx;       // Right stick X (-512 to 511)
+        int32_t axis_ry;       // Right stick Y (-512 to 511)
+        int32_t brake;         // Brake/trigger
+        int32_t throttle;      // Throttle/trigger
+        uint16_t buttons;      // Button bitmap (BUTTON_A=1, BUTTON_B=2, BUTTON_X=4, BUTTON_Y=8)
+        uint8_t misc_buttons;  // Misc buttons
+        int32_t gyro[3];       // Gyroscope data (degrees/second) - REQUIRED for correct struct size
+        int32_t accel[3];      // Accelerometer data (G units) - REQUIRED for correct struct size
+    } bt_gamepad_t;
+    
+    bt_gamepad_t bt_gamepad;
+    int bt_gamepad_count = bluepad32_get_gamepad_count();
+    
+    // Process first connected Bluetooth gamepad (mapped to joystick port 2)
+    if (bt_gamepad_count > 0) {
+        bool has_data = bluepad32_get_gamepad(0, &bt_gamepad);
+        
+        if (has_data) {
+            // Convert D-pad or analog stick to directions
+            // Use D-pad if available, otherwise use left analog stick
+            int32_t x = 0, y = 0;
+            
+            // Check D-pad first (dpad uses BIT flags: UP=1, DOWN=2, RIGHT=4, LEFT=8)
+            // DPAD_UP = BIT(0) = 1
+            // DPAD_DOWN = BIT(1) = 2
+            // DPAD_RIGHT = BIT(2) = 4
+            // DPAD_LEFT = BIT(3) = 8
+            if (bt_gamepad.dpad != 0) {
+                // D-pad is active - use full range for digital input
+                if (bt_gamepad.dpad & 0x08) x = -512;  // Left (BIT(3))
+                if (bt_gamepad.dpad & 0x04) x = 512;   // Right (BIT(2))
+                if (bt_gamepad.dpad & 0x01) y = -512;  // Up (BIT(0))
+                if (bt_gamepad.dpad & 0x02) y = 512;   // Down (BIT(1))
+            } else {
+                // Use analog stick with deadzone (axis values are -512 to 511)
+                const int32_t deadzone = 50;  // Deadzone for analog stick
+                if (bt_gamepad.axis_x < -deadzone || bt_gamepad.axis_x > deadzone) {
+                    x = bt_gamepad.axis_x;
+                }
+                if (bt_gamepad.axis_y < -deadzone || bt_gamepad.axis_y > deadzone) {
+                    y = bt_gamepad.axis_y;
+                }
+            }
+            
+            // Convert X/Y to directions with threshold
+            const int32_t threshold = 50;  // Threshold for direction detection
+            
+            // Horizontal direction
+            if (x < -threshold) {
+                amiga_joystick_port2_set_direction(AJ2_LEFT, true);
+                amiga_joystick_port2_set_direction(AJ2_RIGHT, false);
+            } else if (x > threshold) {
+                amiga_joystick_port2_set_direction(AJ2_LEFT, false);
+                amiga_joystick_port2_set_direction(AJ2_RIGHT, true);
+            } else {
+                amiga_joystick_port2_set_direction(AJ2_LEFT, false);
+                amiga_joystick_port2_set_direction(AJ2_RIGHT, false);
+            }
+            
+            // Vertical direction (note: Y axis may be inverted)
+            if (y < -threshold) {
+                amiga_joystick_port2_set_direction(AJ2_UP, true);
+                amiga_joystick_port2_set_direction(AJ2_DOWN, false);
+            } else if (y > threshold) {
+                amiga_joystick_port2_set_direction(AJ2_UP, false);
+                amiga_joystick_port2_set_direction(AJ2_DOWN, true);
+            } else {
+                amiga_joystick_port2_set_direction(AJ2_UP, false);
+                amiga_joystick_port2_set_direction(AJ2_DOWN, false);
+            }
+            
+            // Map buttons using Bluepad32 button constants
+            // BUTTON_A = BIT(0) = 1 (Fire)
+            // BUTTON_B = BIT(1) = 2 (Button 2)
+            // BUTTON_X = BIT(2) = 4 (Button 3)
+            // BUTTON_Y = BIT(3) = 8 (Button 3 alternative)
+            amiga_joystick_port2_set_button(AJ2_FIRE, (bt_gamepad.buttons & 0x01) != 0);      // BUTTON_A
+            amiga_joystick_port2_set_button(AJ2_BUTTON2, (bt_gamepad.buttons & 0x02) != 0);  // BUTTON_B
+            // Use X or Y for Button 3
+            amiga_joystick_port2_set_button(AJ2_BUTTON3, (bt_gamepad.buttons & 0x04) != 0 || (bt_gamepad.buttons & 0x08) != 0);  // BUTTON_X or BUTTON_Y
+        }
+    }
+}
 #else
 void process_bluepad32_keyboard(void)
 {
@@ -448,6 +656,11 @@ void process_bluepad32_keyboard(void)
 }
 
 void process_bluepad32_mouse(void)
+{
+    // No-op when bluepad32 is disabled
+}
+
+void process_bluepad32_gamepad(void)
 {
     // No-op when bluepad32 is disabled
 }
