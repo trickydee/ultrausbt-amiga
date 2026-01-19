@@ -19,53 +19,24 @@
 
 #include "joystick_port1.h"
 #include "config.h"
+#include "platform/common/gpio_util.h"
 #include <hardware/gpio.h>
 
 // Movement threshold for mouse-to-joystick conversion (in HID report units)
 // Mouse movement must exceed this threshold to trigger joystick direction
 #define MOUSE_TO_JOYSTICK_THRESHOLD 5
 
-// Helper function to set GPIO (active low)
-// value=true means signal is active (LOW/0), value=false means inactive (HIGH/1)
-static void _aj1_gpio_set(uint gpio, bool value)
-{
-    if (value) {
-        // Active: set to LOW (0)
-        gpio_put(gpio, 0);
-        gpio_set_dir(gpio, GPIO_OUT);
-    } else {
-        // Inactive: set to HIGH (1) by setting as input (pulled high)
-        gpio_set_dir(gpio, GPIO_IN);
-    }
-}
-
 void amiga_joystick_port1_init(void)
 {
-    // Initialize GPIO pins (same as mouse interface)
-    gpio_init(QM1_AMIGA_H);
-    gpio_init(QM1_AMIGA_V);
-    gpio_init(QM1_AMIGA_HQ);
-    gpio_init(QM1_AMIGA_VQ);
-    gpio_init(QM1_AMIGA_B1);
-    gpio_init(QM1_AMIGA_B2);
-    gpio_init(QM1_AMIGA_B3);
-
-    gpio_set_function(QM1_AMIGA_H, GPIO_FUNC_SIO);
-    gpio_set_function(QM1_AMIGA_V, GPIO_FUNC_SIO);
-    gpio_set_function(QM1_AMIGA_HQ, GPIO_FUNC_SIO);
-    gpio_set_function(QM1_AMIGA_VQ, GPIO_FUNC_SIO);
-    gpio_set_function(QM1_AMIGA_B1, GPIO_FUNC_SIO);
-    gpio_set_function(QM1_AMIGA_B2, GPIO_FUNC_SIO);
-    gpio_set_function(QM1_AMIGA_B3, GPIO_FUNC_SIO);
-
+    // Initialize GPIO pins using optimized shared utility
     // All signals are active low, so set all high (inactive) initially
-    _aj1_gpio_set(QM1_AMIGA_H, false);   // No horizontal direction
-    _aj1_gpio_set(QM1_AMIGA_V, false);   // No vertical direction
-    _aj1_gpio_set(QM1_AMIGA_HQ, false);  // No horizontal quadrature
-    _aj1_gpio_set(QM1_AMIGA_VQ, false);  // No vertical quadrature
-    _aj1_gpio_set(QM1_AMIGA_B1, false);  // Fire button not pressed
-    _aj1_gpio_set(QM1_AMIGA_B2, false);  // Button 2 not pressed
-    _aj1_gpio_set(QM1_AMIGA_B3, false);  // Button 3 not pressed
+    amiga_gpio_init_active_low(QM1_AMIGA_H, false);   // No horizontal direction
+    amiga_gpio_init_active_low(QM1_AMIGA_V, false);   // No vertical direction
+    amiga_gpio_init_active_low(QM1_AMIGA_HQ, false);  // No horizontal quadrature
+    amiga_gpio_init_active_low(QM1_AMIGA_VQ, false);  // No vertical quadrature
+    amiga_gpio_init_active_low(QM1_AMIGA_B1, false);  // Fire button not pressed
+    amiga_gpio_init_active_low(QM1_AMIGA_B2, false);  // Button 2 not pressed
+    amiga_gpio_init_active_low(QM1_AMIGA_B3, false);  // Button 3 not pressed
 }
 
 // Track current direction state to avoid conflicts
@@ -89,43 +60,43 @@ void amiga_joystick_port1_set_direction(enum amiga_joystick_port1_direction dir,
     // Set horizontal direction
     if (dir_left && !dir_right) {
         // Left only
-        _aj1_gpio_set(QM1_AMIGA_H, true);   // LOW = active (left)
+        amiga_gpio_set_active_low(QM1_AMIGA_H, true);   // LOW = active (left)
     } else if (dir_right && !dir_left) {
         // Right only
-        _aj1_gpio_set(QM1_AMIGA_H, false);  // HIGH = inactive (right)
+        amiga_gpio_set_active_low(QM1_AMIGA_H, false);  // HIGH = inactive (right)
     } else {
         // No horizontal or conflicting directions
-        _aj1_gpio_set(QM1_AMIGA_H, false);  // HIGH = inactive (no direction)
+        amiga_gpio_set_active_low(QM1_AMIGA_H, false);  // HIGH = inactive (no direction)
     }
     
     // Set vertical direction
     if (dir_up && !dir_down) {
         // Up only
-        _aj1_gpio_set(QM1_AMIGA_V, true);   // LOW = active (up)
+        amiga_gpio_set_active_low(QM1_AMIGA_V, true);   // LOW = active (up)
     } else if (dir_down && !dir_up) {
         // Down only
-        _aj1_gpio_set(QM1_AMIGA_V, false);  // HIGH = inactive (down)
+        amiga_gpio_set_active_low(QM1_AMIGA_V, false);  // HIGH = inactive (down)
     } else {
         // No vertical or conflicting directions
-        _aj1_gpio_set(QM1_AMIGA_V, false);  // HIGH = inactive (no direction)
+        amiga_gpio_set_active_low(QM1_AMIGA_V, false);  // HIGH = inactive (no direction)
     }
     
     // Quadrature signals not used for joystick mode, keep them inactive
-    _aj1_gpio_set(QM1_AMIGA_HQ, false);
-    _aj1_gpio_set(QM1_AMIGA_VQ, false);
+    amiga_gpio_set_active_low(QM1_AMIGA_HQ, false);
+    amiga_gpio_set_active_low(QM1_AMIGA_VQ, false);
 }
 
 void amiga_joystick_port1_set_button(enum amiga_joystick_port1_buttons button, bool pressed)
 {
     switch (button) {
         case AJ1_FIRE:
-            _aj1_gpio_set(QM1_AMIGA_B1, pressed);
+            amiga_gpio_set_active_low(QM1_AMIGA_B1, pressed);
             break;
         case AJ1_BUTTON2:
-            _aj1_gpio_set(QM1_AMIGA_B2, pressed);
+            amiga_gpio_set_active_low(QM1_AMIGA_B2, pressed);
             break;
         case AJ1_BUTTON3:
-            _aj1_gpio_set(QM1_AMIGA_B3, pressed);
+            amiga_gpio_set_active_low(QM1_AMIGA_B3, pressed);
             break;
     }
 }

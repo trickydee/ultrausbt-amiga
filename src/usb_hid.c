@@ -594,17 +594,10 @@ void process_bluepad32_gamepad(void)
             // Check D-pad buttons individually (matches Atari pattern)
             // Bluepad32 D-pad: UP=BIT(0)=0x01, DOWN=BIT(1)=0x02, RIGHT=BIT(2)=0x04, LEFT=BIT(3)=0x08
             // Direction bits: 0x01=UP, 0x02=DOWN, 0x04=LEFT, 0x08=RIGHT
-            // Debug: print D-pad value to check actual bit pattern
-            if (bt_gamepad.dpad != 0) {
-                printf("[GPAD] dpad=0x%02x ", bt_gamepad.dpad);
-            }
-            if (bt_gamepad.dpad & 0x01) { direction_bits |= 0x01; printf("UP "); }  // UP
-            if (bt_gamepad.dpad & 0x02) { direction_bits |= 0x02; printf("DOWN "); }  // DOWN
-            if (bt_gamepad.dpad & 0x04) { direction_bits |= 0x08; printf("RIGHT "); }  // RIGHT
-            if (bt_gamepad.dpad & 0x08) { direction_bits |= 0x04; printf("LEFT "); }  // LEFT
-            if (bt_gamepad.dpad != 0) {
-                printf("→ dirbits=0x%02x\n", direction_bits);
-            }
+            if (bt_gamepad.dpad & 0x01) { direction_bits |= 0x01; }  // UP
+            if (bt_gamepad.dpad & 0x02) { direction_bits |= 0x02; }  // DOWN
+            if (bt_gamepad.dpad & 0x04) { direction_bits |= 0x08; }  // RIGHT
+            if (bt_gamepad.dpad & 0x08) { direction_bits |= 0x04; }  // LEFT
             
             // Only use analog stick if D-pad is not active (direction_bits == 0)
             // Analog stick calibration (based on Atari project patterns):

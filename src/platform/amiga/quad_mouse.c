@@ -10,6 +10,7 @@
 
 #include "config.h"
 #include "quad_mouse.h"
+#include "platform/common/gpio_util.h"
 #include "util/output.h"
 
 #include <stdint.h>
@@ -25,20 +26,6 @@ volatile bool motion_flag = false;
 
 // Core 1 pause flag - set to true to pause mouse processing (e.g., during Bluetooth enumeration)
 volatile bool g_core1_paused = false;
-
-enum _mouse_pin_state { LOW, HIGH };
-
-static inline void _aqm_gpio_set(uint gpio, enum _mouse_pin_state state)
-{
-    if (state == LOW) {
-        gpio_put(gpio, 0);
-        gpio_set_dir(gpio, GPIO_OUT);
-        return;
-    }
-
-    // assume it's high otherwise
-    gpio_set_dir(gpio, GPIO_IN);
-}
 
 void amiga_quad_mouse_init()
 {
@@ -60,13 +47,14 @@ void amiga_quad_mouse_init()
     gpio_set_function(QM1_AMIGA_B3, GPIO_FUNC_SIO);
 
     // pins are active low, so when they are at 0 they're triggering; set all high (off)
-    _aqm_gpio_set(QM1_AMIGA_H, HIGH);
-    _aqm_gpio_set(QM1_AMIGA_V, HIGH);
-    _aqm_gpio_set(QM1_AMIGA_HQ, HIGH);
-    _aqm_gpio_set(QM1_AMIGA_VQ, HIGH);
-    _aqm_gpio_set(QM1_AMIGA_B1, HIGH);
-    _aqm_gpio_set(QM1_AMIGA_B2, HIGH);
-    _aqm_gpio_set(QM1_AMIGA_B3, HIGH);
+    // Use optimized shared GPIO utility
+    amiga_gpio_init_active_low(QM1_AMIGA_H, false);   // No horizontal direction
+    amiga_gpio_init_active_low(QM1_AMIGA_V, false);   // No vertical direction
+    amiga_gpio_init_active_low(QM1_AMIGA_HQ, false);  // No horizontal quadrature
+    amiga_gpio_init_active_low(QM1_AMIGA_VQ, false);  // No vertical quadrature
+    amiga_gpio_init_active_low(QM1_AMIGA_B1, false);  // Fire button not pressed
+    amiga_gpio_init_active_low(QM1_AMIGA_B2, false);  // Button 2 not pressed
+    amiga_gpio_init_active_low(QM1_AMIGA_B3, false);  // Button 3 not pressed
 
     // start the mouse motion loop on core1
     multicore_launch_core1(amiga_quad_mouse_motion);
@@ -82,9 +70,9 @@ void amiga_quad_mouse_button(enum amiga_quad_mouse_buttons button, bool pressed)
     // );
 
     switch (button) {
-        case AQM_LEFT:      _aqm_gpio_set(QM1_AMIGA_B1, pressed ? LOW : HIGH); break;
-        case AQM_MIDDLE:    _aqm_gpio_set(QM1_AMIGA_B3, pressed ? LOW : HIGH); break;
-        case AQM_RIGHT:     _aqm_gpio_set(QM1_AMIGA_B2, pressed ? LOW : HIGH); break;
+        case AQM_LEFT:      amiga_gpio_set_active_low(QM1_AMIGA_B1, pressed); break;
+        case AQM_MIDDLE:    amiga_gpio_set_active_low(QM1_AMIGA_B3, pressed); break;
+        case AQM_RIGHT:     amiga_gpio_set_active_low(QM1_AMIGA_B2, pressed); break;
         // default:            ahprintf("[aqm] unhandled button press!\n");
     }
 }
@@ -159,10 +147,10 @@ void amiga_quad_mouse_motion()
                     quad_mx_state = 0;
 
                 switch (quad_mx_state) {
-                    case 0: _aqm_gpio_set(QM1_AMIGA_H, HIGH); break;
-                    case 1: _aqm_gpio_set(QM1_AMIGA_HQ, HIGH); break;
-                    case 2: _aqm_gpio_set(QM1_AMIGA_H, LOW); break;
-                    case 3: _aqm_gpio_set(QM1_AMIGA_HQ, LOW); break;
+                    case 0: amiga_gpio_set_active_low(QM1_AMIGA_H, false); break;   // HIGH = inactive
+                    case 1: amiga_gpio_set_active_low(QM1_AMIGA_HQ, false); break;  // HIGH = inactive
+                    case 2: amiga_gpio_set_active_low(QM1_AMIGA_H, true); break;    // LOW = active
+                    case 3: amiga_gpio_set_active_low(QM1_AMIGA_HQ, true); break;   // LOW = active
                 }
             }
 
@@ -183,10 +171,10 @@ void amiga_quad_mouse_motion()
                     quad_my_state = 0;
 
                 switch (quad_my_state) {
-                    case 0: _aqm_gpio_set(QM1_AMIGA_V, HIGH); break;
-                    case 1: _aqm_gpio_set(QM1_AMIGA_VQ, HIGH); break;
-                    case 2: _aqm_gpio_set(QM1_AMIGA_V, LOW); break;
-                    case 3: _aqm_gpio_set(QM1_AMIGA_VQ, LOW); break;
+                    case 0: amiga_gpio_set_active_low(QM1_AMIGA_V, false); break;   // HIGH = inactive
+                    case 1: amiga_gpio_set_active_low(QM1_AMIGA_VQ, false); break;  // HIGH = inactive
+                    case 2: amiga_gpio_set_active_low(QM1_AMIGA_V, true); break;    // LOW = active
+                    case 3: amiga_gpio_set_active_low(QM1_AMIGA_VQ, true); break;   // LOW = active
                 }
             }
 
