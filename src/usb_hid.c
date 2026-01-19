@@ -605,17 +605,20 @@ void process_bluepad32_gamepad(void)
             }
             
             // Only use analog stick if D-pad is not active (direction_bits == 0)
-            // Atari code uses deadzone 8000 for int16_t range, we use 50 for -512 to 511 range (~10%)
-            const int32_t deadzone = 50;
+            // Analog stick calibration (based on Atari project patterns):
+            // - Bluepad32 axis range: -512 to 511 (center = 0)
+            // - Deadzone: 120 (~23% of range, similar to Stadia's 15% on -128 range)
+            // - Pattern matches Atari: check absolute values against deadzone around center (0)
+            const int32_t ANALOG_STICK_DEADZONE = 120;  // ~23% of -512 range (calibrated for drift prevention)
             if (direction_bits == 0) {
-                // Use left analog stick with deadzone (axis values are -512 to 511)
-                if (bt_gamepad.axis_x < -deadzone) direction_bits |= 0x04;  // LEFT (negative X)
-                if (bt_gamepad.axis_x > deadzone)  direction_bits |= 0x08;  // RIGHT (positive X)
-                // Y-axis mapping: Atari code shows positive Y = UP, negative Y = DOWN
-                // Atari: if (LY > DEADZONE) → 0x01 (UP), if (LY < -DEADZONE) → 0x02 (DOWN)
-                // But user reports up moves down, so we need to swap:
-                if (bt_gamepad.axis_y < -deadzone) direction_bits |= 0x01;  // UP (negative Y = stick up)
-                if (bt_gamepad.axis_y > deadzone)  direction_bits |= 0x02;  // DOWN (positive Y = stick down)
+                // Apply deadzone check - only trigger if movement exceeds threshold
+                // Pattern matches Atari project: value < -deadzone or value > deadzone
+                if (bt_gamepad.axis_x < -ANALOG_STICK_DEADZONE) direction_bits |= 0x04;  // LEFT (negative X)
+                if (bt_gamepad.axis_x > ANALOG_STICK_DEADZONE)  direction_bits |= 0x08;  // RIGHT (positive X)
+                // Y-axis: Bluepad32 uses negative Y for UP (stick forward), positive Y for DOWN (stick back)
+                // This matches typical gamepad convention where forward/up is negative
+                if (bt_gamepad.axis_y < -ANALOG_STICK_DEADZONE) direction_bits |= 0x01;  // UP (negative Y = stick up)
+                if (bt_gamepad.axis_y > ANALOG_STICK_DEADZONE)  direction_bits |= 0x02;  // DOWN (positive Y = stick down)
             }
             
             // Map direction bits to joystick port 2
