@@ -600,51 +600,22 @@ void process_bluepad32_gamepad(void)
             if (bt_gamepad.dpad & 0x08) { direction_bits |= 0x04; }  // LEFT
             
             // Only use analog stick if D-pad is not active (direction_bits == 0)
-            // Analog stick calibration (based on Atari project patterns):
-            // - Bluepad32 axis range: -512 to 511 (center = 0)
-            // - Deadzone: 60 (~12% of range) - reduced for better responsiveness
-            // - Dominant axis check: prevents false diagonals when one axis has drift
-            const int32_t ANALOG_STICK_DEADZONE = 60;  // ~12% of -512 range (balanced for responsiveness and drift prevention)
-            const int32_t DOMINANT_AXIS_RATIO = 2;    // One axis must be 2x stronger to ignore the other (prevents false diagonals)
+            // Analog stick calibration (matches Atari project implementation):
+            // - Bluepad32 axis range: -512 to 511 (center = 0) for small-range devices
+            // - Deadzone: 80 (~16% of range) - matches Atari code for better drift prevention
+            // - Simple independent axis checking (no complex filtering) for maximum responsiveness
+            const int32_t ANALOG_STICK_DEADZONE = 80;  // ~16% of -512 range (matches Atari implementation)
             
             if (direction_bits == 0) {
-                // Get absolute values for deadzone and dominant axis checks
-                int32_t abs_x = (bt_gamepad.axis_x < 0) ? -bt_gamepad.axis_x : bt_gamepad.axis_x;
-                int32_t abs_y = (bt_gamepad.axis_y < 0) ? -bt_gamepad.axis_y : bt_gamepad.axis_y;
+                // Simple independent axis checking (matches Atari bluepad32_atari.cpp pattern)
+                // Each axis is checked independently - simpler and more responsive
+                if (bt_gamepad.axis_x < -ANALOG_STICK_DEADZONE) direction_bits |= 0x04;  // LEFT (negative X)
+                if (bt_gamepad.axis_x > ANALOG_STICK_DEADZONE)  direction_bits |= 0x08;  // RIGHT (positive X)
                 
-                // Check if either axis exceeds deadzone (matches Atari pattern)
-                if (abs_x > ANALOG_STICK_DEADZONE || abs_y > ANALOG_STICK_DEADZONE) {
-                    // Dominant axis check: prevent false diagonals
-                    // If one axis is much stronger (2x), ignore the weaker axis completely
-                    // This prevents small drift in one axis from causing false diagonals
-                    bool use_x = true;
-                    bool use_y = true;
-                    
-                    if (abs_x > 0 && abs_y > 0) {
-                        // Both axes have movement - check which is dominant
-                        if (abs_x > (abs_y * DOMINANT_AXIS_RATIO)) {
-                            // X is dominant - ignore Y completely to prevent false diagonal
-                            use_y = false;
-                        } else if (abs_y > (abs_x * DOMINANT_AXIS_RATIO)) {
-                            // Y is dominant - ignore X completely to prevent false diagonal
-                            use_x = false;
-                        }
-                        // If neither is 2x stronger, use both (true diagonal movement)
-                    }
-                    
-                    // Apply direction mapping with dominant axis filtering
-                    if (use_x) {
-                        if (bt_gamepad.axis_x < -ANALOG_STICK_DEADZONE) direction_bits |= 0x04;  // LEFT (negative X)
-                        if (bt_gamepad.axis_x > ANALOG_STICK_DEADZONE)  direction_bits |= 0x08;  // RIGHT (positive X)
-                    }
-                    
-                    if (use_y) {
-                        // Y-axis: Bluepad32 uses negative Y for UP (stick forward), positive Y for DOWN (stick back)
-                        // This matches typical gamepad convention where forward/up is negative
-                        if (bt_gamepad.axis_y < -ANALOG_STICK_DEADZONE) direction_bits |= 0x01;  // UP (negative Y = stick up)
-                        if (bt_gamepad.axis_y > ANALOG_STICK_DEADZONE)  direction_bits |= 0x02;  // DOWN (positive Y = stick down)
-                    }
-                }
+                // Y-axis: Bluepad32 uses negative Y for UP (stick forward), positive Y for DOWN (stick back)
+                // This matches typical gamepad convention where forward/up is negative
+                if (bt_gamepad.axis_y < -ANALOG_STICK_DEADZONE) direction_bits |= 0x01;  // UP (negative Y = stick up)
+                if (bt_gamepad.axis_y > ANALOG_STICK_DEADZONE)  direction_bits |= 0x02;  // DOWN (positive Y = stick down)
             }
             
             // Map direction bits to joystick port 2
