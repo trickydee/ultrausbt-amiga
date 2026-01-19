@@ -11,6 +11,8 @@
 // these reside within the tinyusb sdk and are not part of this project source
 #include "bsp/board.h"
 #include "tusb.h"
+#include "pico/stdlib.h"
+#include <stdio.h>
 
 #include "display/disp_ssd.h"
 #include "platform/amiga/keyboard_serial_io.h"
@@ -33,11 +35,30 @@ extern void hid_app_task(void);
 extern void process_bluepad32_devices(void);
 #endif
 
+// Software version - increment this with each build to verify latest firmware is loaded
+#define SOFTWARE_VERSION_MAJOR 1
+#define SOFTWARE_VERSION_MINOR 0
+#define SOFTWARE_VERSION_PATCH 0
+#define SOFTWARE_VERSION_BUILD 1
+
 // main entry point
 int main(void)
 {
     // tinyusb board init; led, uart, button, usb
     board_init();
+
+    // Initialize UART for debug output (needed for version print)
+    stdio_init_all();
+    
+    // Print version number at startup to verify build and serial output
+    printf("\n");
+    printf("========================================\n");
+    printf("amigahid-pico v%d.%d.%d (build %d)\n", 
+           SOFTWARE_VERSION_MAJOR, SOFTWARE_VERSION_MINOR, 
+           SOFTWARE_VERSION_PATCH, SOFTWARE_VERSION_BUILD);
+    printf("========================================\n");
+    printf("Port 1 toggle: Shift + Left Amiga + J\n");
+    printf("========================================\n\n");
 
     // initialise the i2c controller and send the init sequence to the display
     disp_ssd_init();

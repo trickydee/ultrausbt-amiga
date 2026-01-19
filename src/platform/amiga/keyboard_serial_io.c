@@ -100,7 +100,8 @@ void amiga_hid_send(uint8_t hidcode, bool up)
         return;
     }
 
-    dbgcons_amiga_key(hidcode, mapHidToAmiga[hidcode], up ? "u" : "d");
+    // Disabled keyboard logging for now (can be re-enabled if needed)
+    // dbgcons_amiga_key(hidcode, mapHidToAmiga[hidcode], up ? "u" : "d");
 
     amiga_send(mapHidToAmiga[hidcode], up);
 }
@@ -110,8 +111,9 @@ void amiga_hid_modifier(hid_keyboard_modifier_bm_t modifier, bool up)
     uint8_t amiga_code;
     amiga_code = get_modifier_from_hid(modifier);
 
+    // Disabled keyboard logging for now (can be re-enabled if needed)
     // @todo indicate the modifier state in dbgcons, somehow
-    dbgcons_amiga_key(0, amiga_code, up ? "u" : "d");
+    // dbgcons_amiga_key(0, amiga_code, up ? "u" : "d");
 
     amiga_send(amiga_code, up);
 }

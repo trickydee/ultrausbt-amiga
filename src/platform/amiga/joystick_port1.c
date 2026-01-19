@@ -26,6 +26,9 @@
 // Mouse movement must exceed this threshold to trigger joystick direction
 #define MOUSE_TO_JOYSTICK_THRESHOLD 5
 
+// Port 1 mode: false = mouse only (default), true = joystick mode (mouse converted to joystick)
+static bool port1_joystick_mode = false;
+
 void amiga_joystick_port1_init(void)
 {
     // Initialize GPIO pins using optimized shared utility
@@ -39,8 +42,10 @@ void amiga_joystick_port1_init(void)
     amiga_gpio_init_active_low(QM1_AMIGA_B3, false);  // Button 3 not pressed
 }
 
-// Track current direction state to avoid conflicts
+// Track current direction state to avoid conflicts and optimize GPIO updates
 static bool dir_up = false, dir_down = false, dir_left = false, dir_right = false;
+// Track previous GPIO states to only update changed pins (optimization - matches port 2)
+static bool prev_dir_up = false, prev_dir_down = false, prev_dir_left = false, prev_dir_right = false;
 
 void amiga_joystick_port1_set_direction(enum amiga_joystick_port1_direction dir, bool active)
 {
@@ -52,38 +57,31 @@ void amiga_joystick_port1_set_direction(enum amiga_joystick_port1_direction dir,
         case AJ1_RIGHT: dir_right = active; break;
     }
     
-    // Amiga joystick port uses simple digital signals (active low):
-    // H pin: LOW = left, HIGH = right (or no horizontal)
-    // V pin: LOW = up, HIGH = down (or no vertical)
-    // For joystick mode, we don't use quadrature signals (HQ/VQ)
+    // Amiga joystick port 1: Use separate pins for each direction (same approach as port 2)
+    // H pin (GPIO 9) = DOWN direction (LOW = active) - swapped with LEFT
+    // HQ pin (GPIO 7) = RIGHT direction (LOW = active)  
+    // V pin (GPIO 10) = UP direction (LOW = active)
+    // VQ pin (GPIO 8) = LEFT direction (LOW = active) - swapped with DOWN
+    // All signals are active low, so LOW = direction pressed, HIGH/inactive = released
     
-    // Set horizontal direction
-    if (dir_left && !dir_right) {
-        // Left only
-        amiga_gpio_set_active_low(QM1_AMIGA_H, true);   // LOW = active (left)
-    } else if (dir_right && !dir_left) {
-        // Right only
-        amiga_gpio_set_active_low(QM1_AMIGA_H, false);  // HIGH = inactive (right)
-    } else {
-        // No horizontal or conflicting directions
-        amiga_gpio_set_active_low(QM1_AMIGA_H, false);  // HIGH = inactive (no direction)
+    // Optimized: Only update GPIO pins that have changed state (matches port 2 optimization)
+    // This reduces GPIO operations by ~75% in typical usage (only 1 direction changes at a time)
+    if (dir_up != prev_dir_up) {
+        amiga_gpio_set_active_low(QM1_AMIGA_V, dir_up);     // V pin = UP
+        prev_dir_up = dir_up;
     }
-    
-    // Set vertical direction
-    if (dir_up && !dir_down) {
-        // Up only
-        amiga_gpio_set_active_low(QM1_AMIGA_V, true);   // LOW = active (up)
-    } else if (dir_down && !dir_up) {
-        // Down only
-        amiga_gpio_set_active_low(QM1_AMIGA_V, false);  // HIGH = inactive (down)
-    } else {
-        // No vertical or conflicting directions
-        amiga_gpio_set_active_low(QM1_AMIGA_V, false);  // HIGH = inactive (no direction)
+    if (dir_down != prev_dir_down) {
+        amiga_gpio_set_active_low(QM1_AMIGA_H, dir_down);   // H pin = DOWN (swapped)
+        prev_dir_down = dir_down;
     }
-    
-    // Quadrature signals not used for joystick mode, keep them inactive
-    amiga_gpio_set_active_low(QM1_AMIGA_HQ, false);
-    amiga_gpio_set_active_low(QM1_AMIGA_VQ, false);
+    if (dir_left != prev_dir_left) {
+        amiga_gpio_set_active_low(QM1_AMIGA_VQ, dir_left);  // VQ pin = LEFT (swapped)
+        prev_dir_left = dir_left;
+    }
+    if (dir_right != prev_dir_right) {
+        amiga_gpio_set_active_low(QM1_AMIGA_HQ, dir_right); // HQ pin = RIGHT
+        prev_dir_right = dir_right;
+    }
 }
 
 void amiga_joystick_port1_set_button(enum amiga_joystick_port1_buttons button, bool pressed)
@@ -143,5 +141,26 @@ void amiga_joystick_port1_set_from_mouse(int8_t x, int8_t y, uint8_t buttons)
     amiga_joystick_port1_set_button(AJ1_FIRE, buttons & 0x01);      // Left button
     amiga_joystick_port1_set_button(AJ1_BUTTON2, buttons & 0x02);  // Right button
     amiga_joystick_port1_set_button(AJ1_BUTTON3, buttons & 0x04);  // Middle button
+}
+
+void amiga_joystick_port1_toggle_mode(void)
+{
+    port1_joystick_mode = !port1_joystick_mode;
+    
+    // When switching to mouse-only mode, release all joystick signals
+    if (!port1_joystick_mode) {
+        amiga_joystick_port1_set_direction(AJ1_UP, false);
+        amiga_joystick_port1_set_direction(AJ1_DOWN, false);
+        amiga_joystick_port1_set_direction(AJ1_LEFT, false);
+        amiga_joystick_port1_set_direction(AJ1_RIGHT, false);
+        amiga_joystick_port1_set_button(AJ1_FIRE, false);
+        amiga_joystick_port1_set_button(AJ1_BUTTON2, false);
+        amiga_joystick_port1_set_button(AJ1_BUTTON3, false);
+    }
+}
+
+bool amiga_joystick_port1_is_joystick_mode(void)
+{
+    return port1_joystick_mode;
 }
 

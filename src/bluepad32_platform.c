@@ -36,7 +36,7 @@
 #define MAX_BT_MICE 2
 
 // Maximum number of Bluetooth gamepads we can track
-#define MAX_BT_GAMEPADS 1  // Only first gamepad mapped to joystick port 2
+#define MAX_BT_GAMEPADS 2  // First gamepad -> Port 2, second gamepad -> Port 1 (when in joystick mode)
 
 // Storage for Bluetooth keyboard data
 typedef struct {

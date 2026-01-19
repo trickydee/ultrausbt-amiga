@@ -277,20 +277,38 @@ static void handle_event_mouse(uint8_t dev_addr, uint8_t instance, hid_mouse_rep
     if (!(report->buttons & MOUSE_BUTTON_MIDDLE) && (last_report.buttons & MOUSE_BUTTON_MIDDLE))
         amiga_quad_mouse_button(AQM_MIDDLE, false);
 
-    if ((report->buttons & MOUSE_BUTTON_RIGHT) && !(last_report.buttons & MOUSE_BUTTON_RIGHT))
-        amiga_quad_mouse_button(AQM_RIGHT, true);
-    if (!(report->buttons & MOUSE_BUTTON_RIGHT) && (last_report.buttons & MOUSE_BUTTON_RIGHT))
-        amiga_quad_mouse_button(AQM_RIGHT, false);
-
-    // this would spam horrendously, so even when debug messages are on, this is probably... too much.
-    // ahprintf("[hid] x: %d y: %d\n", report->x, report->y);
-
-    if (report->x || report->y)
-        amiga_quad_mouse_set_motion(report->x, report->y);
-
-    // Also send mouse input to joystick port 1
-    // This allows USB mouse to control joystick port 1 for games that need joystick input
-    amiga_joystick_port1_set_from_mouse(report->x, report->y, report->buttons);
+    // Check current mode: mouse-only or joystick mode
+    bool joystick_mode = amiga_joystick_port1_is_joystick_mode();
+    
+    if (joystick_mode) {
+        // Joystick mode: convert mouse input to joystick signals
+        // No mouse quadrature output, only joystick conversion
+        amiga_joystick_port1_set_from_mouse(report->x, report->y, report->buttons);
+    } else {
+        // Mouse-only mode: normal mouse operation
+        // Handle mouse buttons
+        if ((report->buttons & MOUSE_BUTTON_LEFT) && !(last_report.buttons & MOUSE_BUTTON_LEFT))
+            amiga_quad_mouse_button(AQM_LEFT, true);
+        if (!(report->buttons & MOUSE_BUTTON_LEFT) && (last_report.buttons & MOUSE_BUTTON_LEFT))
+            amiga_quad_mouse_button(AQM_LEFT, false);
+        
+        if ((report->buttons & MOUSE_BUTTON_MIDDLE) && !(last_report.buttons & MOUSE_BUTTON_MIDDLE))
+            amiga_quad_mouse_button(AQM_MIDDLE, true);
+        if (!(report->buttons & MOUSE_BUTTON_MIDDLE) && (last_report.buttons & MOUSE_BUTTON_MIDDLE))
+            amiga_quad_mouse_button(AQM_MIDDLE, false);
+        
+        if ((report->buttons & MOUSE_BUTTON_RIGHT) && !(last_report.buttons & MOUSE_BUTTON_RIGHT))
+            amiga_quad_mouse_button(AQM_RIGHT, true);
+        if (!(report->buttons & MOUSE_BUTTON_RIGHT) && (last_report.buttons & MOUSE_BUTTON_RIGHT))
+            amiga_quad_mouse_button(AQM_RIGHT, false);
+        
+        // Handle mouse movement (quadrature signals)
+        // this would spam horrendously, so even when debug messages are on, this is probably... too much.
+        // ahprintf("[hid] x: %d y: %d\n", report->x, report->y);
+        
+        if (report->x || report->y)
+            amiga_quad_mouse_set_motion(report->x, report->y);
+    }
 
     last_report = *report;
 }
@@ -393,11 +411,72 @@ static void handle_event_keyboard(uint8_t dev_addr, uint8_t instance, hid_keyboa
 {
     // keep hold of older key event reports; init empty keyboard report
     static hid_keyboard_report_t last_report = { 0, 0, {0} };
+    static uint32_t call_count = 0;
     uint8_t pos;
+
+    // Debug: Verify handler is being called (print every 100 calls to avoid spam)
+    call_count++;
+    if ((call_count % 100) == 0) {
+        ahprintf("[TOGGLE] USB Keyboard handler called %lu times\n", call_count);
+    }
+    
+    // Debug: Print on first call to verify handler is active
+    if (call_count == 1) {
+        ahprintf("[TOGGLE] USB Keyboard handler initialized\n");
+    }
+
+    // Check for Port 1 mode toggle: Shift + Left Amiga + J
+    // This combination toggles between mouse-only and joystick mode on port 1
+    static bool last_combo_pressed = false;
+    
+    bool shift_pressed = (report->modifier & (KEYBOARD_MODIFIER_LEFTSHIFT | KEYBOARD_MODIFIER_RIGHTSHIFT)) != 0;
+    bool lamiga_pressed = (report->modifier & KEYBOARD_MODIFIER_LEFTGUI) != 0;
+    bool j_pressed = false;
+    
+    // Check if J key is pressed (HID keycode 0x0D = J)
+    for (pos = 0; pos < 6; pos++) {
+        if (report->keycode[pos] == 0x0D) {  // HID keycode for J
+            j_pressed = true;
+            break;
+        }
+    }
+    
+    // Check if all three keys are pressed together
+    bool combo_active = shift_pressed && lamiga_pressed && j_pressed;
+    
+    // Debug: Print when any combo key is pressed or when combo is active
+    if (j_pressed || shift_pressed || lamiga_pressed || combo_active) {
+        ahprintf("[TOGGLE] Shift:%d LAmiga:%d J:%d Combo:%d Modifier:0x%02x Keys:", 
+                 shift_pressed, lamiga_pressed, j_pressed, combo_active, report->modifier);
+        for (pos = 0; pos < 6; pos++) {
+            if (report->keycode[pos] != 0) {
+                ahprintf(" 0x%02x", report->keycode[pos]);
+            }
+        }
+        ahprintf("\n");
+    }
+    
+    // Toggle mode on key press (when combo is newly pressed, not on release) to avoid multiple toggles
+    if (combo_active && !last_combo_pressed) {
+        bool old_mode = amiga_joystick_port1_is_joystick_mode();
+        amiga_joystick_port1_toggle_mode();
+        bool new_mode = amiga_joystick_port1_is_joystick_mode();
+        ahprintf("[TOGGLE] *** Port 1 mode toggled! %s -> %s ***\n", 
+                 old_mode ? "JOYSTICK" : "MOUSE",
+                 new_mode ? "JOYSTICK" : "MOUSE");
+        // Don't send the J key to Amiga when used in toggle combination
+    }
+    
+    last_combo_pressed = combo_active;
 
     // check to see if a keypress is a new keypress or in the last report
     for (pos = 0; pos < 6; pos++) {
         if (report->keycode[pos] && !key_pressed(&last_report, report->keycode[pos])) {
+            // Skip J key if it's part of the toggle combination
+            if (combo_active && report->keycode[pos] == 0x0D) {  // HID keycode for J
+                ahprintf("[TOGGLE] Blocking J key from being sent to Amiga (toggle combo active)\n");
+                continue;
+            }
             // this is a new keypress; pass on to the amiga as a down event
             // @todo right now, menu and right gui are both mapped to right amiga; if one is released, an ramiga up is sent
             // probably something which can be fixed in keyboard_serial_io.c
@@ -405,6 +484,11 @@ static void handle_event_keyboard(uint8_t dev_addr, uint8_t instance, hid_keyboa
         }
 
         if (last_report.keycode[pos] && !key_pressed(report, last_report.keycode[pos])) {
+            // Skip J key if it was part of the toggle combination
+            if (last_combo_pressed && last_report.keycode[pos] == 0x0D) {  // HID keycode for J
+                ahprintf("[TOGGLE] Blocking J key release from being sent to Amiga\n");
+                continue;
+            }
             // key has been released; send "up" code to amiga
             amiga_hid_send(last_report.keycode[pos], true);
         }
@@ -504,15 +588,64 @@ void process_bluepad32_keyboard(void)
         bool has_data = bluepad32_get_keyboard(0, &bt_kb);
         
         if (has_data) {
+            // Check for Port 1 mode toggle: Shift + Left Amiga + J
+            // This combination toggles between mouse-only and joystick mode on port 1
+            static bool bt_last_combo_pressed = false;
+            
+            bool shift_pressed = (bt_kb.modifiers & (KEYBOARD_MODIFIER_LEFTSHIFT | KEYBOARD_MODIFIER_RIGHTSHIFT)) != 0;
+            bool lamiga_pressed = (bt_kb.modifiers & KEYBOARD_MODIFIER_LEFTGUI) != 0;
+            bool j_pressed = false;
+            
+            // Check if J key is pressed (HID keycode 0x0D = J)
+            for (int i = 0; i < 10; i++) {
+                if (bt_kb.pressed_keys[i] == 0x0D) {  // HID keycode for J
+                    j_pressed = true;
+                    break;
+                }
+            }
+            
+            // Check if all three keys are pressed together
+            bool combo_active = shift_pressed && lamiga_pressed && j_pressed;
+            
+            // Debug: Print when any combo key is pressed or when combo is active
+            if (j_pressed || shift_pressed || lamiga_pressed || combo_active) {
+                ahprintf("[TOGGLE-BT] Shift:%d LAmiga:%d J:%d Combo:%d Modifier:0x%02x Keys:", 
+                         shift_pressed, lamiga_pressed, j_pressed, combo_active, bt_kb.modifiers);
+                for (int i = 0; i < 10; i++) {
+                    if (bt_kb.pressed_keys[i] != 0) {
+                        ahprintf(" 0x%02x", bt_kb.pressed_keys[i]);
+                    }
+                }
+                ahprintf("\n");
+            }
+            
+            // Toggle mode on key press (when combo is newly pressed)
+            if (combo_active && !bt_last_combo_pressed) {
+                bool old_mode = amiga_joystick_port1_is_joystick_mode();
+                amiga_joystick_port1_toggle_mode();
+                bool new_mode = amiga_joystick_port1_is_joystick_mode();
+                ahprintf("[TOGGLE-BT] *** Port 1 mode toggled! %s -> %s ***\n", 
+                         old_mode ? "JOYSTICK" : "MOUSE",
+                         new_mode ? "JOYSTICK" : "MOUSE");
+            }
+            
+            bt_last_combo_pressed = combo_active;
+            
             // Convert Bluepad32 keyboard format to HID format
             hid_keyboard_report_t kb_report;
             kb_report.modifier = bt_kb.modifiers;
             kb_report.reserved = 0;
             
             // Copy pressed keys (up to 6 keys for HID standard)
+            // Skip J key if it's being used for toggle
             int key_count = 0;
             for (int i = 0; i < 10 && key_count < 6; i++) {
                 if (bt_kb.pressed_keys[i] != 0) {
+                    // Skip J key (HID 0x0D) if it's being used for toggle
+                    if (combo_active && bt_kb.pressed_keys[i] == 0x0D) {
+                        ahprintf("[TOGGLE-BT] Blocking J key from being sent to Amiga\n");
+                        continue;
+                    }
                     kb_report.keycode[key_count++] = bt_kb.pressed_keys[i];
                 }
             }
@@ -556,8 +689,9 @@ void process_bluepad32_keyboard(void)
 }
 
 // Bluepad32 gamepad processing
-// Converts uni_gamepad_t format and maps it to joystick port 2
-// The first Bluetooth gamepad is mapped to joystick port 2
+// Converts uni_gamepad_t format and maps gamepads to joystick ports:
+// - First gamepad (index 0) -> Joystick Port 2 (always active)
+// - Second gamepad (index 1) -> Joystick Port 1 (only if Port 1 is in joystick mode)
 void process_bluepad32_gamepad(void)
 {
     // uni_gamepad_t structure (matches bluepad32 format exactly)
@@ -581,42 +715,32 @@ void process_bluepad32_gamepad(void)
     bt_gamepad_t bt_gamepad;
     int bt_gamepad_count = bluepad32_get_gamepad_count();
     
-    // Process first connected Bluetooth gamepad (mapped to joystick port 2)
+    // Analog stick calibration constants (shared for both ports)
+    const int32_t ANALOG_STICK_DEADZONE = 80;  // ~16% of -512 range (matches Atari implementation)
+    
+    // Helper macro to convert gamepad input to direction bits
+    // Returns: bit 0=UP, bit 1=DOWN, bit 2=LEFT, bit 3=RIGHT
+    #define CONVERT_GAMEPAD_TO_DIRECTIONS(gp, deadzone) ({ \
+        uint8_t dir_bits = 0; \
+        if ((gp)->dpad & 0x01) { dir_bits |= 0x01; }  /* UP */ \
+        if ((gp)->dpad & 0x02) { dir_bits |= 0x02; }  /* DOWN */ \
+        if ((gp)->dpad & 0x04) { dir_bits |= 0x08; }  /* RIGHT */ \
+        if ((gp)->dpad & 0x08) { dir_bits |= 0x04; }  /* LEFT */ \
+        if (dir_bits == 0) { \
+            if ((gp)->axis_x < -(deadzone)) dir_bits |= 0x04;  /* LEFT */ \
+            if ((gp)->axis_x > (deadzone))  dir_bits |= 0x08;  /* RIGHT */ \
+            if ((gp)->axis_y < -(deadzone)) dir_bits |= 0x01;  /* UP */ \
+            if ((gp)->axis_y > (deadzone))  dir_bits |= 0x02;  /* DOWN */ \
+        } \
+        dir_bits; \
+    })
+    
+    // Process first gamepad -> Joystick Port 2 (always active)
     if (bt_gamepad_count > 0) {
         bool has_data = bluepad32_get_gamepad(0, &bt_gamepad);
         
         if (has_data) {
-            // Convert D-pad or analog stick to directions
-            // Pattern matches Atari code: check D-pad bits individually, use analog only if D-pad is zero
-            // Bluepad32 D-pad constants: UP=BIT(0)=0x01, DOWN=BIT(1)=0x02, RIGHT=BIT(2)=0x04, LEFT=BIT(3)=0x08
-            uint8_t direction_bits = 0;
-            
-            // Check D-pad buttons individually (matches Atari pattern)
-            // Bluepad32 D-pad: UP=BIT(0)=0x01, DOWN=BIT(1)=0x02, RIGHT=BIT(2)=0x04, LEFT=BIT(3)=0x08
-            // Direction bits: 0x01=UP, 0x02=DOWN, 0x04=LEFT, 0x08=RIGHT
-            if (bt_gamepad.dpad & 0x01) { direction_bits |= 0x01; }  // UP
-            if (bt_gamepad.dpad & 0x02) { direction_bits |= 0x02; }  // DOWN
-            if (bt_gamepad.dpad & 0x04) { direction_bits |= 0x08; }  // RIGHT
-            if (bt_gamepad.dpad & 0x08) { direction_bits |= 0x04; }  // LEFT
-            
-            // Only use analog stick if D-pad is not active (direction_bits == 0)
-            // Analog stick calibration (matches Atari project implementation):
-            // - Bluepad32 axis range: -512 to 511 (center = 0) for small-range devices
-            // - Deadzone: 80 (~16% of range) - matches Atari code for better drift prevention
-            // - Simple independent axis checking (no complex filtering) for maximum responsiveness
-            const int32_t ANALOG_STICK_DEADZONE = 80;  // ~16% of -512 range (matches Atari implementation)
-            
-            if (direction_bits == 0) {
-                // Simple independent axis checking (matches Atari bluepad32_atari.cpp pattern)
-                // Each axis is checked independently - simpler and more responsive
-                if (bt_gamepad.axis_x < -ANALOG_STICK_DEADZONE) direction_bits |= 0x04;  // LEFT (negative X)
-                if (bt_gamepad.axis_x > ANALOG_STICK_DEADZONE)  direction_bits |= 0x08;  // RIGHT (positive X)
-                
-                // Y-axis: Bluepad32 uses negative Y for UP (stick forward), positive Y for DOWN (stick back)
-                // This matches typical gamepad convention where forward/up is negative
-                if (bt_gamepad.axis_y < -ANALOG_STICK_DEADZONE) direction_bits |= 0x01;  // UP (negative Y = stick up)
-                if (bt_gamepad.axis_y > ANALOG_STICK_DEADZONE)  direction_bits |= 0x02;  // DOWN (positive Y = stick down)
-            }
+            uint8_t direction_bits = CONVERT_GAMEPAD_TO_DIRECTIONS(&bt_gamepad, ANALOG_STICK_DEADZONE);
             
             // Map direction bits to joystick port 2
             // Bit pattern: bit 0=UP, bit 1=DOWN, bit 2=LEFT, bit 3=RIGHT
@@ -636,6 +760,29 @@ void process_bluepad32_gamepad(void)
             amiga_joystick_port2_set_button(AJ2_BUTTON3, (bt_gamepad.buttons & 0x04) != 0 || (bt_gamepad.buttons & 0x08) != 0);  // BUTTON_X or BUTTON_Y
         }
     }
+    
+    // Process second gamepad -> Joystick Port 1 (only if Port 1 is in joystick mode)
+    if (bt_gamepad_count > 1 && amiga_joystick_port1_is_joystick_mode()) {
+        bool has_data = bluepad32_get_gamepad(1, &bt_gamepad);
+        
+        if (has_data) {
+            uint8_t direction_bits = CONVERT_GAMEPAD_TO_DIRECTIONS(&bt_gamepad, ANALOG_STICK_DEADZONE);
+            
+            // Map direction bits to joystick port 1
+            // Bit pattern: bit 0=UP, bit 1=DOWN, bit 2=LEFT, bit 3=RIGHT
+            amiga_joystick_port1_set_direction(AJ1_UP,    (direction_bits & 0x01) != 0);
+            amiga_joystick_port1_set_direction(AJ1_DOWN,  (direction_bits & 0x02) != 0);
+            amiga_joystick_port1_set_direction(AJ1_LEFT,  (direction_bits & 0x04) != 0);
+            amiga_joystick_port1_set_direction(AJ1_RIGHT, (direction_bits & 0x08) != 0);
+            
+            // Map buttons using Bluepad32 button constants
+            amiga_joystick_port1_set_button(AJ1_FIRE, (bt_gamepad.buttons & 0x01) != 0);      // BUTTON_A
+            amiga_joystick_port1_set_button(AJ1_BUTTON2, (bt_gamepad.buttons & 0x02) != 0);  // BUTTON_B
+            amiga_joystick_port1_set_button(AJ1_BUTTON3, (bt_gamepad.buttons & 0x04) != 0 || (bt_gamepad.buttons & 0x08) != 0);  // BUTTON_X or BUTTON_Y
+        }
+    }
+    
+    #undef CONVERT_GAMEPAD_TO_DIRECTIONS
 }
 
 // Optimized batched Bluepad32 processing

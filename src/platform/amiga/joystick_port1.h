@@ -35,5 +35,12 @@ void amiga_joystick_port1_set_direction(enum amiga_joystick_port1_direction dir,
 void amiga_joystick_port1_set_button(enum amiga_joystick_port1_buttons button, bool pressed);
 void amiga_joystick_port1_set_from_mouse(int8_t x, int8_t y, uint8_t buttons);
 
+// Port 1 mode toggle functions
+// Port 1 can operate in two modes:
+// - MOUSE mode: Only mouse quadrature signals (default)
+// - JOYSTICK mode: Mouse input is converted to joystick signals
+void amiga_joystick_port1_toggle_mode(void);
+bool amiga_joystick_port1_is_joystick_mode(void);
+
 #endif
 
