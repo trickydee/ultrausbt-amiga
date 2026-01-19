@@ -58,6 +58,7 @@ int main(void)
            SOFTWARE_VERSION_PATCH, SOFTWARE_VERSION_BUILD);
     printf("========================================\n");
     printf("Port 1 toggle: Shift + Left Amiga + J\n");
+    printf("Llamatron mode: Shift + Left Amiga + L\n");
     printf("========================================\n\n");
 
     // initialise the i2c controller and send the init sequence to the display

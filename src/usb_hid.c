@@ -35,6 +35,12 @@
 // maximum number of reports per hid device
 #define MAX_REPORT 4
 
+// Llamatron twinstick mode state
+// When enabled, a single gamepad's left stick controls Port 1, right stick controls Port 2
+static bool llamatron_mode = false;
+static bool llamatron_active = false;  // True when mode is active and conditions are met
+static bool llamatron_restore_joystick_mode = false;  // Track if port 1 was in joystick mode before enabling Llamatron
+
 // repetitive modifier check macros (@todo probably better iterated in future?)
 #define _SINGLE_MOD_CHECK(hid_mod) \
     if ((report->modifier & hid_mod) && !(last_report.modifier & hid_mod)) \
@@ -429,20 +435,31 @@ static void handle_event_keyboard(uint8_t dev_addr, uint8_t instance, hid_keyboa
     // This combination toggles between mouse-only and joystick mode on port 1
     static bool last_combo_pressed = false;
     
+    // Check for Llamatron mode toggle: Shift + Left Amiga + L
+    // This combination toggles Llamatron twinstick mode
+    static bool last_llamatron_combo_pressed = false;
+    
     bool shift_pressed = (report->modifier & (KEYBOARD_MODIFIER_LEFTSHIFT | KEYBOARD_MODIFIER_RIGHTSHIFT)) != 0;
     bool lamiga_pressed = (report->modifier & KEYBOARD_MODIFIER_LEFTGUI) != 0;
     bool j_pressed = false;
+    bool l_pressed = false;
     
     // Check if J key is pressed (HID keycode 0x0D = J)
+    // Check if L key is pressed (HID keycode 0x0F = L)
     for (pos = 0; pos < 6; pos++) {
         if (report->keycode[pos] == 0x0D) {  // HID keycode for J
             j_pressed = true;
-            break;
+        }
+        if (report->keycode[pos] == 0x0F) {  // HID keycode for L
+            l_pressed = true;
         }
     }
     
-    // Check if all three keys are pressed together
+    // Check if all three keys are pressed together for Port 1 toggle
     bool combo_active = shift_pressed && lamiga_pressed && j_pressed;
+    
+    // Check if all three keys are pressed together for Llamatron toggle
+    bool llamatron_combo_active = shift_pressed && lamiga_pressed && l_pressed;
     
     // Debug: Print when any combo key is pressed or when combo is active
     if (j_pressed || shift_pressed || lamiga_pressed || combo_active) {
@@ -456,7 +473,7 @@ static void handle_event_keyboard(uint8_t dev_addr, uint8_t instance, hid_keyboa
         ahprintf("\n");
     }
     
-    // Toggle mode on key press (when combo is newly pressed, not on release) to avoid multiple toggles
+    // Toggle Port 1 mode on key press (when combo is newly pressed, not on release) to avoid multiple toggles
     if (combo_active && !last_combo_pressed) {
         bool old_mode = amiga_joystick_port1_is_joystick_mode();
         amiga_joystick_port1_toggle_mode();
@@ -467,14 +484,44 @@ static void handle_event_keyboard(uint8_t dev_addr, uint8_t instance, hid_keyboa
         // Don't send the J key to Amiga when used in toggle combination
     }
     
+    // Toggle Llamatron mode on key press (when combo is newly pressed, not on release)
+    if (llamatron_combo_active && !last_llamatron_combo_pressed) {
+        llamatron_mode = !llamatron_mode;
+        if (llamatron_mode) {
+            // When enabling Llamatron mode, save current state and activate joystick mode on port 1
+            llamatron_restore_joystick_mode = amiga_joystick_port1_is_joystick_mode();
+            if (!llamatron_restore_joystick_mode) {
+                amiga_joystick_port1_toggle_mode();
+            }
+            ahprintf("[LLAMATRON] *** Llamatron mode ENABLED (was %s mode) ***\n", 
+                     llamatron_restore_joystick_mode ? "JOYSTICK" : "MOUSE");
+        } else {
+            llamatron_active = false;
+            // Restore previous port 1 mode
+            bool current_mode = amiga_joystick_port1_is_joystick_mode();
+            if (current_mode != llamatron_restore_joystick_mode) {
+                amiga_joystick_port1_toggle_mode();
+            }
+            ahprintf("[LLAMATRON] *** Llamatron mode DISABLED (restored %s mode) ***\n",
+                     llamatron_restore_joystick_mode ? "JOYSTICK" : "MOUSE");
+        }
+        // Don't send the L key to Amiga when used in toggle combination
+    }
+    
     last_combo_pressed = combo_active;
+    last_llamatron_combo_pressed = llamatron_combo_active;
 
     // check to see if a keypress is a new keypress or in the last report
     for (pos = 0; pos < 6; pos++) {
         if (report->keycode[pos] && !key_pressed(&last_report, report->keycode[pos])) {
-            // Skip J key if it's part of the toggle combination
+            // Skip J key if it's part of the Port 1 toggle combination
             if (combo_active && report->keycode[pos] == 0x0D) {  // HID keycode for J
                 ahprintf("[TOGGLE] Blocking J key from being sent to Amiga (toggle combo active)\n");
+                continue;
+            }
+            // Skip L key if it's part of the Llamatron toggle combination
+            if (llamatron_combo_active && report->keycode[pos] == 0x0F) {  // HID keycode for L
+                ahprintf("[LLAMATRON] Blocking L key from being sent to Amiga (toggle combo active)\n");
                 continue;
             }
             // this is a new keypress; pass on to the amiga as a down event
@@ -484,9 +531,14 @@ static void handle_event_keyboard(uint8_t dev_addr, uint8_t instance, hid_keyboa
         }
 
         if (last_report.keycode[pos] && !key_pressed(report, last_report.keycode[pos])) {
-            // Skip J key if it was part of the toggle combination
+            // Skip J key if it was part of the Port 1 toggle combination
             if (last_combo_pressed && last_report.keycode[pos] == 0x0D) {  // HID keycode for J
                 ahprintf("[TOGGLE] Blocking J key release from being sent to Amiga\n");
+                continue;
+            }
+            // Skip L key if it was part of the Llamatron toggle combination
+            if (last_llamatron_combo_pressed && last_report.keycode[pos] == 0x0F) {  // HID keycode for L
+                ahprintf("[LLAMATRON] Blocking L key release from being sent to Amiga\n");
                 continue;
             }
             // key has been released; send "up" code to amiga
@@ -592,20 +644,30 @@ void process_bluepad32_keyboard(void)
             // This combination toggles between mouse-only and joystick mode on port 1
             static bool bt_last_combo_pressed = false;
             
+            // Check for Llamatron mode toggle: Shift + Left Amiga + L
+            // This combination toggles Llamatron twinstick mode
+            static bool bt_last_llamatron_combo_pressed = false;
+            
             bool shift_pressed = (bt_kb.modifiers & (KEYBOARD_MODIFIER_LEFTSHIFT | KEYBOARD_MODIFIER_RIGHTSHIFT)) != 0;
             bool lamiga_pressed = (bt_kb.modifiers & KEYBOARD_MODIFIER_LEFTGUI) != 0;
             bool j_pressed = false;
+            bool l_pressed = false;
             
             // Check if J key is pressed (HID keycode 0x0D = J)
             for (int i = 0; i < 10; i++) {
                 if (bt_kb.pressed_keys[i] == 0x0D) {  // HID keycode for J
                     j_pressed = true;
-                    break;
+                }
+                if (bt_kb.pressed_keys[i] == 0x0F) {  // HID keycode for L
+                    l_pressed = true;
                 }
             }
             
-            // Check if all three keys are pressed together
+            // Check if all three keys are pressed together for Port 1 toggle
             bool combo_active = shift_pressed && lamiga_pressed && j_pressed;
+            
+            // Check if all three keys are pressed together for Llamatron toggle
+            bool llamatron_combo_active = shift_pressed && lamiga_pressed && l_pressed;
             
             // Debug: Print when any combo key is pressed or when combo is active
             if (j_pressed || shift_pressed || lamiga_pressed || combo_active) {
@@ -619,7 +681,7 @@ void process_bluepad32_keyboard(void)
                 ahprintf("\n");
             }
             
-            // Toggle mode on key press (when combo is newly pressed)
+            // Toggle Port 1 mode on key press (when combo is newly pressed)
             if (combo_active && !bt_last_combo_pressed) {
                 bool old_mode = amiga_joystick_port1_is_joystick_mode();
                 amiga_joystick_port1_toggle_mode();
@@ -629,7 +691,31 @@ void process_bluepad32_keyboard(void)
                          new_mode ? "JOYSTICK" : "MOUSE");
             }
             
+            // Toggle Llamatron mode on key press (when combo is newly pressed)
+            if (llamatron_combo_active && !bt_last_llamatron_combo_pressed) {
+                llamatron_mode = !llamatron_mode;
+                if (llamatron_mode) {
+                    // When enabling Llamatron mode, save current state and activate joystick mode on port 1
+                    llamatron_restore_joystick_mode = amiga_joystick_port1_is_joystick_mode();
+                    if (!llamatron_restore_joystick_mode) {
+                        amiga_joystick_port1_toggle_mode();
+                    }
+                    ahprintf("[LLAMATRON-BT] *** Llamatron mode ENABLED (was %s mode) ***\n", 
+                             llamatron_restore_joystick_mode ? "JOYSTICK" : "MOUSE");
+                } else {
+                    llamatron_active = false;
+                    // Restore previous port 1 mode
+                    bool current_mode = amiga_joystick_port1_is_joystick_mode();
+                    if (current_mode != llamatron_restore_joystick_mode) {
+                        amiga_joystick_port1_toggle_mode();
+                    }
+                    ahprintf("[LLAMATRON-BT] *** Llamatron mode DISABLED (restored %s mode) ***\n",
+                             llamatron_restore_joystick_mode ? "JOYSTICK" : "MOUSE");
+                }
+            }
+            
             bt_last_combo_pressed = combo_active;
+            bt_last_llamatron_combo_pressed = llamatron_combo_active;
             
             // Convert Bluepad32 keyboard format to HID format
             hid_keyboard_report_t kb_report;
@@ -637,13 +723,19 @@ void process_bluepad32_keyboard(void)
             kb_report.reserved = 0;
             
             // Copy pressed keys (up to 6 keys for HID standard)
-            // Skip J key if it's being used for toggle
+            // Skip J key if it's being used for Port 1 toggle
+            // Skip L key if it's being used for Llamatron toggle
             int key_count = 0;
             for (int i = 0; i < 10 && key_count < 6; i++) {
                 if (bt_kb.pressed_keys[i] != 0) {
-                    // Skip J key (HID 0x0D) if it's being used for toggle
+                    // Skip J key (HID 0x0D) if it's being used for Port 1 toggle
                     if (combo_active && bt_kb.pressed_keys[i] == 0x0D) {
                         ahprintf("[TOGGLE-BT] Blocking J key from being sent to Amiga\n");
+                        continue;
+                    }
+                    // Skip L key (HID 0x0F) if it's being used for Llamatron toggle
+                    if (llamatron_combo_active && bt_kb.pressed_keys[i] == 0x0F) {
+                        ahprintf("[LLAMATRON-BT] Blocking L key from being sent to Amiga\n");
                         continue;
                     }
                     kb_report.keycode[key_count++] = bt_kb.pressed_keys[i];
@@ -735,50 +827,97 @@ void process_bluepad32_gamepad(void)
         dir_bits; \
     })
     
-    // Process first gamepad -> Joystick Port 2 (always active)
-    if (bt_gamepad_count > 0) {
+    // Check if Llamatron mode is active (requires exactly one gamepad and port 1 in joystick mode)
+    if (llamatron_mode && bt_gamepad_count == 1 && amiga_joystick_port1_is_joystick_mode()) {
         bool has_data = bluepad32_get_gamepad(0, &bt_gamepad);
         
         if (has_data) {
-            uint8_t direction_bits = CONVERT_GAMEPAD_TO_DIRECTIONS(&bt_gamepad, ANALOG_STICK_DEADZONE);
+            llamatron_active = true;
             
-            // Map direction bits to joystick port 2
-            // Bit pattern: bit 0=UP, bit 1=DOWN, bit 2=LEFT, bit 3=RIGHT
-            amiga_joystick_port2_set_direction(AJ2_UP,    (direction_bits & 0x01) != 0);
-            amiga_joystick_port2_set_direction(AJ2_DOWN,  (direction_bits & 0x02) != 0);
-            amiga_joystick_port2_set_direction(AJ2_LEFT,  (direction_bits & 0x04) != 0);
-            amiga_joystick_port2_set_direction(AJ2_RIGHT, (direction_bits & 0x08) != 0);
+            // Helper macro to convert right stick to direction bits
+            #define CONVERT_RIGHT_STICK_TO_DIRECTIONS(gp, deadzone) ({ \
+                uint8_t dir_bits = 0; \
+                int32_t rx = (gp)->axis_rx; \
+                int32_t ry = (gp)->axis_ry; \
+                if (rx < -(deadzone)) dir_bits |= 0x04;  /* LEFT */ \
+                if (rx > (deadzone))  dir_bits |= 0x08;  /* RIGHT */ \
+                if (ry < -(deadzone)) dir_bits |= 0x01;  /* UP */ \
+                if (ry > (deadzone))  dir_bits |= 0x02;  /* DOWN */ \
+                dir_bits; \
+            })
             
-            // Map buttons using Bluepad32 button constants
-            // BUTTON_A = BIT(0) = 1 (Fire)
-            // BUTTON_B = BIT(1) = 2 (Button 2)
-            // BUTTON_X = BIT(2) = 4 (Button 3)
-            // BUTTON_Y = BIT(3) = 8 (Button 3 alternative)
-            amiga_joystick_port2_set_button(AJ2_FIRE, (bt_gamepad.buttons & 0x01) != 0);      // BUTTON_A
-            amiga_joystick_port2_set_button(AJ2_BUTTON2, (bt_gamepad.buttons & 0x02) != 0);  // BUTTON_B
-            // Use X or Y for Button 3
-            amiga_joystick_port2_set_button(AJ2_BUTTON3, (bt_gamepad.buttons & 0x04) != 0 || (bt_gamepad.buttons & 0x08) != 0);  // BUTTON_X or BUTTON_Y
+            // Port 2: Left stick (axis_x, axis_y) - Movement (D-pad has priority)
+            uint8_t port2_direction_bits = CONVERT_GAMEPAD_TO_DIRECTIONS(&bt_gamepad, ANALOG_STICK_DEADZONE);
+            amiga_joystick_port2_set_direction(AJ2_UP,    (port2_direction_bits & 0x01) != 0);
+            amiga_joystick_port2_set_direction(AJ2_DOWN,  (port2_direction_bits & 0x02) != 0);
+            amiga_joystick_port2_set_direction(AJ2_LEFT,  (port2_direction_bits & 0x04) != 0);
+            amiga_joystick_port2_set_direction(AJ2_RIGHT, (port2_direction_bits & 0x08) != 0);
+            
+            // Port 2 fire: BUTTON_B (movement stick fire button)
+            amiga_joystick_port2_set_button(AJ2_FIRE, (bt_gamepad.buttons & 0x02) != 0);  // BUTTON_B
+            
+            // Port 1: Right stick (axis_rx, axis_ry) - Fire direction
+            uint8_t port1_direction_bits = CONVERT_RIGHT_STICK_TO_DIRECTIONS(&bt_gamepad, ANALOG_STICK_DEADZONE);
+            amiga_joystick_port1_set_direction(AJ1_UP,    (port1_direction_bits & 0x01) != 0);
+            amiga_joystick_port1_set_direction(AJ1_DOWN,  (port1_direction_bits & 0x02) != 0);
+            amiga_joystick_port1_set_direction(AJ1_LEFT,  (port1_direction_bits & 0x04) != 0);
+            amiga_joystick_port1_set_direction(AJ1_RIGHT, (port1_direction_bits & 0x08) != 0);
+            
+            // Port 1 fire: BUTTON_A (fire direction stick fire button)
+            amiga_joystick_port1_set_button(AJ1_FIRE, (bt_gamepad.buttons & 0x01) != 0);  // BUTTON_A
+            
+            #undef CONVERT_RIGHT_STICK_TO_DIRECTIONS
+        } else {
+            llamatron_active = false;
         }
-    }
-    
-    // Process second gamepad -> Joystick Port 1 (only if Port 1 is in joystick mode)
-    if (bt_gamepad_count > 1 && amiga_joystick_port1_is_joystick_mode()) {
-        bool has_data = bluepad32_get_gamepad(1, &bt_gamepad);
+    } else {
+        llamatron_active = false;
         
-        if (has_data) {
-            uint8_t direction_bits = CONVERT_GAMEPAD_TO_DIRECTIONS(&bt_gamepad, ANALOG_STICK_DEADZONE);
+        // Normal mode: Process first gamepad -> Joystick Port 2 (always active)
+        if (bt_gamepad_count > 0) {
+            bool has_data = bluepad32_get_gamepad(0, &bt_gamepad);
             
-            // Map direction bits to joystick port 1
-            // Bit pattern: bit 0=UP, bit 1=DOWN, bit 2=LEFT, bit 3=RIGHT
-            amiga_joystick_port1_set_direction(AJ1_UP,    (direction_bits & 0x01) != 0);
-            amiga_joystick_port1_set_direction(AJ1_DOWN,  (direction_bits & 0x02) != 0);
-            amiga_joystick_port1_set_direction(AJ1_LEFT,  (direction_bits & 0x04) != 0);
-            amiga_joystick_port1_set_direction(AJ1_RIGHT, (direction_bits & 0x08) != 0);
+            if (has_data) {
+                uint8_t direction_bits = CONVERT_GAMEPAD_TO_DIRECTIONS(&bt_gamepad, ANALOG_STICK_DEADZONE);
+                
+                // Map direction bits to joystick port 2
+                // Bit pattern: bit 0=UP, bit 1=DOWN, bit 2=LEFT, bit 3=RIGHT
+                amiga_joystick_port2_set_direction(AJ2_UP,    (direction_bits & 0x01) != 0);
+                amiga_joystick_port2_set_direction(AJ2_DOWN,  (direction_bits & 0x02) != 0);
+                amiga_joystick_port2_set_direction(AJ2_LEFT,  (direction_bits & 0x04) != 0);
+                amiga_joystick_port2_set_direction(AJ2_RIGHT, (direction_bits & 0x08) != 0);
+                
+                // Map buttons using Bluepad32 button constants
+                // BUTTON_A = BIT(0) = 1 (Fire)
+                // BUTTON_B = BIT(1) = 2 (Button 2)
+                // BUTTON_X = BIT(2) = 4 (Button 3)
+                // BUTTON_Y = BIT(3) = 8 (Button 3 alternative)
+                amiga_joystick_port2_set_button(AJ2_FIRE, (bt_gamepad.buttons & 0x01) != 0);      // BUTTON_A
+                amiga_joystick_port2_set_button(AJ2_BUTTON2, (bt_gamepad.buttons & 0x02) != 0);  // BUTTON_B
+                // Use X or Y for Button 3
+                amiga_joystick_port2_set_button(AJ2_BUTTON3, (bt_gamepad.buttons & 0x04) != 0 || (bt_gamepad.buttons & 0x08) != 0);  // BUTTON_X or BUTTON_Y
+            }
+        }
+        
+        // Process second gamepad -> Joystick Port 1 (only if Port 1 is in joystick mode)
+        if (bt_gamepad_count > 1 && amiga_joystick_port1_is_joystick_mode()) {
+            bool has_data = bluepad32_get_gamepad(1, &bt_gamepad);
             
-            // Map buttons using Bluepad32 button constants
-            amiga_joystick_port1_set_button(AJ1_FIRE, (bt_gamepad.buttons & 0x01) != 0);      // BUTTON_A
-            amiga_joystick_port1_set_button(AJ1_BUTTON2, (bt_gamepad.buttons & 0x02) != 0);  // BUTTON_B
-            amiga_joystick_port1_set_button(AJ1_BUTTON3, (bt_gamepad.buttons & 0x04) != 0 || (bt_gamepad.buttons & 0x08) != 0);  // BUTTON_X or BUTTON_Y
+            if (has_data) {
+                uint8_t direction_bits = CONVERT_GAMEPAD_TO_DIRECTIONS(&bt_gamepad, ANALOG_STICK_DEADZONE);
+                
+                // Map direction bits to joystick port 1
+                // Bit pattern: bit 0=UP, bit 1=DOWN, bit 2=LEFT, bit 3=RIGHT
+                amiga_joystick_port1_set_direction(AJ1_UP,    (direction_bits & 0x01) != 0);
+                amiga_joystick_port1_set_direction(AJ1_DOWN,  (direction_bits & 0x02) != 0);
+                amiga_joystick_port1_set_direction(AJ1_LEFT,  (direction_bits & 0x04) != 0);
+                amiga_joystick_port1_set_direction(AJ1_RIGHT, (direction_bits & 0x08) != 0);
+                
+                // Map buttons using Bluepad32 button constants
+                amiga_joystick_port1_set_button(AJ1_FIRE, (bt_gamepad.buttons & 0x01) != 0);      // BUTTON_A
+                amiga_joystick_port1_set_button(AJ1_BUTTON2, (bt_gamepad.buttons & 0x02) != 0);  // BUTTON_B
+                amiga_joystick_port1_set_button(AJ1_BUTTON3, (bt_gamepad.buttons & 0x04) != 0 || (bt_gamepad.buttons & 0x08) != 0);  // BUTTON_X or BUTTON_Y
+            }
         }
     }
     
