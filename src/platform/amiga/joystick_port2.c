@@ -14,56 +14,29 @@
 
 #include "joystick_port2.h"
 #include "config.h"
+#include "platform/common/gpio_util.h"
 #include <hardware/gpio.h>
 #include <stdio.h>
 
 #if HIDPICO_REVISION == 5
 
-// Helper function to set GPIO (active low)
-// value=true means signal is active (LOW/0), value=false means inactive (HIGH/1)
-static void _aj2_gpio_set(uint gpio, bool value)
-{
-    if (value) {
-        // Active: set to LOW (0)
-        gpio_put(gpio, 0);
-        gpio_set_dir(gpio, GPIO_OUT);
-    } else {
-        // Inactive: set to HIGH (1) by setting as input (pulled high)
-        gpio_set_dir(gpio, GPIO_IN);
-    }
-}
-
 void amiga_joystick_port2_init(void)
 {
-    // Initialize GPIO pins for Joystick Port 2
-    gpio_init(QM2_AMIGA_H);
-    gpio_init(QM2_AMIGA_V);
-    gpio_init(QM2_AMIGA_HQ);
-    gpio_init(QM2_AMIGA_VQ);
-    gpio_init(QM2_AMIGA_B1);
-    gpio_init(QM2_AMIGA_B2);
-    gpio_init(QM2_AMIGA_B3);
-
-    gpio_set_function(QM2_AMIGA_H, GPIO_FUNC_SIO);
-    gpio_set_function(QM2_AMIGA_V, GPIO_FUNC_SIO);
-    gpio_set_function(QM2_AMIGA_HQ, GPIO_FUNC_SIO);
-    gpio_set_function(QM2_AMIGA_VQ, GPIO_FUNC_SIO);
-    gpio_set_function(QM2_AMIGA_B1, GPIO_FUNC_SIO);
-    gpio_set_function(QM2_AMIGA_B2, GPIO_FUNC_SIO);
-    gpio_set_function(QM2_AMIGA_B3, GPIO_FUNC_SIO);
-
+    // Initialize GPIO pins for Joystick Port 2 using optimized utility
     // All signals are active low, so set all high (inactive) initially
-    _aj2_gpio_set(QM2_AMIGA_H, false);   // No horizontal direction
-    _aj2_gpio_set(QM2_AMIGA_V, false);   // No vertical direction
-    _aj2_gpio_set(QM2_AMIGA_HQ, false);  // No horizontal quadrature
-    _aj2_gpio_set(QM2_AMIGA_VQ, false);  // No vertical quadrature
-    _aj2_gpio_set(QM2_AMIGA_B1, false);  // Fire button not pressed
-    _aj2_gpio_set(QM2_AMIGA_B2, false);  // Button 2 not pressed
-    _aj2_gpio_set(QM2_AMIGA_B3, false);  // Button 3 not pressed
+    amiga_gpio_init_active_low(QM2_AMIGA_H, false);   // No horizontal direction
+    amiga_gpio_init_active_low(QM2_AMIGA_V, false);   // No vertical direction
+    amiga_gpio_init_active_low(QM2_AMIGA_HQ, false);  // No horizontal quadrature
+    amiga_gpio_init_active_low(QM2_AMIGA_VQ, false);  // No vertical quadrature
+    amiga_gpio_init_active_low(QM2_AMIGA_B1, false);  // Fire button not pressed
+    amiga_gpio_init_active_low(QM2_AMIGA_B2, false);  // Button 2 not pressed
+    amiga_gpio_init_active_low(QM2_AMIGA_B3, false);  // Button 3 not pressed
 }
 
-// Track current direction state to avoid conflicts
+// Track current direction state to avoid conflicts and optimize GPIO updates
 static bool dir2_up = false, dir2_down = false, dir2_left = false, dir2_right = false;
+// Track previous GPIO states to only update changed pins (optimization)
+static bool prev_dir2_up = false, prev_dir2_down = false, prev_dir2_left = false, prev_dir2_right = false;
 
 void amiga_joystick_port2_set_direction(enum amiga_joystick_port2_direction dir, bool active)
 {
@@ -83,25 +56,50 @@ void amiga_joystick_port2_set_direction(enum amiga_joystick_port2_direction dir,
     // GPIO 21 (Pin 4) = RIGHT
     // Each pin is independent: LOW = active (direction pressed), HIGH = inactive (released)
     
-    // Set each direction independently using the correct GPIO pins
-    // Swapped: LEFT and DOWN GPIOs (matching documented pinout)
-    _aj2_gpio_set(QM2_AMIGA_V, dir2_up);      // GPIO 27 = UP
-    _aj2_gpio_set(QM2_AMIGA_H, dir2_down);    // GPIO 26 = DOWN
-    _aj2_gpio_set(QM2_AMIGA_VQ, dir2_left);   // GPIO 22 = LEFT
-    _aj2_gpio_set(QM2_AMIGA_HQ, dir2_right);  // GPIO 21 = RIGHT
+    // Optimized: Only update GPIO pins that have changed state
+    // This reduces GPIO operations by ~75% in typical usage (only 1 direction changes at a time)
+    if (dir2_up != prev_dir2_up) {
+        amiga_gpio_set_active_low(QM2_AMIGA_V, dir2_up);      // GPIO 27 = UP
+        prev_dir2_up = dir2_up;
+    }
+    if (dir2_down != prev_dir2_down) {
+        amiga_gpio_set_active_low(QM2_AMIGA_H, dir2_down);    // GPIO 26 = DOWN
+        prev_dir2_down = dir2_down;
+    }
+    if (dir2_left != prev_dir2_left) {
+        amiga_gpio_set_active_low(QM2_AMIGA_VQ, dir2_left);   // GPIO 22 = LEFT
+        prev_dir2_left = dir2_left;
+    }
+    if (dir2_right != prev_dir2_right) {
+        amiga_gpio_set_active_low(QM2_AMIGA_HQ, dir2_right);  // GPIO 21 = RIGHT
+        prev_dir2_right = dir2_right;
+    }
 }
+
+// Track previous button states to only update changed buttons (optimization)
+static bool prev_button1 = false, prev_button2 = false, prev_button3 = false;
 
 void amiga_joystick_port2_set_button(enum amiga_joystick_port2_buttons button, bool pressed)
 {
+    // Optimized: Only update GPIO if button state has changed
     switch (button) {
         case AJ2_FIRE:
-            _aj2_gpio_set(QM2_AMIGA_B1, pressed);
+            if (pressed != prev_button1) {
+                amiga_gpio_set_active_low(QM2_AMIGA_B1, pressed);
+                prev_button1 = pressed;
+            }
             break;
         case AJ2_BUTTON2:
-            _aj2_gpio_set(QM2_AMIGA_B2, pressed);
+            if (pressed != prev_button2) {
+                amiga_gpio_set_active_low(QM2_AMIGA_B2, pressed);
+                prev_button2 = pressed;
+            }
             break;
         case AJ2_BUTTON3:
-            _aj2_gpio_set(QM2_AMIGA_B3, pressed);
+            if (pressed != prev_button3) {
+                amiga_gpio_set_active_low(QM2_AMIGA_B3, pressed);
+                prev_button3 = pressed;
+            }
             break;
     }
 }
@@ -139,13 +137,17 @@ void amiga_joystick_port2_reset(void)
 {
     // Reset all directions and buttons
     dir2_up = dir2_down = dir2_left = dir2_right = false;
-    _aj2_gpio_set(QM2_AMIGA_H, false);
-    _aj2_gpio_set(QM2_AMIGA_V, false);
-    _aj2_gpio_set(QM2_AMIGA_HQ, false);
-    _aj2_gpio_set(QM2_AMIGA_VQ, false);
-    _aj2_gpio_set(QM2_AMIGA_B1, false);
-    _aj2_gpio_set(QM2_AMIGA_B2, false);
-    _aj2_gpio_set(QM2_AMIGA_B3, false);
+    prev_dir2_up = prev_dir2_down = prev_dir2_left = prev_dir2_right = false;
+    prev_button1 = prev_button2 = prev_button3 = false;
+    
+    // Use optimized GPIO utility - will only update if state actually changes
+    amiga_gpio_set_active_low(QM2_AMIGA_H, false);
+    amiga_gpio_set_active_low(QM2_AMIGA_V, false);
+    amiga_gpio_set_active_low(QM2_AMIGA_HQ, false);
+    amiga_gpio_set_active_low(QM2_AMIGA_VQ, false);
+    amiga_gpio_set_active_low(QM2_AMIGA_B1, false);
+    amiga_gpio_set_active_low(QM2_AMIGA_B2, false);
+    amiga_gpio_set_active_low(QM2_AMIGA_B3, false);
 }
 
 #else

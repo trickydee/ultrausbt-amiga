@@ -443,6 +443,7 @@ static void handle_event_keyboard(uint8_t dev_addr, uint8_t instance, hid_keyboa
 // Bluepad32 mouse processing
 // Converts uni_mouse_t format and processes it using the existing mouse handling logic
 // This allows Bluetooth mice to use the same processing logic as USB mice
+// Note: Device count check is now done in process_bluepad32_devices() for efficiency
 void process_bluepad32_mouse(void)
 {
     // uni_mouse_t structure (matches bluepad32 format)
@@ -486,6 +487,7 @@ void process_bluepad32_mouse(void)
 // Bluepad32 keyboard processing
 // Converts uni_keyboard_t format to hid_keyboard_report_t format and processes it
 // This allows Bluetooth keyboards to use the same processing logic as USB keyboards
+// Note: Device count check is now done in process_bluepad32_devices() for efficiency
 void process_bluepad32_keyboard(void)
 {
     // uni_keyboard_t structure (matches bluepad32 format)
@@ -607,18 +609,49 @@ void process_bluepad32_gamepad(void)
             // Only use analog stick if D-pad is not active (direction_bits == 0)
             // Analog stick calibration (based on Atari project patterns):
             // - Bluepad32 axis range: -512 to 511 (center = 0)
-            // - Deadzone: 120 (~23% of range, similar to Stadia's 15% on -128 range)
-            // - Pattern matches Atari: check absolute values against deadzone around center (0)
-            const int32_t ANALOG_STICK_DEADZONE = 120;  // ~23% of -512 range (calibrated for drift prevention)
+            // - Deadzone: 60 (~12% of range) - reduced for better responsiveness
+            // - Dominant axis check: prevents false diagonals when one axis has drift
+            const int32_t ANALOG_STICK_DEADZONE = 60;  // ~12% of -512 range (balanced for responsiveness and drift prevention)
+            const int32_t DOMINANT_AXIS_RATIO = 2;    // One axis must be 2x stronger to ignore the other (prevents false diagonals)
+            
             if (direction_bits == 0) {
-                // Apply deadzone check - only trigger if movement exceeds threshold
-                // Pattern matches Atari project: value < -deadzone or value > deadzone
-                if (bt_gamepad.axis_x < -ANALOG_STICK_DEADZONE) direction_bits |= 0x04;  // LEFT (negative X)
-                if (bt_gamepad.axis_x > ANALOG_STICK_DEADZONE)  direction_bits |= 0x08;  // RIGHT (positive X)
-                // Y-axis: Bluepad32 uses negative Y for UP (stick forward), positive Y for DOWN (stick back)
-                // This matches typical gamepad convention where forward/up is negative
-                if (bt_gamepad.axis_y < -ANALOG_STICK_DEADZONE) direction_bits |= 0x01;  // UP (negative Y = stick up)
-                if (bt_gamepad.axis_y > ANALOG_STICK_DEADZONE)  direction_bits |= 0x02;  // DOWN (positive Y = stick down)
+                // Get absolute values for deadzone and dominant axis checks
+                int32_t abs_x = (bt_gamepad.axis_x < 0) ? -bt_gamepad.axis_x : bt_gamepad.axis_x;
+                int32_t abs_y = (bt_gamepad.axis_y < 0) ? -bt_gamepad.axis_y : bt_gamepad.axis_y;
+                
+                // Check if either axis exceeds deadzone (matches Atari pattern)
+                if (abs_x > ANALOG_STICK_DEADZONE || abs_y > ANALOG_STICK_DEADZONE) {
+                    // Dominant axis check: prevent false diagonals
+                    // If one axis is much stronger (2x), ignore the weaker axis completely
+                    // This prevents small drift in one axis from causing false diagonals
+                    bool use_x = true;
+                    bool use_y = true;
+                    
+                    if (abs_x > 0 && abs_y > 0) {
+                        // Both axes have movement - check which is dominant
+                        if (abs_x > (abs_y * DOMINANT_AXIS_RATIO)) {
+                            // X is dominant - ignore Y completely to prevent false diagonal
+                            use_y = false;
+                        } else if (abs_y > (abs_x * DOMINANT_AXIS_RATIO)) {
+                            // Y is dominant - ignore X completely to prevent false diagonal
+                            use_x = false;
+                        }
+                        // If neither is 2x stronger, use both (true diagonal movement)
+                    }
+                    
+                    // Apply direction mapping with dominant axis filtering
+                    if (use_x) {
+                        if (bt_gamepad.axis_x < -ANALOG_STICK_DEADZONE) direction_bits |= 0x04;  // LEFT (negative X)
+                        if (bt_gamepad.axis_x > ANALOG_STICK_DEADZONE)  direction_bits |= 0x08;  // RIGHT (positive X)
+                    }
+                    
+                    if (use_y) {
+                        // Y-axis: Bluepad32 uses negative Y for UP (stick forward), positive Y for DOWN (stick back)
+                        // This matches typical gamepad convention where forward/up is negative
+                        if (bt_gamepad.axis_y < -ANALOG_STICK_DEADZONE) direction_bits |= 0x01;  // UP (negative Y = stick up)
+                        if (bt_gamepad.axis_y > ANALOG_STICK_DEADZONE)  direction_bits |= 0x02;  // DOWN (positive Y = stick down)
+                    }
+                }
             }
             
             // Map direction bits to joystick port 2
@@ -640,6 +673,31 @@ void process_bluepad32_gamepad(void)
         }
     }
 }
+
+// Optimized batched Bluepad32 processing
+// Checks device counts first and only processes connected devices
+// This reduces overhead when no Bluetooth devices are connected
+// Placed after all individual processing functions to avoid forward declaration issues
+void process_bluepad32_devices(void)
+{
+    // Early return if no devices are connected (avoids function call overhead)
+    int kb_count = bluepad32_get_keyboard_count();
+    int mouse_count = bluepad32_get_mouse_count();
+    int gamepad_count = bluepad32_get_gamepad_count();
+    
+    // Only process devices that are actually connected
+    if (kb_count > 0) {
+        process_bluepad32_keyboard();
+    }
+    
+    if (mouse_count > 0) {
+        process_bluepad32_mouse();
+    }
+    
+    if (gamepad_count > 0) {
+        process_bluepad32_gamepad();
+    }
+}
 #else
 void process_bluepad32_keyboard(void)
 {
@@ -652,6 +710,11 @@ void process_bluepad32_mouse(void)
 }
 
 void process_bluepad32_gamepad(void)
+{
+    // No-op when bluepad32 is disabled
+}
+
+void process_bluepad32_devices(void)
 {
     // No-op when bluepad32 is disabled
 }

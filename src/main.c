@@ -29,9 +29,9 @@
 
 // defined within usb_hid.c
 extern void hid_app_task(void);
-extern void process_bluepad32_keyboard(void);
-extern void process_bluepad32_mouse(void);
-extern void process_bluepad32_gamepad(void);
+#if ENABLE_BLUEPAD32
+extern void process_bluepad32_devices(void);
+#endif
 
 // main entry point
 int main(void)
@@ -82,14 +82,9 @@ int main(void)
         // poll bluepad32 for Bluetooth events
         bluepad32_poll();
         
-        // process Bluetooth keyboard events
-        process_bluepad32_keyboard();
-        
-        // process Bluetooth mouse events
-        process_bluepad32_mouse();
-        
-        // process Bluetooth gamepad events (first gamepad mapped to joystick port 2)
-        process_bluepad32_gamepad();
+        // Optimized: batch process all Bluetooth devices with early returns
+        // Only processes devices that are actually connected, reducing overhead
+        process_bluepad32_devices();
 #endif
     }
 
