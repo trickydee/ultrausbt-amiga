@@ -16,6 +16,7 @@
 #include "platform/amiga/keyboard_serial_io.h"
 #include "platform/amiga/quad_mouse.h"
 #include "platform/amiga/joystick_port1.h"
+#include "platform/amiga/joystick_port2.h"
 #include "util/debug_cons.h"
 #include "util/output.h"
 
@@ -30,6 +31,7 @@
 extern void hid_app_task(void);
 extern void process_bluepad32_keyboard(void);
 extern void process_bluepad32_mouse(void);
+extern void process_bluepad32_gamepad(void);
 
 // main entry point
 int main(void)
@@ -61,6 +63,9 @@ int main(void)
     // initialize joystick port 1 (shares GPIO pins with mouse)
     amiga_joystick_port1_init();
 
+    // initialize joystick port 2 (dedicated GPIO pins for Revision 5)
+    amiga_joystick_port2_init();
+
 #if ENABLE_BLUEPAD32
     // initialize bluepad32 for Bluetooth keyboard support (Pico 2 W only)
     bluepad32_init();
@@ -82,6 +87,9 @@ int main(void)
         
         // process Bluetooth mouse events
         process_bluepad32_mouse();
+        
+        // process Bluetooth gamepad events (first gamepad mapped to joystick port 2)
+        process_bluepad32_gamepad();
 #endif
     }
 

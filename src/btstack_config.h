@@ -59,13 +59,14 @@
 #define MAX_NR_LE_DEVICE_DB_ENTRIES 16
 
 // Limit number of ACL/SCO Buffer to use by stack to avoid cyw43 shared bus overrun
-#define MAX_NR_CONTROLLER_ACL_BUFFERS 3
+// Increased from 3 to 4 to support keyboard + mouse + gamepad (3 devices)
+#define MAX_NR_CONTROLLER_ACL_BUFFERS 4
 #define MAX_NR_CONTROLLER_SCO_PACKETS 3
 
 // Enable and configure HCI Controller to Host Flow Control to avoid cyw43 shared bus overrun
 #define ENABLE_HCI_CONTROLLER_TO_HOST_FLOW_CONTROL
 #define HCI_HOST_ACL_PACKET_LEN 1024
-#define HCI_HOST_ACL_PACKET_NUM 3
+#define HCI_HOST_ACL_PACKET_NUM 4  // Increased from 3 to 4 for multiple devices
 #define HCI_HOST_SCO_PACKET_LEN 120
 #define HCI_HOST_SCO_PACKET_NUM 3
 

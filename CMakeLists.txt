@@ -17,7 +17,8 @@ add_compile_options(-Wall)
 add_compile_definitions(DEBUG_MESSAGES=1)
 
 # set the board revision (changes which pins are mapped to which ports)
-add_compile_definitions(HIDPICO_REVISION=4)
+# Revision 5 is required for joystick port 2 support
+add_compile_definitions(HIDPICO_REVISION=5)
 
 # Overclock Pico to 200 MHz (all boards, requires Pico SDK 2.1.1+)
 # The SDK will automatically adjust the regulator voltage to support this clock speed

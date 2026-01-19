@@ -585,57 +585,45 @@ void process_bluepad32_gamepad(void)
         
         if (has_data) {
             // Convert D-pad or analog stick to directions
-            // Use D-pad if available, otherwise use left analog stick
-            int32_t x = 0, y = 0;
+            // Pattern matches Atari code: check D-pad bits individually, use analog only if D-pad is zero
+            // Bluepad32 D-pad constants: UP=BIT(0)=0x01, DOWN=BIT(1)=0x02, RIGHT=BIT(2)=0x04, LEFT=BIT(3)=0x08
+            uint8_t direction_bits = 0;
             
-            // Check D-pad first (dpad uses BIT flags: UP=1, DOWN=2, RIGHT=4, LEFT=8)
-            // DPAD_UP = BIT(0) = 1
-            // DPAD_DOWN = BIT(1) = 2
-            // DPAD_RIGHT = BIT(2) = 4
-            // DPAD_LEFT = BIT(3) = 8
+            // Check D-pad buttons individually (matches Atari pattern)
+            // Bluepad32 D-pad: UP=BIT(0)=0x01, DOWN=BIT(1)=0x02, RIGHT=BIT(2)=0x04, LEFT=BIT(3)=0x08
+            // Direction bits: 0x01=UP, 0x02=DOWN, 0x04=LEFT, 0x08=RIGHT
+            // Debug: print D-pad value to check actual bit pattern
             if (bt_gamepad.dpad != 0) {
-                // D-pad is active - use full range for digital input
-                if (bt_gamepad.dpad & 0x08) x = -512;  // Left (BIT(3))
-                if (bt_gamepad.dpad & 0x04) x = 512;   // Right (BIT(2))
-                if (bt_gamepad.dpad & 0x01) y = -512;  // Up (BIT(0))
-                if (bt_gamepad.dpad & 0x02) y = 512;   // Down (BIT(1))
-            } else {
-                // Use analog stick with deadzone (axis values are -512 to 511)
-                const int32_t deadzone = 50;  // Deadzone for analog stick
-                if (bt_gamepad.axis_x < -deadzone || bt_gamepad.axis_x > deadzone) {
-                    x = bt_gamepad.axis_x;
-                }
-                if (bt_gamepad.axis_y < -deadzone || bt_gamepad.axis_y > deadzone) {
-                    y = bt_gamepad.axis_y;
-                }
+                printf("[GPAD] dpad=0x%02x ", bt_gamepad.dpad);
+            }
+            if (bt_gamepad.dpad & 0x01) { direction_bits |= 0x01; printf("UP "); }  // UP
+            if (bt_gamepad.dpad & 0x02) { direction_bits |= 0x02; printf("DOWN "); }  // DOWN
+            if (bt_gamepad.dpad & 0x04) { direction_bits |= 0x08; printf("RIGHT "); }  // RIGHT
+            if (bt_gamepad.dpad & 0x08) { direction_bits |= 0x04; printf("LEFT "); }  // LEFT
+            if (bt_gamepad.dpad != 0) {
+                printf("→ dirbits=0x%02x\n", direction_bits);
             }
             
-            // Convert X/Y to directions with threshold
-            const int32_t threshold = 50;  // Threshold for direction detection
-            
-            // Horizontal direction
-            if (x < -threshold) {
-                amiga_joystick_port2_set_direction(AJ2_LEFT, true);
-                amiga_joystick_port2_set_direction(AJ2_RIGHT, false);
-            } else if (x > threshold) {
-                amiga_joystick_port2_set_direction(AJ2_LEFT, false);
-                amiga_joystick_port2_set_direction(AJ2_RIGHT, true);
-            } else {
-                amiga_joystick_port2_set_direction(AJ2_LEFT, false);
-                amiga_joystick_port2_set_direction(AJ2_RIGHT, false);
+            // Only use analog stick if D-pad is not active (direction_bits == 0)
+            // Atari code uses deadzone 8000 for int16_t range, we use 50 for -512 to 511 range (~10%)
+            const int32_t deadzone = 50;
+            if (direction_bits == 0) {
+                // Use left analog stick with deadzone (axis values are -512 to 511)
+                if (bt_gamepad.axis_x < -deadzone) direction_bits |= 0x04;  // LEFT (negative X)
+                if (bt_gamepad.axis_x > deadzone)  direction_bits |= 0x08;  // RIGHT (positive X)
+                // Y-axis mapping: Atari code shows positive Y = UP, negative Y = DOWN
+                // Atari: if (LY > DEADZONE) → 0x01 (UP), if (LY < -DEADZONE) → 0x02 (DOWN)
+                // But user reports up moves down, so we need to swap:
+                if (bt_gamepad.axis_y < -deadzone) direction_bits |= 0x01;  // UP (negative Y = stick up)
+                if (bt_gamepad.axis_y > deadzone)  direction_bits |= 0x02;  // DOWN (positive Y = stick down)
             }
             
-            // Vertical direction (note: Y axis may be inverted)
-            if (y < -threshold) {
-                amiga_joystick_port2_set_direction(AJ2_UP, true);
-                amiga_joystick_port2_set_direction(AJ2_DOWN, false);
-            } else if (y > threshold) {
-                amiga_joystick_port2_set_direction(AJ2_UP, false);
-                amiga_joystick_port2_set_direction(AJ2_DOWN, true);
-            } else {
-                amiga_joystick_port2_set_direction(AJ2_UP, false);
-                amiga_joystick_port2_set_direction(AJ2_DOWN, false);
-            }
+            // Map direction bits to joystick port 2
+            // Bit pattern: bit 0=UP, bit 1=DOWN, bit 2=LEFT, bit 3=RIGHT
+            amiga_joystick_port2_set_direction(AJ2_UP,    (direction_bits & 0x01) != 0);
+            amiga_joystick_port2_set_direction(AJ2_DOWN,  (direction_bits & 0x02) != 0);
+            amiga_joystick_port2_set_direction(AJ2_LEFT,  (direction_bits & 0x04) != 0);
+            amiga_joystick_port2_set_direction(AJ2_RIGHT, (direction_bits & 0x08) != 0);
             
             // Map buttons using Bluepad32 button constants
             // BUTTON_A = BIT(0) = 1 (Fire)

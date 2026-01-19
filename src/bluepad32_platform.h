@@ -44,6 +44,15 @@ bool bluepad32_get_mouse(int idx, void* out_mouse);
 // Get count of connected Bluetooth mice
 int bluepad32_get_mouse_count(void);
 
+// Get gamepad data for a specific index (0 for first gamepad)
+// Returns true if gamepad is connected and has data
+// out_gamepad must point to a struct matching uni_gamepad_t layout
+// Marks data as read (clears updated flag)
+bool bluepad32_get_gamepad(int idx, void* out_gamepad);
+
+// Get count of connected Bluetooth gamepads
+int bluepad32_get_gamepad_count(void);
+
 // Delete all stored Bluetooth pairing keys
 void bluepad32_delete_pairing_keys(void);
 

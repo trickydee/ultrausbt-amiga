@@ -19,8 +19,10 @@
 #include <pico/cyw43_arch.h>
 #include <pico/time.h>
 #include <uni.h>
+#include <string.h>
 
 #include "sdkconfig.h"
+#include "platform/amiga/quad_mouse.h"  // For Core 1 pause/resume functions
 
 // Sanity check
 #ifndef CONFIG_BLUEPAD32_PLATFORM_CUSTOM
@@ -32,6 +34,9 @@
 
 // Maximum number of Bluetooth mice we can track
 #define MAX_BT_MICE 2
+
+// Maximum number of Bluetooth gamepads we can track
+#define MAX_BT_GAMEPADS 1  // Only first gamepad mapped to joystick port 2
 
 // Storage for Bluetooth keyboard data
 typedef struct {
@@ -47,12 +52,21 @@ typedef struct {
     bool updated;  // Set to true when new data arrives
 } bt_mouse_storage_t;
 
+// Storage for Bluetooth gamepad data
+typedef struct {
+    uni_gamepad_t gamepad;
+    bool connected;
+    bool updated;  // Set to true when new data arrives
+} bt_gamepad_storage_t;
+
 static bt_keyboard_storage_t bt_keyboards[MAX_BT_KEYBOARDS] = {0};
 static bt_mouse_storage_t bt_mice[MAX_BT_MICE] = {0};
+static bt_gamepad_storage_t bt_gamepads[MAX_BT_GAMEPADS] = {0};
 
-// Store device pointer to slot mapping for keyboards and mice
+// Store device pointer to slot mapping for keyboards, mice, and gamepads
 static uni_hid_device_t* keyboard_device_map[MAX_BT_KEYBOARDS] = {0};
 static uni_hid_device_t* mouse_device_map[MAX_BT_MICE] = {0};
+static uni_hid_device_t* gamepad_device_map[MAX_BT_GAMEPADS] = {0};
 
 // Find the first available slot for a device type, or find existing slot if device already mapped
 static int find_slot(uni_hid_device_t* d, uni_hid_device_t** device_map, int max_slots) {
@@ -98,6 +112,14 @@ static bt_mouse_storage_t* get_mouse_storage(uni_hid_device_t* d) {
     return NULL;
 }
 
+static bt_gamepad_storage_t* get_gamepad_storage(uni_hid_device_t* d) {
+    int idx = find_slot(d, gamepad_device_map, MAX_BT_GAMEPADS);
+    if (idx >= 0) {
+        return &bt_gamepads[idx];
+    }
+    return NULL;
+}
+
 // Platform Overrides
 static void my_platform_init(int argc, const char** argv) {
     ARG_UNUSED(argc);
@@ -131,6 +153,22 @@ static uni_error_t my_platform_on_device_discovered(bd_addr_t addr, const char* 
     logi("BT Device discovered: addr=%s, name='%s', COD=0x%04X, RSSI=%d\n",
          addr_str, name ? name : "(null)", cod, rssi);
     
+    // Pause Core 1 immediately when a gamepad is discovered to prevent freeze during GATT service discovery
+    // COD 0x0508 = Gamepad/Joystick class
+    bool might_be_gamepad = (cod == 0x0508) ||  // Gamepad COD
+                            (name != NULL && (strstr(name, "Stadia") != NULL || 
+                                              strstr(name, "Xbox") != NULL ||
+                                              strstr(name, "XBOX") != NULL ||
+                                              strstr(name, "gamepad") != NULL ||
+                                              strstr(name, "Gamepad") != NULL ||
+                                              strstr(name, "GAMEPAD") != NULL));
+    
+    if (might_be_gamepad) {
+        logi("[DIAG] Pausing Core 1 for gamepad device discovery (COD=0x%04X, name='%s')\n", 
+             cod, name ? name : "(null)");
+        amiga_quad_mouse_pause_core1();
+    }
+    
     // Accept all HID devices (keyboards, mice, gamepads)
     logi("  -> Accepting device (will attempt connection)\n");
     return UNI_ERROR_SUCCESS;
@@ -138,11 +176,29 @@ static uni_error_t my_platform_on_device_discovered(bd_addr_t addr, const char* 
 
 static void my_platform_on_device_connected(uni_hid_device_t* d) {
     logi("bluepad32_platform: device connected: %p\n", d);
+    
+    // Check if this might be a gamepad and ensure Core 1 is paused
+    // We check vendor ID if available (Xbox = 0x045E, Google/Stadia = 0x18D1)
+    uint16_t vendor_id = uni_hid_device_get_vendor_id(d);
+    bool might_be_gamepad = (vendor_id == 0x045E) ||  // Microsoft (Xbox)
+                            (vendor_id == 0x18D1);    // Google (Stadia)
+    
+    // Ensure Core 1 is paused (may have been paused earlier during discovery)
+    // The freeze happens during GATT service discovery which occurs here
+    if (might_be_gamepad) {
+        logi("[DIAG] Ensuring Core 1 is paused for gamepad device connection\n");
+        amiga_quad_mouse_pause_core1();
+    }
+    
     // Device type will be determined in on_device_ready()
 }
 
 static void my_platform_on_device_disconnected(uni_hid_device_t* d) {
     logi("bluepad32_platform: device disconnected: %p\n", d);
+    
+    // Ensure Core 1 is resumed if device disconnects during enumeration
+    // (safety check in case resume wasn't called)
+    amiga_quad_mouse_resume_core1();
     
     // Clear keyboard storage if it was a keyboard
     bt_keyboard_storage_t* kb_storage = get_keyboard_storage(d);
@@ -162,6 +218,16 @@ static void my_platform_on_device_disconnected(uni_hid_device_t* d) {
         memset(&mouse_storage->mouse, 0, sizeof(mouse_storage->mouse));
         clear_slot(d, mouse_device_map, MAX_BT_MICE);
         logi("bluepad32_platform: mouse disconnected\n");
+    }
+    
+    // Clear gamepad storage if it was a gamepad
+    bt_gamepad_storage_t* gamepad_storage = get_gamepad_storage(d);
+    if (gamepad_storage && gamepad_storage->connected) {
+        gamepad_storage->connected = false;
+        gamepad_storage->updated = false;
+        memset(&gamepad_storage->gamepad, 0, sizeof(gamepad_storage->gamepad));
+        clear_slot(d, gamepad_device_map, MAX_BT_GAMEPADS);
+        logi("bluepad32_platform: gamepad disconnected\n");
     }
 }
 
@@ -185,6 +251,24 @@ static uni_error_t my_platform_on_device_ready(uni_hid_device_t* d) {
             storage->updated = false;
         }
         logi("bluepad32_platform: mouse ready\n");
+    } else if (uni_hid_device_is_gamepad(d)) {
+        // Gamepad - mark as connected (first one mapped to joystick port 2)
+        bt_gamepad_storage_t* storage = get_gamepad_storage(d);
+        if (storage) {
+            storage->connected = true;
+            storage->updated = false;
+            logi("bluepad32_platform: gamepad ready\n");
+        } else {
+            logi("bluepad32_platform: gamepad ready but no storage slot available (MAX_BT_GAMEPADS=%d)\n", MAX_BT_GAMEPADS);
+        }
+        
+        // Add 10ms delay after gamepad enumeration to prevent lockup
+        // This is needed to allow GATT service discovery to complete properly
+        // Reference: Atari keyboard interface fix for similar enumeration issues
+        logi("[DIAG] Waiting 10ms before resuming Core 1 after gamepad enumeration...\n");
+        sleep_ms(10);
+        logi("[DIAG] Resuming Core 1 after gamepad enumeration\n");
+        amiga_quad_mouse_resume_core1();
     } else {
         logi("bluepad32_platform: device type not supported\n");
     }
@@ -217,6 +301,18 @@ static void my_platform_on_controller_data(uni_hid_device_t* d, uni_controller_t
                 }
                 // Copy mouse data
                 storage->mouse = ctl->mouse;
+                storage->updated = true;
+            }
+            break;
+        }
+        
+        case UNI_CONTROLLER_CLASS_GAMEPAD: {
+            bt_gamepad_storage_t* storage = get_gamepad_storage(d);
+            // Only update if already marked as connected in on_device_ready()
+            // This prevents processing gamepad data before device enumeration is complete
+            if (storage && storage->connected) {
+                // Copy gamepad data
+                storage->gamepad = ctl->gamepad;
                 storage->updated = true;
             }
             break;
@@ -332,6 +428,34 @@ int bluepad32_get_mouse_count(void) {
     int count = 0;
     for (int i = 0; i < MAX_BT_MICE; i++) {
         if (bt_mice[i].connected) {
+            count++;
+        }
+    }
+    return count;
+}
+
+// Public API to get Bluetooth gamepad data
+bool bluepad32_get_gamepad(int idx, void* out_gamepad) {
+    if (idx < 0 || idx >= MAX_BT_GAMEPADS || !out_gamepad) {
+        return false;
+    }
+    
+    if (bt_gamepads[idx].connected && bt_gamepads[idx].updated) {
+        // Copy the gamepad data (caller's struct must match uni_gamepad_t layout)
+        uni_gamepad_t* gamepad = (uni_gamepad_t*)out_gamepad;
+        *gamepad = bt_gamepads[idx].gamepad;
+        bt_gamepads[idx].updated = false;  // Mark as read
+        return true;
+    }
+    
+    return false;
+}
+
+// Get count of connected Bluetooth gamepads
+int bluepad32_get_gamepad_count(void) {
+    int count = 0;
+    for (int i = 0; i < MAX_BT_GAMEPADS; i++) {
+        if (bt_gamepads[i].connected) {
             count++;
         }
     }

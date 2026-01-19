@@ -38,3 +38,4 @@ bool bluepad32_is_enabled(void);
 
 #endif // _BLUEPAD32_INIT_H
 
+

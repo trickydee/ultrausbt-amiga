@@ -23,6 +23,9 @@
 volatile int8_t x = 0, y = 0;
 volatile bool motion_flag = false;
 
+// Core 1 pause flag - set to true to pause mouse processing (e.g., during Bluetooth enumeration)
+volatile bool g_core1_paused = false;
+
 enum _mouse_pin_state { LOW, HIGH };
 
 static inline void _aqm_gpio_set(uint gpio, enum _mouse_pin_state state)
@@ -119,6 +122,13 @@ void amiga_quad_mouse_motion()
      */
 
     while (1) {
+        // Check if Core 1 is paused (e.g., during Bluetooth enumeration)
+        // This prevents flash access conflicts during GATT service discovery
+        if (g_core1_paused) {
+            sleep_ms(10);  // Sleep longer when paused
+            continue;
+        }
+        
         // Check for new motion frequently to ensure smooth processing of slow movements
         // This prevents accumulation and jerky behavior
         if (!motion_flag) {
@@ -186,4 +196,15 @@ void amiga_quad_mouse_motion()
             sleep_us(300); // delay before next iteration to prevent missing state change
         }
     }
+}
+
+// Core 1 pause/resume functions for Bluetooth enumeration coordination
+void amiga_quad_mouse_pause_core1(void)
+{
+    g_core1_paused = true;
+}
+
+void amiga_quad_mouse_resume_core1(void)
+{
+    g_core1_paused = false;
 }
