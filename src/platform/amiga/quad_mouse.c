@@ -15,9 +15,11 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdlib.h>  // For abs()
 
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
+#include "pico/time.h"
 #include "hardware/gpio.h"
 
 // mouse motion values, used between core0 and core1
@@ -26,6 +28,15 @@ volatile bool motion_flag = false;
 
 // Core 1 pause flag - set to true to pause mouse processing (e.g., during Bluetooth enumeration)
 volatile bool g_core1_paused = false;
+
+// Speed-proportional timing constants (based on Atari implementation)
+#define MAX_SPEED 30000.0    // Maximum speed value for period calculation (reduced for better fast movement)
+#define MIN_PERIOD_US 200    // Minimum period in microseconds (lowered to allow faster updates)
+#define DEFAULT_PERIOD_US 3000  // Default period when no motion (for idle state)
+
+// Mouse speed multiplier (1.0 = normal, higher = faster)
+// Can be adjusted for different mouse sensitivities
+#define MOUSE_SPEED_MULTIPLIER 1.0
 
 void amiga_quad_mouse_init()
 {
@@ -79,23 +90,42 @@ void amiga_quad_mouse_button(enum amiga_quad_mouse_buttons button, bool pressed)
 
 void amiga_quad_mouse_set_motion(int8_t in_x, int8_t in_y)
 {
-    // Store motion directly - processing loop checks frequently for smooth movement
-    // For race conditions: if values are being processed, add to existing values
-    // This allows small movements to be processed immediately without accumulation delay
-    if (in_x != 0 || in_y != 0) {
-        x = in_x;
-        y = in_y;
+    // Apply speed multiplier for acceleration support
+    int8_t scaled_x = (int8_t)((double)in_x * MOUSE_SPEED_MULTIPLIER);
+    int8_t scaled_y = (int8_t)((double)in_y * MOUSE_SPEED_MULTIPLIER);
+    
+    // Accumulate motion to handle rapid updates smoothly
+    // This allows multiple small movements to be combined
+    if (scaled_x != 0 || scaled_y != 0) {
+        // Add to existing values (with overflow protection)
+        int16_t new_x = (int16_t)x + (int16_t)scaled_x;
+        int16_t new_y = (int16_t)y + (int16_t)scaled_y;
+        
+        // Clamp to int8_t range to prevent overflow
+        if (new_x > 127) new_x = 127;
+        if (new_x < -128) new_x = -128;
+        if (new_y > 127) new_y = 127;
+        if (new_y < -128) new_y = -128;
+        
+        x = (int8_t)new_x;
+        y = (int8_t)new_y;
         motion_flag = true;
     }
-
-    // @todo use fifo write here to unblock core1 thread?
 }
 
 void amiga_quad_mouse_motion()
 {
     // ahprintf("[aqm] hello from core1, mouse motion output loop starting\n");
-    int8_t out_x, out_y;
     uint8_t quad_mx_state = 0, quad_my_state = 0;
+    
+    // Time-based quadrature generation (based on Atari implementation)
+    // Track timing for each axis independently
+    absolute_time_t last_x_time = get_absolute_time();
+    absolute_time_t last_y_time = get_absolute_time();
+    int32_t x_period_us = 0;  // Period in microseconds for X axis (0 = no motion, negative = left, positive = right)
+    int32_t y_period_us = 0;  // Period in microseconds for Y axis (0 = no motion, negative = up, positive = down)
+    int8_t remaining_x = 0;   // Remaining X motion to process
+    int8_t remaining_y = 0;   // Remaining Y motion to process
 
     /**
      * a little note about quadrature motion state.
@@ -107,6 +137,9 @@ void amiga_quad_mouse_motion()
      *
      * adcd has a crude ascii timing diagram but it explains it better:
      * https://amigadev.elowar.com/read/ADCD_2.1/Hardware_Manual_guide/node017F.html
+     * 
+     * This implementation uses speed-proportional timing: faster movement = shorter period = 
+     * more frequent quadrature updates, providing better responsiveness.
      */
 
     while (1) {
@@ -117,71 +150,156 @@ void amiga_quad_mouse_motion()
             continue;
         }
         
-        // Check for new motion frequently to ensure smooth processing of slow movements
-        // This prevents accumulation and jerky behavior
-        if (!motion_flag) {
-            // No new motion - sleep briefly and check again
-            sleep_us(100);
-            continue;
+        absolute_time_t current_time = get_absolute_time();
+        
+        // Check for new motion input
+        if (motion_flag) {
+            // Read motion atomically and accumulate
+            remaining_x += x;
+            remaining_y += y;
+            x = y = 0;
+            motion_flag = false;
+            
+            // Clamp accumulated motion to prevent overflow
+            if (remaining_x > 127) remaining_x = 127;
+            if (remaining_x < -128) remaining_x = -128;
+            if (remaining_y > 127) remaining_y = 127;
+            if (remaining_y < -128) remaining_y = -128;
+            
+            // Calculate period based on movement speed (speed-proportional timing)
+            // Faster movement = shorter period = more responsive
+            // Formula: period = MAX_SPEED / abs(speed), clamped to MIN_PERIOD_US
+            if (remaining_x != 0) {
+                int32_t speed = (int32_t)remaining_x;
+                int32_t abs_speed = (speed < 0) ? -speed : speed;
+                if (abs_speed > 0) {
+                    x_period_us = (int32_t)(MAX_SPEED / (double)abs_speed);
+                    if (x_period_us < MIN_PERIOD_US) {
+                        x_period_us = MIN_PERIOD_US;
+                    } else if (x_period_us > DEFAULT_PERIOD_US * 10) {
+                        x_period_us = DEFAULT_PERIOD_US * 10;  // Cap very slow movements
+                    }
+                    if (speed < 0) x_period_us = -x_period_us;  // Negative for left movement
+                } else {
+                    x_period_us = 0;
+                }
+                last_x_time = current_time;
+            }
+            
+            if (remaining_y != 0) {
+                int32_t speed = (int32_t)remaining_y;
+                int32_t abs_speed = (speed < 0) ? -speed : speed;
+                if (abs_speed > 0) {
+                    y_period_us = (int32_t)(MAX_SPEED / (double)abs_speed);
+                    if (y_period_us < MIN_PERIOD_US) {
+                        y_period_us = MIN_PERIOD_US;
+                    } else if (y_period_us > DEFAULT_PERIOD_US * 10) {
+                        y_period_us = DEFAULT_PERIOD_US * 10;  // Cap very slow movements
+                    }
+                    if (speed < 0) y_period_us = -y_period_us;  // Negative for up movement
+                } else {
+                    y_period_us = 0;
+                }
+                last_y_time = current_time;
+            }
         }
-
-        // Read motion atomically
-        out_x = x;
-        out_y = y;
-        x = y = 0;
-        motion_flag = false;
-
-        // Process all motion immediately - no accumulation delay
-        while ((out_x != 0) || (out_y != 0)) {
-            // Process all x-axis motion (removed divider skip logic for better sensitivity)
-            if (out_x != 0) {
-                // handle x-axis motion
-                if (out_x < 0)
-                    quad_mx_state--;
-                else if (out_x > 0)
+        
+        // Time-based quadrature state updates (only when motion is active)
+        // Check if it's time to update X axis
+        if (x_period_us != 0) {
+            int64_t elapsed_x = absolute_time_diff_us(last_x_time, current_time);
+            int32_t abs_period_x = (x_period_us < 0) ? -x_period_us : x_period_us;
+            
+            if (elapsed_x >= abs_period_x) {
+                // Time to update X axis quadrature state
+                if (x_period_us > 0) {
+                    // Moving right
                     quad_mx_state++;
-                // fix wraparound
-                if (quad_mx_state == 255)
-                    quad_mx_state = 3;
-                else if (quad_mx_state == 4)
-                    quad_mx_state = 0;
-
+                    if (quad_mx_state == 4) quad_mx_state = 0;
+                } else {
+                    // Moving left
+                    if (quad_mx_state == 0) quad_mx_state = 3;
+                    else quad_mx_state--;
+                }
+                
+                // Update GPIO based on new state
                 switch (quad_mx_state) {
                     case 0: amiga_gpio_set_active_low(QM1_AMIGA_H, false); break;   // HIGH = inactive
                     case 1: amiga_gpio_set_active_low(QM1_AMIGA_HQ, false); break;  // HIGH = inactive
                     case 2: amiga_gpio_set_active_low(QM1_AMIGA_H, true); break;    // LOW = active
                     case 3: amiga_gpio_set_active_low(QM1_AMIGA_HQ, true); break;   // LOW = active
                 }
+                
+                last_x_time = current_time;
+                
+                // Decrement remaining motion
+                if (remaining_x > 0) remaining_x--;
+                else if (remaining_x < 0) remaining_x++;
+                
+                // If motion is complete, stop
+                // Keep period constant during motion to prevent instability and "skip back" effect
+                if (remaining_x == 0) {
+                    x_period_us = 0;
+                }
+                // Don't recalculate period during motion - keep it constant for smooth, predictable movement
             }
-
-            if (out_x < 0) out_x++;
-            if (out_x > 0) out_x--;
-
-            // Process all y-axis motion (removed divider skip logic for better sensitivity)
-            if (out_y != 0) {
-                // handle y-axis motion
-                if (out_y < 0)
-                    quad_my_state--;
-                else if (out_y > 0)
+        }
+        
+        // Check if it's time to update Y axis
+        if (y_period_us != 0) {
+            int64_t elapsed_y = absolute_time_diff_us(last_y_time, current_time);
+            int32_t abs_period_y = (y_period_us < 0) ? -y_period_us : y_period_us;
+            
+            if (elapsed_y >= abs_period_y) {
+                // Time to update Y axis quadrature state
+                if (y_period_us > 0) {
+                    // Moving down
                     quad_my_state++;
-                // fix wraparound
-                if (quad_my_state == 255)
-                    quad_my_state = 3;
-                else if (quad_my_state == 4)
-                    quad_my_state = 0;
-
+                    if (quad_my_state == 4) quad_my_state = 0;
+                } else {
+                    // Moving up
+                    if (quad_my_state == 0) quad_my_state = 3;
+                    else quad_my_state--;
+                }
+                
+                // Update GPIO based on new state
                 switch (quad_my_state) {
                     case 0: amiga_gpio_set_active_low(QM1_AMIGA_V, false); break;   // HIGH = inactive
                     case 1: amiga_gpio_set_active_low(QM1_AMIGA_VQ, false); break;  // HIGH = inactive
                     case 2: amiga_gpio_set_active_low(QM1_AMIGA_V, true); break;    // LOW = active
                     case 3: amiga_gpio_set_active_low(QM1_AMIGA_VQ, true); break;   // LOW = active
                 }
+                
+                last_y_time = current_time;
+                
+                // Decrement remaining motion
+                if (remaining_y > 0) remaining_y--;
+                else if (remaining_y < 0) remaining_y++;
+                
+                // If motion is complete, stop
+                // Keep period constant during motion to prevent instability and "skip back" effect
+                if (remaining_y == 0) {
+                    y_period_us = 0;
+                }
+                // Don't recalculate period during motion - keep it constant for smooth, predictable movement
             }
-
-            if (out_y < 0) out_y++;
-            if (out_y > 0) out_y--;
-
-            sleep_us(300); // delay before next iteration to prevent missing state change
+        }
+        
+        // Sleep briefly when idle, or wait for next update time
+        if (x_period_us == 0 && y_period_us == 0) {
+            // No active motion - sleep briefly and check for new input
+            sleep_us(100);
+        } else {
+            // Active motion - calculate next update time
+            int64_t next_x_time = (x_period_us != 0) ? ((x_period_us < 0) ? -x_period_us : x_period_us) - absolute_time_diff_us(last_x_time, current_time) : INT64_MAX;
+            int64_t next_y_time = (y_period_us != 0) ? ((y_period_us < 0) ? -y_period_us : y_period_us) - absolute_time_diff_us(last_y_time, current_time) : INT64_MAX;
+            int64_t sleep_time = (next_x_time < next_y_time) ? next_x_time : next_y_time;
+            
+            if (sleep_time > 0 && sleep_time < 10000) {  // Cap sleep at 10ms
+                sleep_us((uint32_t)sleep_time);
+            } else {
+                sleep_us(100);  // Default brief sleep
+            }
         }
     }
 }
