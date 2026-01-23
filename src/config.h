@@ -57,37 +57,52 @@
 #  define QM1_AMIGA_B2  12
 #  define QM1_AMIGA_B3  13
 #elif HIDPICO_REVISION == 5
-#  define I2C_PORT      i2c1
-#  define I2C_PIN_SDA   2
-#  define I2C_PIN_SCL   3
-#  define I2C_IRQN      24
+#  define I2C_PORT      i2c0   // Changed to i2c0 to match Atari board (GPIO 8/9 are on I2C0)
+#  define I2C_PIN_SDA   8   // Physical pin 11 (GP8) - Atari board I2C SDA
+#  define I2C_PIN_SCL   9   // Physical pin 12 (GP9) - Atari board I2C SCL
+#  define I2C_IRQN      23  // Changed to 23 for I2C0 (was 24 for I2C1)
 
 #  define KBD_AMIGA_RST 4
 #  define KBD_AMIGA_DAT 5
 #  define KBD_AMIGA_CLK 6
 
-#  define QM1_AMIGA_HQ  7
-#  define QM1_AMIGA_VQ  8
-#  define QM1_AMIGA_H   9
-#  define QM1_AMIGA_V   10
-#  define QM1_AMIGA_B1  11
-#  define QM1_AMIGA_B2  12
-#  define QM1_AMIGA_B3  13
+// Joystick Port 1 GPIO mappings (mapped to Atari JOY1 GPIOs for hardware compatibility)
+// Directions and FIRE use Atari JOY1 GPIO pins
+#  define JOY1_ATARI_UP    10  // Atari JOY1 UP GPIO
+#  define JOY1_ATARI_DOWN  11  // Atari JOY1 DOWN GPIO
+#  define JOY1_ATARI_LEFT  12  // Atari JOY1 LEFT GPIO
+#  define JOY1_ATARI_RIGHT 13  // Atari JOY1 RIGHT GPIO
+#  define JOY1_ATARI_FIRE  14  // Atari JOY1 FIRE GPIO
 
-// Joystick Port 2 (Revision 5 - verified hardware pinout)
-// Each direction uses a separate GPIO pin (not shared like mouse quadrature)
-// GPIO 20 (Pin 6) = Button 1 (Fire)
-// GPIO 21 (Pin 4) = RIGHT direction
-// GPIO 22 (Pin 3) = LEFT direction
-// GPIO 26 (Pin 2) = DOWN direction
-// GPIO 27 (Pin 1) = UP direction
-#  define QM2_AMIGA_B1  20  // Button 1 (Fire) - Pin 6
-#  define QM2_AMIGA_B2  19  // Button 2
-#  define QM2_AMIGA_B3  18  // Button 3
-#  define QM2_AMIGA_HQ  21  // RIGHT direction (Pin 4) - reused HQ pin assignment
-#  define QM2_AMIGA_VQ  22  // LEFT direction (Pin 3) - reused VQ pin assignment
-#  define QM2_AMIGA_H   26  // DOWN direction (Pin 2) - GPIO26_ADC0, physical pin 31
-#  define QM2_AMIGA_V   27  // UP direction (Pin 1) - GPIO27_ADC1, physical pin 32
+// Port 1 direction pins (mapped to Atari JOY1 GPIOs)
+#  define QM1_AMIGA_V    JOY1_ATARI_UP     // UP direction - Atari JOY1 UP
+#  define QM1_AMIGA_H    JOY1_ATARI_DOWN   // DOWN direction - Atari JOY1 DOWN
+#  define QM1_AMIGA_VQ   JOY1_ATARI_LEFT   // LEFT direction - Atari JOY1 LEFT
+#  define QM1_AMIGA_HQ   JOY1_ATARI_RIGHT  // RIGHT direction - Atari JOY1 RIGHT
+
+// Port 1 button pins
+#  define QM1_AMIGA_B1   JOY1_ATARI_FIRE   // Fire button - Atari JOY1 FIRE
+#  define QM1_AMIGA_B2   12                 // Button 2 - Keep current GPIO (same as LEFT, will be remapped in hardware)
+#  define QM1_AMIGA_B3   13                 // Button 3 - Keep current GPIO (same as RIGHT, will be remapped in hardware)
+
+// Joystick Port 2 GPIO mappings (mapped to Atari JOY0 GPIOs for hardware compatibility)
+// Directions and FIRE use Atari JOY0 GPIO pins
+#  define JOY0_ATARI_UP    19  // Atari JOY0 UP GPIO
+#  define JOY0_ATARI_DOWN  20  // Atari JOY0 DOWN GPIO
+#  define JOY0_ATARI_LEFT  21  // Atari JOY0 LEFT GPIO
+#  define JOY0_ATARI_RIGHT 22  // Atari JOY0 RIGHT GPIO
+#  define JOY0_ATARI_FIRE  26  // Atari JOY0 FIRE GPIO
+
+// Port 2 direction pins (mapped to Atari JOY0 GPIOs)
+#  define QM2_AMIGA_V    JOY0_ATARI_UP     // UP direction - Atari JOY0 UP
+#  define QM2_AMIGA_H    JOY0_ATARI_DOWN   // DOWN direction - Atari JOY0 DOWN
+#  define QM2_AMIGA_VQ   JOY0_ATARI_LEFT   // LEFT direction - Atari JOY0 LEFT
+#  define QM2_AMIGA_HQ   JOY0_ATARI_RIGHT  // RIGHT direction - Atari JOY0 RIGHT
+
+// Port 2 button pins
+#  define QM2_AMIGA_B1   JOY0_ATARI_FIRE   // Fire button - Atari JOY0 FIRE
+#  define QM2_AMIGA_B2   19                 // Button 2 - Keep current GPIO (same as UP, will be remapped in hardware)
+#  define QM2_AMIGA_B3   18                 // Button 3 - Keep current GPIO (will be remapped in hardware)
 #else
 #  error "HIDPICO_REVISION must be 2, 4, or 5. Current value is not recognized."
 #endif
