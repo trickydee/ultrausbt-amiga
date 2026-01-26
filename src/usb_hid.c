@@ -635,19 +635,39 @@ void process_bluepad32_keyboard(void)
     bt_keyboard_t bt_kb;
     int bt_kb_count = bluepad32_get_keyboard_count();
     
-    // Process first connected Bluetooth keyboard
-    if (bt_kb_count > 0) {
-        bool has_data = bluepad32_get_keyboard(0, &bt_kb);
+    // Maximum number of Bluetooth keyboards supported (must match bluepad32_platform.c)
+    #define MAX_BT_KEYBOARDS_SUPPORTED 2
+    
+    // Limit to maximum supported keyboards
+    if (bt_kb_count > MAX_BT_KEYBOARDS_SUPPORTED) {
+        bt_kb_count = MAX_BT_KEYBOARDS_SUPPORTED;
+    }
+    
+    // Combined state from all keyboards (merged input)
+    hid_keyboard_report_t merged_report = { 0, 0, {0} };
+    bool merged_report_valid = false;
+    
+    // Check for Port 1 mode toggle: Shift + Left Amiga + J (only check first keyboard to avoid multiple toggles)
+    // This combination toggles between mouse-only and joystick mode on port 1
+    static bool bt_last_combo_pressed = false;
+    
+    // Check for Llamatron mode toggle: Shift + Left Amiga + L (only check first keyboard)
+    // This combination toggles Llamatron twinstick mode
+    static bool bt_last_llamatron_combo_pressed = false;
+    
+    bool combo_active = false;
+    bool llamatron_combo_active = false;
+    
+    // Process all connected Bluetooth keyboards
+    for (int kb_idx = 0; kb_idx < bt_kb_count; kb_idx++) {
+        bool has_data = bluepad32_get_keyboard(kb_idx, &bt_kb);
         
-        if (has_data) {
-            // Check for Port 1 mode toggle: Shift + Left Amiga + J
-            // This combination toggles between mouse-only and joystick mode on port 1
-            static bool bt_last_combo_pressed = false;
-            
-            // Check for Llamatron mode toggle: Shift + Left Amiga + L
-            // This combination toggles Llamatron twinstick mode
-            static bool bt_last_llamatron_combo_pressed = false;
-            
+        if (!has_data) {
+            continue;
+        }
+        
+        // Check combo keys only from first keyboard (index 0) to avoid multiple toggles
+        if (kb_idx == 0) {
             bool shift_pressed = (bt_kb.modifiers & (KEYBOARD_MODIFIER_LEFTSHIFT | KEYBOARD_MODIFIER_RIGHTSHIFT)) != 0;
             bool lamiga_pressed = (bt_kb.modifiers & KEYBOARD_MODIFIER_LEFTGUI) != 0;
             bool j_pressed = false;
@@ -664,10 +684,10 @@ void process_bluepad32_keyboard(void)
             }
             
             // Check if all three keys are pressed together for Port 1 toggle
-            bool combo_active = shift_pressed && lamiga_pressed && j_pressed;
+            combo_active = shift_pressed && lamiga_pressed && j_pressed;
             
             // Check if all three keys are pressed together for Llamatron toggle
-            bool llamatron_combo_active = shift_pressed && lamiga_pressed && l_pressed;
+            llamatron_combo_active = shift_pressed && lamiga_pressed && l_pressed;
             
             // Debug: Print when any combo key is pressed or when combo is active
             if (j_pressed || shift_pressed || lamiga_pressed || combo_active) {
@@ -716,67 +736,99 @@ void process_bluepad32_keyboard(void)
             
             bt_last_combo_pressed = combo_active;
             bt_last_llamatron_combo_pressed = llamatron_combo_active;
-            
-            // Convert Bluepad32 keyboard format to HID format
-            hid_keyboard_report_t kb_report;
-            kb_report.modifier = bt_kb.modifiers;
-            kb_report.reserved = 0;
-            
-            // Copy pressed keys (up to 6 keys for HID standard)
-            // Skip J key if it's being used for Port 1 toggle
-            // Skip L key if it's being used for Llamatron toggle
-            int key_count = 0;
-            for (int i = 0; i < 10 && key_count < 6; i++) {
-                if (bt_kb.pressed_keys[i] != 0) {
-                    // Skip J key (HID 0x0D) if it's being used for Port 1 toggle
-                    if (combo_active && bt_kb.pressed_keys[i] == 0x0D) {
-                        ahprintf("[TOGGLE-BT] Blocking J key from being sent to Amiga\n");
-                        continue;
-                    }
-                    // Skip L key (HID 0x0F) if it's being used for Llamatron toggle
-                    if (llamatron_combo_active && bt_kb.pressed_keys[i] == 0x0F) {
-                        ahprintf("[LLAMATRON-BT] Blocking L key from being sent to Amiga\n");
-                        continue;
-                    }
-                    kb_report.keycode[key_count++] = bt_kb.pressed_keys[i];
+        }
+        
+        // Convert Bluepad32 keyboard format to HID format for this keyboard
+        hid_keyboard_report_t kb_report;
+        kb_report.modifier = bt_kb.modifiers;
+        kb_report.reserved = 0;
+        
+        // Copy pressed keys (up to 6 keys for HID standard)
+        // Skip J key if it's being used for Port 1 toggle (only from first keyboard)
+        // Skip L key if it's being used for Llamatron toggle (only from first keyboard)
+        int key_count = 0;
+        for (int i = 0; i < 10 && key_count < 6; i++) {
+            if (bt_kb.pressed_keys[i] != 0) {
+                // Skip J key (HID 0x0D) if it's being used for Port 1 toggle (only from first keyboard)
+                if (kb_idx == 0 && combo_active && bt_kb.pressed_keys[i] == 0x0D) {
+                    ahprintf("[TOGGLE-BT] Blocking J key from being sent to Amiga\n");
+                    continue;
                 }
+                // Skip L key (HID 0x0F) if it's being used for Llamatron toggle (only from first keyboard)
+                if (kb_idx == 0 && llamatron_combo_active && bt_kb.pressed_keys[i] == 0x0F) {
+                    ahprintf("[LLAMATRON-BT] Blocking L key from being sent to Amiga\n");
+                    continue;
+                }
+                kb_report.keycode[key_count++] = bt_kb.pressed_keys[i];
             }
-            // Zero out remaining slots
-            for (int i = key_count; i < 6; i++) {
-                kb_report.keycode[i] = 0;
-            }
-            
-            // Process the keyboard report using the same logic as USB keyboards
-            // Use a static last report to track key state
-            static hid_keyboard_report_t last_bt_report = { 0, 0, {0} };
-            uint8_t pos;
-            
-            // Check for new keypresses or releases
-            for (pos = 0; pos < 6; pos++) {
-                if (kb_report.keycode[pos] && !key_pressed(&last_bt_report, kb_report.keycode[pos])) {
-                    // New keypress
-                    amiga_hid_send(kb_report.keycode[pos], false);
+        }
+        // Zero out remaining slots
+        for (int i = key_count; i < 6; i++) {
+            kb_report.keycode[i] = 0;
+        }
+        
+        // Merge modifiers: OR logic (if any keyboard has modifier pressed, set it)
+        merged_report.modifier |= kb_report.modifier;
+        
+        // Merge pressed keys: Union (add all unique keys from all keyboards)
+        // Track which keys we've already added to merged report
+        for (int i = 0; i < 6; i++) {
+            if (kb_report.keycode[i] != 0) {
+                // Check if this key is already in merged report
+                bool key_already_present = false;
+                for (int j = 0; j < 6; j++) {
+                    if (merged_report.keycode[j] == kb_report.keycode[i]) {
+                        key_already_present = true;
+                        break;
+                    }
                 }
                 
-                if (last_bt_report.keycode[pos] && !key_pressed(&kb_report, last_bt_report.keycode[pos])) {
-                    // Key released
-                    amiga_hid_send(last_bt_report.keycode[pos], true);
+                // Add key if not already present and we have room
+                if (!key_already_present) {
+                    for (int j = 0; j < 6; j++) {
+                        if (merged_report.keycode[j] == 0) {
+                            merged_report.keycode[j] = kb_report.keycode[i];
+                            break;
+                        }
+                    }
                 }
             }
-            
-            // Check modifier state (macros expect 'report' and 'last_report' in scope)
-            hid_keyboard_report_t* report = &kb_report;
-            hid_keyboard_report_t last_report = last_bt_report;
-            _MULTI_MOD_CHECK(KEYBOARD_MODIFIER_LEFTCTRL, KEYBOARD_MODIFIER_RIGHTCTRL);
-            _SINGLE_MOD_CHECK(KEYBOARD_MODIFIER_LEFTALT);
-            _SINGLE_MOD_CHECK(KEYBOARD_MODIFIER_RIGHTALT);
-            _SINGLE_MOD_CHECK(KEYBOARD_MODIFIER_LEFTSHIFT);
-            _SINGLE_MOD_CHECK(KEYBOARD_MODIFIER_RIGHTSHIFT);
-            _SINGLE_MOD_CHECK(KEYBOARD_MODIFIER_LEFTGUI);
-            _SINGLE_MOD_CHECK(KEYBOARD_MODIFIER_RIGHTGUI);
-            
-            last_bt_report = kb_report;
         }
+        
+        merged_report_valid = true;
+    }
+    
+    // Process merged keyboard input from all keyboards
+    if (merged_report_valid) {
+        // Use combined last report for merged state tracking
+        static hid_keyboard_report_t last_merged_report = { 0, 0, {0} };
+        uint8_t pos;
+        
+        // Check for new keypresses or releases across all keyboards
+        for (pos = 0; pos < 6; pos++) {
+            if (merged_report.keycode[pos] && !key_pressed(&last_merged_report, merged_report.keycode[pos])) {
+                // New keypress (from any keyboard)
+                amiga_hid_send(merged_report.keycode[pos], false);
+            }
+            
+            if (last_merged_report.keycode[pos] && !key_pressed(&merged_report, last_merged_report.keycode[pos])) {
+                // Key released (no longer pressed on any keyboard)
+                amiga_hid_send(last_merged_report.keycode[pos], true);
+            }
+        }
+        
+        // Check modifier state (macros expect 'report' and 'last_report' in scope)
+        hid_keyboard_report_t* report = &merged_report;
+        hid_keyboard_report_t last_report = last_merged_report;
+        _MULTI_MOD_CHECK(KEYBOARD_MODIFIER_LEFTCTRL, KEYBOARD_MODIFIER_RIGHTCTRL);
+        _SINGLE_MOD_CHECK(KEYBOARD_MODIFIER_LEFTALT);
+        _SINGLE_MOD_CHECK(KEYBOARD_MODIFIER_RIGHTALT);
+        _SINGLE_MOD_CHECK(KEYBOARD_MODIFIER_LEFTSHIFT);
+        _SINGLE_MOD_CHECK(KEYBOARD_MODIFIER_RIGHTSHIFT);
+        _SINGLE_MOD_CHECK(KEYBOARD_MODIFIER_LEFTGUI);
+        _SINGLE_MOD_CHECK(KEYBOARD_MODIFIER_RIGHTGUI);
+        
+        last_merged_report = merged_report;
     }
 }
 
