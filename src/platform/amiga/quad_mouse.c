@@ -20,6 +20,7 @@
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
 #include "pico/time.h"
+#include "pico/flash.h"  // For flash_safe_execute_core_init() - required for Bluetooth flash coordination
 #include "hardware/gpio.h"
 
 // mouse motion values, used between core0 and core1
@@ -115,6 +116,12 @@ void amiga_quad_mouse_set_motion(int8_t in_x, int8_t in_y)
 
 void amiga_quad_mouse_motion()
 {
+    // CRITICAL: Initialize flash-safe execution FIRST
+    // This allows Core 0 to coordinate with Core 1 when Bluetooth writes to flash (TLV storage)
+    // Without this, Core 1 can freeze when Bluetooth tries to access flash during pairing
+    // This is required for proper flash coordination, especially for devices requiring SSP (Secure Simple Pairing)
+    // Reference: Atari keyboard interface implementation
+    flash_safe_execute_core_init();
     // ahprintf("[aqm] hello from core1, mouse motion output loop starting\n");
     uint8_t quad_mx_state = 0, quad_my_state = 0;
     
