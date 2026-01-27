@@ -27,6 +27,7 @@
 #include "platform/amiga/joystick_port2.h"
 #include "util/output.h"
 #include "util/debug_cons.h"
+#include "display/display.h"
 
 #if ENABLE_BLUEPAD32
 #include "bluepad32_platform.h"
@@ -77,6 +78,16 @@ static void handle_event_gamepad(uint8_t dev_addr, uint8_t instance, uint8_t con
 static uint8_t first_gamepad_dev_addr = 0;
 static uint8_t first_gamepad_instance = 0;
 
+#if HIDPICO_REVISION == 5
+// USB device counts for display
+static uint8_t usb_kb_count = 0;
+static uint8_t usb_mouse_count = 0;
+static uint8_t usb_joy_count = 0;
+
+// Forward declaration
+static void update_usb_device_counts(void);
+#endif
+
 void hid_app_task(void)
 {
     // null function to satisfy stack
@@ -111,6 +122,24 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const *desc_re
     if (!tuh_hid_receive_report(dev_addr, instance)) {
         // ahprintf("[PLUG] warning! report request failed; delayed initialisation?\n");
     }
+    
+#if HIDPICO_REVISION == 5
+    // Update device counts
+    if (hid_protocol == HID_ITF_PROTOCOL_KEYBOARD) {
+        usb_kb_count++;
+    } else if (hid_protocol == HID_ITF_PROTOCOL_MOUSE) {
+        usb_mouse_count++;
+    } else if (hid_protocol == HID_ITF_PROTOCOL_NONE) {
+        // Could be a gamepad/joystick (non-boot protocol)
+        // Track first gamepad
+        if (first_gamepad_dev_addr == 0) {
+            first_gamepad_dev_addr = dev_addr;
+            first_gamepad_instance = instance;
+            usb_joy_count++;
+        }
+    }
+    update_usb_device_counts();
+#endif
 }
 
 /**
@@ -131,7 +160,29 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance)
         first_gamepad_instance = 0;
         amiga_joystick_port2_reset();
     }
+    
+#if HIDPICO_REVISION == 5
+    // Update device counts
+    if (hid_protocol == HID_ITF_PROTOCOL_KEYBOARD) {
+        if (usb_kb_count > 0) usb_kb_count--;
+    } else if (hid_protocol == HID_ITF_PROTOCOL_MOUSE) {
+        if (usb_mouse_count > 0) usb_mouse_count--;
+    } else if (hid_protocol == HID_ITF_PROTOCOL_NONE) {
+        if (dev_addr == first_gamepad_dev_addr && instance == first_gamepad_instance) {
+            if (usb_joy_count > 0) usb_joy_count--;
+        }
+    }
+    update_usb_device_counts();
+#endif
 }
+
+#if HIDPICO_REVISION == 5
+// Update display with current USB device counts
+static void update_usb_device_counts(void)
+{
+    display_set_usb_counts(usb_kb_count, usb_mouse_count, usb_joy_count);
+}
+#endif
 
 /**
  * HID report event has occurred

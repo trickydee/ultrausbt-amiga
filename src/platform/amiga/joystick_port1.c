@@ -21,13 +21,15 @@
 #include "config.h"
 #include "platform/common/gpio_util.h"
 #include <hardware/gpio.h>
+#include "hardware/sync.h"  // For memory barriers (__sync_synchronize)
 
 // Movement threshold for mouse-to-joystick conversion (in HID report units)
 // Mouse movement must exceed this threshold to trigger joystick direction
 #define MOUSE_TO_JOYSTICK_THRESHOLD 5
 
 // Port 1 mode: false = mouse only (default), true = joystick mode (mouse converted to joystick)
-static bool port1_joystick_mode = false;
+// Volatile to ensure Core 1 (mouse quadrature) sees updates from Core 0
+static volatile bool port1_joystick_mode = false;
 
 void amiga_joystick_port1_init(void)
 {
@@ -145,7 +147,10 @@ void amiga_joystick_port1_set_from_mouse(int8_t x, int8_t y, uint8_t buttons)
 
 void amiga_joystick_port1_toggle_mode(void)
 {
+    // Use memory barrier to ensure Core 1 sees the mode change
+    __sync_synchronize();
     port1_joystick_mode = !port1_joystick_mode;
+    __sync_synchronize();
     
     // When switching to mouse-only mode, release all joystick signals
     if (!port1_joystick_mode) {
@@ -161,6 +166,10 @@ void amiga_joystick_port1_toggle_mode(void)
 
 bool amiga_joystick_port1_is_joystick_mode(void)
 {
-    return port1_joystick_mode;
+    // Use memory barrier to ensure we read the latest value from Core 0
+    __sync_synchronize();
+    bool mode = port1_joystick_mode;
+    __sync_synchronize();
+    return mode;
 }
 

@@ -11,6 +11,7 @@
 #include "config.h"
 #include "quad_mouse.h"
 #include "platform/common/gpio_util.h"
+#include "platform/amiga/joystick_port1.h"  // For checking joystick mode
 #include "util/output.h"
 
 #include <stdint.h>
@@ -22,6 +23,7 @@
 #include "pico/time.h"
 #include "pico/flash.h"  // For flash_safe_execute_core_init() - required for Bluetooth flash coordination
 #include "hardware/gpio.h"
+#include "hardware/sync.h"  // For memory barriers (__dmb)
 
 // mouse motion values, used between core0 and core1
 volatile int8_t x = 0, y = 0;
@@ -29,6 +31,9 @@ volatile bool motion_flag = false;
 
 // Core 1 pause flag - set to true to pause mouse processing (e.g., during Bluetooth enumeration)
 volatile bool g_core1_paused = false;
+
+// Core 1 heartbeat counter - increments every loop to detect if Core 1 is running
+volatile uint32_t g_core1_heartbeat = 0;
 
 // Speed-proportional timing constants (based on Atari implementation)
 #define MAX_SPEED 30000.0    // Maximum speed value for period calculation (reduced for better fast movement)
@@ -150,10 +155,21 @@ void amiga_quad_mouse_motion()
      */
 
     while (1) {
+        // Increment heartbeat counter FIRST to show Core 1 is always running
+        g_core1_heartbeat++;
+        
         // Check if Core 1 is paused (e.g., during Bluetooth enumeration)
         // This prevents flash access conflicts during GATT service discovery
-        if (g_core1_paused) {
-            sleep_ms(10);  // Sleep longer when paused
+        // IMPORTANT: Read the flag with a memory barrier to ensure we see the latest value
+        // Use __sync_synchronize() to ensure we read from memory, not cache
+        __sync_synchronize();
+        bool paused = g_core1_paused;
+        __sync_synchronize();
+        
+        if (paused) {
+            // When paused, use busy_wait instead of sleep_ms to ensure we check the flag frequently
+            // This allows Core 1 to resume quickly when the flag changes
+            busy_wait_us(5000);  // 5ms busy wait (reduced from 10ms for faster response)
             continue;
         }
         
@@ -230,11 +246,15 @@ void amiga_quad_mouse_motion()
                 }
                 
                 // Update GPIO based on new state
-                switch (quad_mx_state) {
-                    case 0: amiga_gpio_set_active_low(QM1_AMIGA_H, false); break;   // HIGH = inactive
-                    case 1: amiga_gpio_set_active_low(QM1_AMIGA_HQ, false); break;  // HIGH = inactive
-                    case 2: amiga_gpio_set_active_low(QM1_AMIGA_H, true); break;    // LOW = active
-                    case 3: amiga_gpio_set_active_low(QM1_AMIGA_HQ, true); break;   // LOW = active
+                // IMPORTANT: Only update GPIO if joystick mode is NOT active
+                // When joystick mode is active, Core 0 controls these GPIOs and we must not interfere
+                if (!amiga_joystick_port1_is_joystick_mode()) {
+                    switch (quad_mx_state) {
+                        case 0: amiga_gpio_set_active_low(QM1_AMIGA_H, false); break;   // HIGH = inactive
+                        case 1: amiga_gpio_set_active_low(QM1_AMIGA_HQ, false); break;  // HIGH = inactive
+                        case 2: amiga_gpio_set_active_low(QM1_AMIGA_H, true); break;    // LOW = active
+                        case 3: amiga_gpio_set_active_low(QM1_AMIGA_HQ, true); break;   // LOW = active
+                    }
                 }
                 
                 last_x_time = current_time;
@@ -270,11 +290,15 @@ void amiga_quad_mouse_motion()
                 }
                 
                 // Update GPIO based on new state
-                switch (quad_my_state) {
-                    case 0: amiga_gpio_set_active_low(QM1_AMIGA_V, false); break;   // HIGH = inactive
-                    case 1: amiga_gpio_set_active_low(QM1_AMIGA_VQ, false); break;  // HIGH = inactive
-                    case 2: amiga_gpio_set_active_low(QM1_AMIGA_V, true); break;    // LOW = active
-                    case 3: amiga_gpio_set_active_low(QM1_AMIGA_VQ, true); break;   // LOW = active
+                // IMPORTANT: Only update GPIO if joystick mode is NOT active
+                // When joystick mode is active, Core 0 controls these GPIOs and we must not interfere
+                if (!amiga_joystick_port1_is_joystick_mode()) {
+                    switch (quad_my_state) {
+                        case 0: amiga_gpio_set_active_low(QM1_AMIGA_V, false); break;   // HIGH = inactive
+                        case 1: amiga_gpio_set_active_low(QM1_AMIGA_VQ, false); break;  // HIGH = inactive
+                        case 2: amiga_gpio_set_active_low(QM1_AMIGA_V, true); break;    // LOW = active
+                        case 3: amiga_gpio_set_active_low(QM1_AMIGA_VQ, true); break;   // LOW = active
+                    }
                 }
                 
                 last_y_time = current_time;
@@ -314,10 +338,23 @@ void amiga_quad_mouse_motion()
 // Core 1 pause/resume functions for Bluetooth enumeration coordination
 void amiga_quad_mouse_pause_core1(void)
 {
+    // Use atomic store with memory barrier to ensure Core 1 sees the change
+    __sync_synchronize();
     g_core1_paused = true;
+    __sync_synchronize();
+    // Force a memory write barrier to ensure the write is visible to Core 1
+    __dmb();
 }
 
 void amiga_quad_mouse_resume_core1(void)
 {
+    // Use atomic store with memory barrier to ensure Core 1 sees the change
+    __sync_synchronize();
     g_core1_paused = false;
+    __sync_synchronize();
+    // Force a memory write barrier to ensure the write is visible to Core 1
+    __dmb();
+    // Add a small delay to ensure Core 1 has time to see the change
+    // This is especially important if Core 1 is in a tight loop
+    busy_wait_us(50);  // 50us delay (reduced from 100us for faster resume)
 }

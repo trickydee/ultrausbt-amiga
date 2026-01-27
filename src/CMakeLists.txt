@@ -38,6 +38,7 @@ endif()
 add_executable(amigahid-pico
   main.c
   usb_hid.c
+  ${CMAKE_SOURCE_DIR}/ssd1306/ssd1306.c
 )
 
 # Add Bluepad32 source files if enabled
@@ -53,8 +54,10 @@ add_subdirectory(util)
 add_subdirectory(display)
 
 # make the src subdirectory availabe in the include path so tinyusb can find tusb_config.h
+# also add ssd1306 directory for the display library
 target_include_directories(amigahid-pico PUBLIC
   ${CMAKE_CURRENT_LIST_DIR}
+  ${CMAKE_SOURCE_DIR}/ssd1306
 )
 
 pico_enable_stdio_uart(amigahid-pico 1)

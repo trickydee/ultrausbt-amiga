@@ -15,7 +15,7 @@
 #include "pico/time.h"  // For watchdog timing
 #include <stdio.h>
 
-#include "display/disp_ssd.h"
+#include "display/display.h"
 #include "platform/amiga/keyboard_serial_io.h"
 #include "platform/amiga/quad_mouse.h"
 #include "platform/amiga/joystick_port1.h"
@@ -40,8 +40,7 @@ extern void process_bluepad32_devices(void);
 // Software version - increment this with each build to verify latest firmware is loaded
 #define SOFTWARE_VERSION_MAJOR 1
 #define SOFTWARE_VERSION_MINOR 0
-#define SOFTWARE_VERSION_PATCH 0
-#define SOFTWARE_VERSION_BUILD 1
+#define SOFTWARE_VERSION_PATCH 2
 
 // main entry point
 int main(void)
@@ -74,24 +73,24 @@ int main(void)
     // Print version number at startup to verify build and serial output
     printf("\n");
     printf("========================================\n");
-    printf("amigahid-pico v%d.%d.%d (build %d)\n", 
-           SOFTWARE_VERSION_MAJOR, SOFTWARE_VERSION_MINOR, 
-           SOFTWARE_VERSION_PATCH, SOFTWARE_VERSION_BUILD);
+        printf("amigahid-pico v%d.%d.%d\n", 
+               SOFTWARE_VERSION_MAJOR, SOFTWARE_VERSION_MINOR, 
+               SOFTWARE_VERSION_PATCH);
     printf("========================================\n");
     printf("Port 1 toggle: Shift + Left Amiga + J\n");
     printf("Llamatron mode: Shift + Left Amiga + L\n");
     printf("========================================\n\n");
 
-    // initialise the i2c controller and send the init sequence to the display
-    disp_ssd_init();
-
     // say hello, trevor ("hello, trevor")
-    // NOTE: dbgcons_init() clears the screen (VT_ED_CLS), so any messages after this will be visible
     dbgcons_init();
     
 #if HIDPICO_REVISION == 5
     // Print GPIO reset confirmation (after dbgcons_init so it's visible after screen clear)
     printf("[GPIO] State cleared and reset to INPUT (before other init)\n");
+    
+    // Initialize the display (same order as Atari code: after dbgcons_init)
+    // Splash screen is shown by default
+    display_init();
 #endif
 
     // initialise the usb host stack on the rhport from tusb_config.h
@@ -153,6 +152,9 @@ int main(void)
             }
             last_watchdog_check = now;
         }
+        
+        // Handle display button presses
+        display_handle_buttons();
 #endif
     }
 

@@ -103,6 +103,17 @@
 #  define QM2_AMIGA_B1   JOY0_ATARI_FIRE   // Fire button - Atari JOY0 FIRE
 #  define QM2_AMIGA_B2   19                 // Button 2 - Keep current GPIO (same as UP, will be remapped in hardware)
 #  define QM2_AMIGA_B3   18                 // Button 3 - Keep current GPIO (will be remapped in hardware)
+
+// SSD1306 OLED Display configuration (matches Atari board)
+#  define SSD1306_SDA    I2C_PIN_SDA       // GPIO 8 (same as I2C_PIN_SDA)
+#  define SSD1306_SCL    I2C_PIN_SCL       // GPIO 9 (same as I2C_PIN_SCL)
+#  define SSD1306_I2C    I2C_PORT          // i2c0
+#  define SSD1306_ADDR   0x3c               // I2C address
+#  define SSD1306_WIDTH  128                // Display width in pixels
+#  define SSD1306_HEIGHT 64                 // Display height in pixels
+
+// GPIO assignments for UI buttons (matches Atari board)
+#  define GPIO_BUTTON_MIDDLE 17             // Center button for screen toggle
 #else
 #  error "HIDPICO_REVISION must be 2, 4, or 5. Current value is not recognized."
 #endif
