@@ -12,6 +12,7 @@
 #include "bsp/board.h"
 #include "tusb.h"
 #include "pico/stdlib.h"
+#include "pico/time.h"  // For watchdog timing
 #include <stdio.h>
 
 #include "display/disp_ssd.h"
@@ -19,6 +20,7 @@
 #include "platform/amiga/quad_mouse.h"
 #include "platform/amiga/joystick_port1.h"
 #include "platform/amiga/joystick_port2.h"
+#include "platform/common/gpio_util.h"
 #include "util/debug_cons.h"
 #include "util/output.h"
 
@@ -47,6 +49,25 @@ int main(void)
     // tinyusb board init; led, uart, button, usb
     board_init();
 
+#if HIDPICO_REVISION == 5
+    // IMPORTANT: Clear Amiga GPIOs EARLY, before any other initialization that might use GPIOs
+    // This prevents race conditions where Amiga's pull-ups pull lines high before Pico initializes
+    // We do this immediately after board_init() to ensure clean GPIO state before:
+    // - CYW43 initialization (if board_init() didn't already do it)
+    // - I2C display initialization
+    // - USB initialization
+    // - Bluetooth initialization
+    
+    // Wait for power to stabilize (especially important if Amiga is already powered)
+    sleep_ms(100);
+    
+    // Clear all GPIO direction cache and reset all Amiga GPIOs to INPUT (inactive/high) state
+    // This ensures clean state even if Amiga is already powered and pull-ups are active
+    // NOTE: This only touches Amiga joystick/mouse GPIOs (GPIOs 10-14, 18-22, 26 for Rev 5)
+    // It does NOT affect CYW43 SPI pins or other system GPIOs
+    amiga_gpio_reset_all_to_input();
+#endif
+
     // Initialize UART for debug output (needed for version print)
     stdio_init_all();
     
@@ -65,7 +86,13 @@ int main(void)
     disp_ssd_init();
 
     // say hello, trevor ("hello, trevor")
+    // NOTE: dbgcons_init() clears the screen (VT_ED_CLS), so any messages after this will be visible
     dbgcons_init();
+    
+#if HIDPICO_REVISION == 5
+    // Print GPIO reset confirmation (after dbgcons_init so it's visible after screen clear)
+    printf("[GPIO] State cleared and reset to INPUT (before other init)\n");
+#endif
 
     // initialise the usb host stack on the rhport from tusb_config.h
     // Note: tuh_init() is deprecated, using tusb_init() with proper structure
@@ -93,6 +120,13 @@ int main(void)
     bluepad32_init();
 #endif
 
+#if HIDPICO_REVISION == 5
+    // Watchdog: Check GPIO state periodically (every 5 seconds)
+    // This is lightweight - only checks a sample of GPIOs to detect stuck states
+    absolute_time_t last_watchdog_check = get_absolute_time();
+    const uint32_t WATCHDOG_INTERVAL_MS = 5000;  // Check every 5 seconds
+#endif
+
     while (1) {
         // run host mode jobs (hotplug events, packet io callbacks)
         tuh_task();
@@ -107,6 +141,18 @@ int main(void)
         // Optimized: batch process all Bluetooth devices with early returns
         // Only processes devices that are actually connected, reducing overhead
         process_bluepad32_devices();
+#endif
+
+#if HIDPICO_REVISION == 5
+        // Lightweight watchdog: Check GPIO state periodically (not every loop iteration)
+        // This minimizes performance impact while still detecting stuck GPIO states
+        absolute_time_t now = get_absolute_time();
+        if (absolute_time_diff_us(last_watchdog_check, now) >= (WATCHDOG_INTERVAL_MS * 1000)) {
+            if (amiga_gpio_watchdog_check()) {
+                printf("[WATCHDOG] GPIO state recovery performed\n");
+            }
+            last_watchdog_check = now;
+        }
 #endif
     }
 

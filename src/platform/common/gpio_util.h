@@ -43,5 +43,25 @@ void amiga_gpio_init_active_low(uint32_t gpio, bool initial_active);
  */
 void amiga_gpio_clear_cache(uint32_t gpio);
 
+/**
+ * Clear all GPIO direction cache
+ * Call this before initialization to ensure clean state
+ */
+void amiga_gpio_clear_all_cache(void);
+
+/**
+ * Reset all Amiga GPIOs to INPUT state (inactive/high)
+ * Call this before initialization, especially if Amiga is already powered
+ * This ensures clean state even if Amiga's pull-ups have already pulled lines high
+ */
+void amiga_gpio_reset_all_to_input(void);
+
+/**
+ * Watchdog: Check if GPIOs are stuck in wrong state and recover if needed
+ * This is a lightweight check that should be called periodically (e.g., every 5 seconds)
+ * Returns true if recovery was needed, false otherwise
+ */
+bool amiga_gpio_watchdog_check(void);
+
 #endif // _PLATFORM_COMMON_GPIO_UTIL_H
 
