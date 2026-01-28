@@ -16,6 +16,7 @@
 #include <string.h>
 
 #include "sdkconfig.h"
+#include "controller/uni_controller_type.h"  // For controller type enums (Xbox, Stadia, etc.)
 #include "platform/amiga/quad_mouse.h"  // For Core 1 pause/resume functions
 #include "display/display.h"
 
@@ -66,60 +67,8 @@ static uni_hid_device_t* keyboard_device_map[MAX_BT_KEYBOARDS] = {0};
 static uni_hid_device_t* mouse_device_map[MAX_BT_MICE] = {0};
 static uni_hid_device_t* gamepad_device_map[MAX_BT_GAMEPADS] = {0};
 
-// Temporary storage for device names discovered before we know device type
-// Map by device pointer (since we don't have address access)
-#define MAX_PENDING_NAMES 8
-typedef struct {
-    uni_hid_device_t* device;
-    char name[32];
-    bool valid;
-} pending_name_t;
-static pending_name_t pending_names[MAX_PENDING_NAMES] = {0};
-
-// Store device name when device is connected (we have device pointer)
-static void store_pending_name(uni_hid_device_t* d, const char* name) {
-    if (!d || !name || name[0] == '\0') {
-        return;  // No name to store
-    }
-    
-    // Find empty slot or overwrite existing
-    for (int i = 0; i < MAX_PENDING_NAMES; i++) {
-        if (!pending_names[i].valid || pending_names[i].device == d) {
-            pending_names[i].device = d;
-            strncpy(pending_names[i].name, name, sizeof(pending_names[i].name) - 1);
-            pending_names[i].name[sizeof(pending_names[i].name) - 1] = '\0';
-            pending_names[i].valid = true;
-            return;
-        }
-    }
-}
-
-// Get stored device name by device pointer
-static const char* get_pending_name(uni_hid_device_t* d) {
-    if (!d) return NULL;
-    
-    for (int i = 0; i < MAX_PENDING_NAMES; i++) {
-        if (pending_names[i].valid && pending_names[i].device == d) {
-            return pending_names[i].name;
-        }
-    }
-    return NULL;
-}
-
-// Clear pending name when device is ready
-static void clear_pending_name(uni_hid_device_t* d) {
-    if (!d) return;
-    
-    for (int i = 0; i < MAX_PENDING_NAMES; i++) {
-        if (pending_names[i].valid && pending_names[i].device == d) {
-            pending_names[i].valid = false;
-            return;
-        }
-    }
-}
-
-// Store device name when discovered (by address, before we have device pointer)
-// Map by Bluetooth address (6 bytes)
+// Store device names discovered by address (before we have device pointer)
+// Map by Bluetooth address (6 bytes) so we can match them when device is ready
 #define MAX_PENDING_NAMES_BY_ADDR 8
 typedef struct {
     bd_addr_t addr;
@@ -145,33 +94,26 @@ static void store_pending_name_by_addr(bd_addr_t addr, const char* name) {
     }
 }
 
-// Try to get device name by accessing device structure directly
-// This is a workaround since we don't have a proper API
-static const char* try_get_device_name(uni_hid_device_t* d) {
-    if (!d) return NULL;
-    
-    // Try to access name field directly from device structure
-    // The uni_hid_device_t structure may have a name field
-    // We'll try to access it - this is a workaround
-    // Note: This may not work for all devices, but we'll try
-    
-    // Access the device structure as a pointer and try to find name field
-    // The structure layout is not public, so we'll use a cast
-    // This is fragile but necessary since there's no API
-    
-    // For now, we'll use a simpler approach: store names by address when discovered
-    // and match them when device is ready (if we can get the address)
-    // But since we can't get address easily, we'll just use default names
-    // and update them if we can access the name field
-    
-    // Try accessing as if there's a name field at offset
-    // This is a guess based on common structure layouts
-    // We'll try to access d->name if the structure has it
-    // Note: This may cause crashes if the structure doesn't have this field
-    
-    // Safer approach: return NULL and use default names
-    // The name will be matched by address if we can get it
+// Get stored device name by address
+static const char* get_pending_name_by_addr(bd_addr_t addr) {
+    for (int i = 0; i < MAX_PENDING_NAMES_BY_ADDR; i++) {
+        if (pending_names_by_addr[i].valid && 
+            memcmp(pending_names_by_addr[i].addr, addr, 6) == 0) {
+            return pending_names_by_addr[i].name;
+        }
+    }
     return NULL;
+}
+
+// Clear pending name when device is ready
+static void clear_pending_name_by_addr(bd_addr_t addr) {
+    for (int i = 0; i < MAX_PENDING_NAMES_BY_ADDR; i++) {
+        if (pending_names_by_addr[i].valid && 
+            memcmp(pending_names_by_addr[i].addr, addr, 6) == 0) {
+            pending_names_by_addr[i].valid = false;
+            return;
+        }
+    }
 }
 
 // Find the first available slot for a device type, or find existing slot if device already mapped
@@ -294,11 +236,23 @@ static void my_platform_on_device_connected(uni_hid_device_t* d) {
     logi("bluepad32_platform: device connected: %p\n", d);
     
     // Check if this is an Xbox or Stadia gamepad and ensure Core 1 is paused
-    // We check vendor ID if available (Xbox = 0x045E, Google/Stadia = 0x18D1)
-    // Note: In on_device_connected, we only check vendor_id (product_id may not be available yet)
+    // Use controller type for Xbox (if available), vendor ID for Stadia
+    bool is_xbox = false;
+    bool is_stadia = false;
+    
+    // Check controller type for Xbox (bluepad32 identifies this automatically)
+    if (uni_hid_device_has_controller_type(d)) {
+        uni_controller_type_t ctrl_type = d->controller_type;
+        is_xbox = (ctrl_type == k_eControllerType_XBoxOneController) ||
+                  (ctrl_type == k_eControllerType_XBox360Controller);
+    }
+    
+    // For Stadia, check vendor ID (Stadia is mapped to AndroidController, so we need VID/PID)
+    // Note: In on_device_connected, product_id may not be available yet
     uint16_t vendor_id = uni_hid_device_get_vendor_id(d);
-    bool is_xbox_stadia = (vendor_id == 0x045E) ||  // Microsoft (Xbox)
-                          (vendor_id == 0x18D1);    // Google (Stadia)
+    is_stadia = (vendor_id == 0x18D1);  // Google (Stadia)
+    
+    bool is_xbox_stadia = is_xbox || is_stadia;
     
     // Ensure Core 1 is paused (may have been paused earlier during discovery)
     // The freeze happens during GATT service discovery which occurs here
@@ -308,8 +262,7 @@ static void my_platform_on_device_connected(uni_hid_device_t* d) {
     }
     
     // Device type will be determined in on_device_ready()
-    // Note: Device name will be stored in on_device_ready() when we know the device type
-    // For now, we'll use default names since we can't easily match by address
+    // Device name will be retrieved from d->name or matched by address
 }
 
 static void my_platform_on_device_disconnected(uni_hid_device_t* d) {
@@ -361,10 +314,22 @@ static void my_platform_on_device_disconnected(uni_hid_device_t* d) {
 static uni_error_t my_platform_on_device_ready(uni_hid_device_t* d) {
     logi("bluepad32_platform: device ready: %p\n", d);
     
-    // Try to get device name from pending storage (by device pointer)
-    // For now, we'll use default names since we can't easily match discovered names
-    // to devices when they're ready (we don't have a way to get device address)
-    const char* stored_name = get_pending_name(d);
+    // Get device address to match with discovered name
+    bd_addr_t addr;
+    uni_bt_conn_get_address(&d->conn, addr);
+    
+    // Try to get device name from pending storage (by address)
+    const char* stored_name = get_pending_name_by_addr(addr);
+    
+    // Get device name - prefer bluepad32's stored name, fallback to discovered name, then default
+    const char* device_name = NULL;
+    if (uni_hid_device_has_name(d) && d->name[0] != '\0') {
+        // Bluepad32 has the device name
+        device_name = d->name;
+    } else if (stored_name && stored_name[0] != '\0') {
+        // Use name from discovery
+        device_name = stored_name;
+    }
     
     // Determine device type and mark appropriate storage as connected
     if (uni_hid_device_is_keyboard(d)) {
@@ -373,11 +338,11 @@ static uni_error_t my_platform_on_device_ready(uni_hid_device_t* d) {
         if (storage) {
             storage->connected = true;
             storage->updated = false;
-            // Store device name (from pending storage or use default)
-            if (stored_name && stored_name[0] != '\0') {
-                strncpy(storage->name, stored_name, sizeof(storage->name) - 1);
+            // Store device name
+            if (device_name && device_name[0] != '\0') {
+                strncpy(storage->name, device_name, sizeof(storage->name) - 1);
                 storage->name[sizeof(storage->name) - 1] = '\0';
-                clear_pending_name(d);
+                clear_pending_name_by_addr(addr);
             } else {
                 snprintf(storage->name, sizeof(storage->name), "Keyboard");
             }
@@ -394,11 +359,11 @@ static uni_error_t my_platform_on_device_ready(uni_hid_device_t* d) {
         if (storage) {
             storage->connected = true;
             storage->updated = false;
-            // Store device name (from pending storage or use default)
-            if (stored_name && stored_name[0] != '\0') {
-                strncpy(storage->name, stored_name, sizeof(storage->name) - 1);
+            // Store device name
+            if (device_name && device_name[0] != '\0') {
+                strncpy(storage->name, device_name, sizeof(storage->name) - 1);
                 storage->name[sizeof(storage->name) - 1] = '\0';
-                clear_pending_name(d);
+                clear_pending_name_by_addr(addr);
             } else {
                 snprintf(storage->name, sizeof(storage->name), "Mouse");
             }
@@ -413,21 +378,33 @@ static uni_error_t my_platform_on_device_ready(uni_hid_device_t* d) {
         // Check if this is an Xbox or Stadia gamepad (known to cause Core 1 freeze)
         // These controllers need special handling during enumeration
         // IMPORTANT: Check vendor/product ID BEFORE allocating storage (matches Atari code ordering)
+        bool is_xbox = false;
+        bool is_stadia = false;
+        
+        // Use controller type for Xbox (bluepad32 identifies this automatically)
+        if (uni_hid_device_has_controller_type(d)) {
+            uni_controller_type_t ctrl_type = d->controller_type;
+            is_xbox = (ctrl_type == k_eControllerType_XBoxOneController) ||
+                      (ctrl_type == k_eControllerType_XBox360Controller);
+        }
+        
+        // For Stadia, check vendor/product ID (Stadia is mapped to AndroidController)
         uint16_t vendor_id = uni_hid_device_get_vendor_id(d);
         uint16_t product_id = uni_hid_device_get_product_id(d);
-        bool is_xbox_stadia = (vendor_id == 0x045E) ||  // Microsoft (Xbox)
-                              (vendor_id == 0x18D1 && product_id == 0x9400);  // Google (Stadia)
+        is_stadia = (vendor_id == 0x18D1 && product_id == 0x9400);  // Google (Stadia)
+        
+        bool is_xbox_stadia = is_xbox || is_stadia;
         
         // Gamepad - mark as connected (first one mapped to joystick port 2)
         bt_gamepad_storage_t* storage = get_gamepad_storage(d);
         if (storage) {
             storage->connected = true;
             storage->updated = false;
-            // Store device name (from pending storage or use default)
-            if (stored_name && stored_name[0] != '\0') {
-                strncpy(storage->name, stored_name, sizeof(storage->name) - 1);
+            // Store device name
+            if (device_name && device_name[0] != '\0') {
+                strncpy(storage->name, device_name, sizeof(storage->name) - 1);
                 storage->name[sizeof(storage->name) - 1] = '\0';
-                clear_pending_name(d);
+                clear_pending_name_by_addr(addr);
             } else {
                 snprintf(storage->name, sizeof(storage->name), "Gamepad");
             }
@@ -482,16 +459,6 @@ static uni_error_t my_platform_on_device_ready(uni_hid_device_t* d) {
 }
 
 static void my_platform_on_controller_data(uni_hid_device_t* d, uni_controller_t* ctl) {
-    // Try to get device name from controller data if available
-    // Some devices provide name in controller data
-    const char* device_name = NULL;
-    
-    // Try to access name from device structure directly
-    // This is a workaround - access the name field if it exists in the structure
-    // Note: This may not work for all devices, but we'll try
-    // The device name might be available in d->name or similar
-    // For now, we'll store it when we get controller data if name field is available
-    
     switch (ctl->klass) {
         case UNI_CONTROLLER_CLASS_KEYBOARD: {
             bt_keyboard_storage_t* storage = get_keyboard_storage(d);
@@ -499,10 +466,11 @@ static void my_platform_on_controller_data(uni_hid_device_t* d, uni_controller_t
                 if (!storage->connected) {
                     // First keyboard data - mark as connected
                     storage->connected = true;
-                    // Try to get name from device if not already set
-                    if (storage->name[0] == '\0') {
-                        // Try to access name from device structure
-                        // This is a workaround - we'll use a default if not available
+                    // Update name from device if not already set
+                    if (storage->name[0] == '\0' && uni_hid_device_has_name(d) && d->name[0] != '\0') {
+                        strncpy(storage->name, d->name, sizeof(storage->name) - 1);
+                        storage->name[sizeof(storage->name) - 1] = '\0';
+                    } else if (storage->name[0] == '\0') {
                         snprintf(storage->name, sizeof(storage->name), "Keyboard");
                     }
                 }
@@ -519,8 +487,11 @@ static void my_platform_on_controller_data(uni_hid_device_t* d, uni_controller_t
                 if (!storage->connected) {
                     // First mouse data - mark as connected
                     storage->connected = true;
-                    // Try to get name from device if not already set
-                    if (storage->name[0] == '\0') {
+                    // Update name from device if not already set
+                    if (storage->name[0] == '\0' && uni_hid_device_has_name(d) && d->name[0] != '\0') {
+                        strncpy(storage->name, d->name, sizeof(storage->name) - 1);
+                        storage->name[sizeof(storage->name) - 1] = '\0';
+                    } else if (storage->name[0] == '\0') {
                         snprintf(storage->name, sizeof(storage->name), "Mouse");
                     }
                 }
