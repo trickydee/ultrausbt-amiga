@@ -113,7 +113,9 @@
 #  define SSD1306_HEIGHT 64                 // Display height in pixels
 
 // GPIO assignments for UI buttons (matches Atari board)
-#  define GPIO_BUTTON_MIDDLE 17             // Center button for screen toggle
+#  define GPIO_BUTTON_LEFT   18             // Left button (toggle USB/BT mode on splash)
+#  define GPIO_BUTTON_MIDDLE 17             // Center button (toggle screens)
+#  define GPIO_BUTTON_RIGHT  16             // Right button (clear BT pairings on splash)
 #else
 #  error "HIDPICO_REVISION must be 2, 4, or 5. Current value is not recognized."
 #endif

@@ -248,7 +248,13 @@ void amiga_quad_mouse_motion()
                 // Update GPIO based on new state
                 // IMPORTANT: Only update GPIO if joystick mode is NOT active
                 // When joystick mode is active, Core 0 controls these GPIOs and we must not interfere
-                if (!amiga_joystick_port1_is_joystick_mode()) {
+                // Use memory barrier to ensure we see the latest joystick mode state
+                __sync_synchronize();
+                bool joy_mode = amiga_joystick_port1_is_joystick_mode();
+                __sync_synchronize();
+                if (!joy_mode) {
+                    // Only update H and HQ if not in joystick mode
+                    // Note: H is DOWN (GPIO 11), HQ is RIGHT (GPIO 13)
                     switch (quad_mx_state) {
                         case 0: amiga_gpio_set_active_low(QM1_AMIGA_H, false); break;   // HIGH = inactive
                         case 1: amiga_gpio_set_active_low(QM1_AMIGA_HQ, false); break;  // HIGH = inactive
@@ -256,6 +262,7 @@ void amiga_quad_mouse_motion()
                         case 3: amiga_gpio_set_active_low(QM1_AMIGA_HQ, true); break;   // LOW = active
                     }
                 }
+                // If joystick mode is active, we skip updating H/HQ to avoid conflicts
                 
                 last_x_time = current_time;
                 
@@ -292,7 +299,13 @@ void amiga_quad_mouse_motion()
                 // Update GPIO based on new state
                 // IMPORTANT: Only update GPIO if joystick mode is NOT active
                 // When joystick mode is active, Core 0 controls these GPIOs and we must not interfere
-                if (!amiga_joystick_port1_is_joystick_mode()) {
+                // Use memory barrier to ensure we see the latest joystick mode state
+                __sync_synchronize();
+                bool joy_mode = amiga_joystick_port1_is_joystick_mode();
+                __sync_synchronize();
+                if (!joy_mode) {
+                    // Only update V and VQ if not in joystick mode
+                    // Note: V is UP (GPIO 10), VQ is LEFT (GPIO 12)
                     switch (quad_my_state) {
                         case 0: amiga_gpio_set_active_low(QM1_AMIGA_V, false); break;   // HIGH = inactive
                         case 1: amiga_gpio_set_active_low(QM1_AMIGA_VQ, false); break;  // HIGH = inactive
@@ -300,6 +313,7 @@ void amiga_quad_mouse_motion()
                         case 3: amiga_gpio_set_active_low(QM1_AMIGA_VQ, true); break;   // LOW = active
                     }
                 }
+                // If joystick mode is active, we skip updating V/VQ to avoid conflicts
                 
                 last_y_time = current_time;
                 

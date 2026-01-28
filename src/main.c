@@ -134,12 +134,14 @@ int main(void)
         amiga_service();
 
 #if ENABLE_BLUEPAD32
-        // poll bluepad32 for Bluetooth events
-        bluepad32_poll();
-        
-        // Optimized: batch process all Bluetooth devices with early returns
-        // Only processes devices that are actually connected, reducing overhead
-        process_bluepad32_devices();
+        // poll bluepad32 for Bluetooth events (only if enabled)
+        if (bluepad32_is_enabled()) {
+            bluepad32_poll();
+            
+            // Optimized: batch process all Bluetooth devices with early returns
+            // Only processes devices that are actually connected, reducing overhead
+            process_bluepad32_devices();
+        }
 #endif
 
 #if HIDPICO_REVISION == 5

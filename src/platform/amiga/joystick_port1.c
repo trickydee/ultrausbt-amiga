@@ -60,10 +60,10 @@ void amiga_joystick_port1_set_direction(enum amiga_joystick_port1_direction dir,
     }
     
     // Amiga joystick port 1: Use separate pins for each direction (same approach as port 2)
-    // H pin (GPIO 9) = DOWN direction (LOW = active) - swapped with LEFT
-    // HQ pin (GPIO 7) = RIGHT direction (LOW = active)  
+    // H pin (GPIO 11) = DOWN direction (LOW = active)
+    // HQ pin (GPIO 13) = RIGHT direction (LOW = active)  
     // V pin (GPIO 10) = UP direction (LOW = active)
-    // VQ pin (GPIO 8) = LEFT direction (LOW = active) - swapped with DOWN
+    // VQ pin (GPIO 12) = LEFT direction (LOW = active)
     // All signals are active low, so LOW = direction pressed, HIGH/inactive = released
     
     // Optimized: Only update GPIO pins that have changed state (matches port 2 optimization)
@@ -73,15 +73,21 @@ void amiga_joystick_port1_set_direction(enum amiga_joystick_port1_direction dir,
         prev_dir_up = dir_up;
     }
     if (dir_down != prev_dir_down) {
-        amiga_gpio_set_active_low(QM1_AMIGA_H, dir_down);   // H pin = DOWN (swapped)
+        amiga_gpio_set_active_low(QM1_AMIGA_H, dir_down);   // H pin = DOWN
         prev_dir_down = dir_down;
     }
     if (dir_left != prev_dir_left) {
-        amiga_gpio_set_active_low(QM1_AMIGA_VQ, dir_left);  // VQ pin = LEFT (swapped)
+        // Use memory barrier before setting GPIO to ensure Core 1 sees joystick mode change
+        __sync_synchronize();
+        amiga_gpio_set_active_low(QM1_AMIGA_VQ, dir_left);  // VQ pin = LEFT (GPIO 12)
+        __sync_synchronize();
         prev_dir_left = dir_left;
     }
     if (dir_right != prev_dir_right) {
-        amiga_gpio_set_active_low(QM1_AMIGA_HQ, dir_right); // HQ pin = RIGHT
+        // Use memory barrier before setting GPIO to ensure Core 1 sees joystick mode change
+        __sync_synchronize();
+        amiga_gpio_set_active_low(QM1_AMIGA_HQ, dir_right); // HQ pin = RIGHT (GPIO 13)
+        __sync_synchronize();
         prev_dir_right = dir_right;
     }
 }
@@ -93,10 +99,22 @@ void amiga_joystick_port1_set_button(enum amiga_joystick_port1_buttons button, b
             amiga_gpio_set_active_low(QM1_AMIGA_B1, pressed);
             break;
         case AJ1_BUTTON2:
-            amiga_gpio_set_active_low(QM1_AMIGA_B2, pressed);
+            // Button 2 uses GPIO 12, which is the same as LEFT direction (QM1_AMIGA_VQ)
+            // In joystick mode, we can't use Button 2 because it conflicts with LEFT direction
+            // Only set Button 2 if NOT in joystick mode (when port 1 is in mouse mode)
+            if (!port1_joystick_mode) {
+                amiga_gpio_set_active_low(QM1_AMIGA_B2, pressed);
+            }
+            // Otherwise, ignore Button 2 to prevent conflict with LEFT direction
             break;
         case AJ1_BUTTON3:
-            amiga_gpio_set_active_low(QM1_AMIGA_B3, pressed);
+            // Button 3 uses GPIO 13, which is the same as RIGHT direction (QM1_AMIGA_HQ)
+            // In joystick mode, we can't use Button 3 because it conflicts with RIGHT direction
+            // Only set Button 3 if NOT in joystick mode (when port 1 is in mouse mode)
+            if (!port1_joystick_mode) {
+                amiga_gpio_set_active_low(QM1_AMIGA_B3, pressed);
+            }
+            // Otherwise, ignore Button 3 to prevent conflict with RIGHT direction
             break;
     }
 }

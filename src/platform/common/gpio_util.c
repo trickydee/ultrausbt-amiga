@@ -31,19 +31,21 @@ void amiga_gpio_set_active_low(uint32_t gpio, bool active)
     
     if (active) {
         // Active: set to LOW (0) and configure as output
+        // Always set direction to OUTPUT FIRST, then set level
+        // This ensures the GPIO is in the correct state even if mouse code changed it
+        gpio_set_dir(gpio, GPIO_OUT);
+        // Small delay to ensure direction is set before level (helps with cross-core timing)
+        __sync_synchronize();
         gpio_put(gpio, 0);
-        // Only set direction if not already cached as output
-        if (!(gpio_dir_cache & (1U << gpio))) {
-            gpio_set_dir(gpio, GPIO_OUT);
-            gpio_dir_cache |= (1U << gpio);  // Mark as output in cache
-        }
+        gpio_dir_cache |= (1U << gpio);  // Mark as output in cache
     } else {
         // Inactive: set to HIGH (1) by setting as input (pulled high)
-        // Only set direction if not already cached as input
-        if (gpio_dir_cache & (1U << gpio)) {
-            gpio_set_dir(gpio, GPIO_IN);
-            gpio_dir_cache &= ~(1U << gpio);  // Mark as input in cache
-        }
+        // Always set direction to INPUT FIRST, then the pull-up will set it high
+        // This ensures the GPIO is in the correct state even if mouse code changed it
+        gpio_set_dir(gpio, GPIO_IN);
+        // Small delay to ensure direction is set (helps with cross-core timing)
+        __sync_synchronize();
+        gpio_dir_cache &= ~(1U << gpio);  // Mark as input in cache
     }
 }
 
