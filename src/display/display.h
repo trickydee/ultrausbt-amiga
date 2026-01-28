@@ -11,6 +11,7 @@
 typedef enum {
     DISPLAY_SCREEN_SPLASH = 0,
     DISPLAY_SCREEN_DEVICES = 1,
+    DISPLAY_SCREEN_BT_NAMES = 2,
 } display_screen_t;
 
 /**
@@ -34,6 +35,11 @@ void display_show_splash(void);
  * Show the devices screen (keyboards, mice, joysticks)
  */
 void display_show_devices(void);
+
+/**
+ * Show the Bluetooth device names screen
+ */
+void display_show_bt_names(void);
 
 /**
  * Get current device counts (for external access)

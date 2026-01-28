@@ -50,6 +50,13 @@ int bluepad32_get_gamepad_count(void);
 // Delete all stored Bluetooth pairing keys
 void bluepad32_delete_pairing_keys(void);
 
+// Get Bluetooth device name for display
+// Returns device name or NULL if not available
+// idx: 0 = first device, 1 = second device
+// device_type: 'J' for joystick/gamepad, 'K' for keyboard, 'M' for mouse
+// Returns pointer to static string (do not free)
+const char* bluepad32_get_device_name(char device_type, int idx);
+
 // Platform function (needed by bluepad32_init.c)
 struct uni_platform* get_my_platform(void);
 

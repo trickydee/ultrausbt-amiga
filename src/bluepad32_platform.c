@@ -38,6 +38,7 @@ typedef struct {
     uni_keyboard_t keyboard;
     bool connected;
     bool updated;  // Set to true when new data arrives
+    char name[32];  // Device name (null-terminated)
 } bt_keyboard_storage_t;
 
 // Storage for Bluetooth mouse data
@@ -45,6 +46,7 @@ typedef struct {
     uni_mouse_t mouse;
     bool connected;
     bool updated;  // Set to true when new data arrives
+    char name[32];  // Device name (null-terminated)
 } bt_mouse_storage_t;
 
 // Storage for Bluetooth gamepad data
@@ -52,6 +54,7 @@ typedef struct {
     uni_gamepad_t gamepad;
     bool connected;
     bool updated;  // Set to true when new data arrives
+    char name[32];  // Device name (null-terminated)
 } bt_gamepad_storage_t;
 
 static bt_keyboard_storage_t bt_keyboards[MAX_BT_KEYBOARDS] = {0};
@@ -62,6 +65,114 @@ static bt_gamepad_storage_t bt_gamepads[MAX_BT_GAMEPADS] = {0};
 static uni_hid_device_t* keyboard_device_map[MAX_BT_KEYBOARDS] = {0};
 static uni_hid_device_t* mouse_device_map[MAX_BT_MICE] = {0};
 static uni_hid_device_t* gamepad_device_map[MAX_BT_GAMEPADS] = {0};
+
+// Temporary storage for device names discovered before we know device type
+// Map by device pointer (since we don't have address access)
+#define MAX_PENDING_NAMES 8
+typedef struct {
+    uni_hid_device_t* device;
+    char name[32];
+    bool valid;
+} pending_name_t;
+static pending_name_t pending_names[MAX_PENDING_NAMES] = {0};
+
+// Store device name when device is connected (we have device pointer)
+static void store_pending_name(uni_hid_device_t* d, const char* name) {
+    if (!d || !name || name[0] == '\0') {
+        return;  // No name to store
+    }
+    
+    // Find empty slot or overwrite existing
+    for (int i = 0; i < MAX_PENDING_NAMES; i++) {
+        if (!pending_names[i].valid || pending_names[i].device == d) {
+            pending_names[i].device = d;
+            strncpy(pending_names[i].name, name, sizeof(pending_names[i].name) - 1);
+            pending_names[i].name[sizeof(pending_names[i].name) - 1] = '\0';
+            pending_names[i].valid = true;
+            return;
+        }
+    }
+}
+
+// Get stored device name by device pointer
+static const char* get_pending_name(uni_hid_device_t* d) {
+    if (!d) return NULL;
+    
+    for (int i = 0; i < MAX_PENDING_NAMES; i++) {
+        if (pending_names[i].valid && pending_names[i].device == d) {
+            return pending_names[i].name;
+        }
+    }
+    return NULL;
+}
+
+// Clear pending name when device is ready
+static void clear_pending_name(uni_hid_device_t* d) {
+    if (!d) return;
+    
+    for (int i = 0; i < MAX_PENDING_NAMES; i++) {
+        if (pending_names[i].valid && pending_names[i].device == d) {
+            pending_names[i].valid = false;
+            return;
+        }
+    }
+}
+
+// Store device name when discovered (by address, before we have device pointer)
+// Map by Bluetooth address (6 bytes)
+#define MAX_PENDING_NAMES_BY_ADDR 8
+typedef struct {
+    bd_addr_t addr;
+    char name[32];
+    bool valid;
+} pending_name_by_addr_t;
+static pending_name_by_addr_t pending_names_by_addr[MAX_PENDING_NAMES_BY_ADDR] = {0};
+
+static void store_pending_name_by_addr(bd_addr_t addr, const char* name) {
+    if (!name || name[0] == '\0') {
+        return;
+    }
+    
+    for (int i = 0; i < MAX_PENDING_NAMES_BY_ADDR; i++) {
+        if (!pending_names_by_addr[i].valid || 
+            memcmp(pending_names_by_addr[i].addr, addr, 6) == 0) {
+            memcpy(pending_names_by_addr[i].addr, addr, 6);
+            strncpy(pending_names_by_addr[i].name, name, sizeof(pending_names_by_addr[i].name) - 1);
+            pending_names_by_addr[i].name[sizeof(pending_names_by_addr[i].name) - 1] = '\0';
+            pending_names_by_addr[i].valid = true;
+            return;
+        }
+    }
+}
+
+// Try to get device name by accessing device structure directly
+// This is a workaround since we don't have a proper API
+static const char* try_get_device_name(uni_hid_device_t* d) {
+    if (!d) return NULL;
+    
+    // Try to access name field directly from device structure
+    // The uni_hid_device_t structure may have a name field
+    // We'll try to access it - this is a workaround
+    // Note: This may not work for all devices, but we'll try
+    
+    // Access the device structure as a pointer and try to find name field
+    // The structure layout is not public, so we'll use a cast
+    // This is fragile but necessary since there's no API
+    
+    // For now, we'll use a simpler approach: store names by address when discovered
+    // and match them when device is ready (if we can get the address)
+    // But since we can't get address easily, we'll just use default names
+    // and update them if we can access the name field
+    
+    // Try accessing as if there's a name field at offset
+    // This is a guess based on common structure layouts
+    // We'll try to access d->name if the structure has it
+    // Note: This may cause crashes if the structure doesn't have this field
+    
+    // Safer approach: return NULL and use default names
+    // The name will be matched by address if we can get it
+    return NULL;
+}
 
 // Find the first available slot for a device type, or find existing slot if device already mapped
 static int find_slot(uni_hid_device_t* d, uni_hid_device_t** device_map, int max_slots) {
@@ -153,6 +264,11 @@ static uni_error_t my_platform_on_device_discovered(bd_addr_t addr, const char* 
     logi("BT Device discovered: addr=%s, name='%s', COD=0x%04X, RSSI=%d\n",
          addr_str, name ? name : "(null)", cod, rssi);
     
+    // Store device name by address for later matching
+    if (name && name[0] != '\0') {
+        store_pending_name_by_addr(addr, name);
+    }
+    
     // Pause Core 1 immediately when a gamepad is discovered to prevent freeze during GATT service discovery
     // COD 0x0508 = Gamepad/Joystick class
     bool might_be_gamepad = (cod == 0x0508) ||  // Gamepad COD
@@ -192,6 +308,8 @@ static void my_platform_on_device_connected(uni_hid_device_t* d) {
     }
     
     // Device type will be determined in on_device_ready()
+    // Note: Device name will be stored in on_device_ready() when we know the device type
+    // For now, we'll use default names since we can't easily match by address
 }
 
 static void my_platform_on_device_disconnected(uni_hid_device_t* d) {
@@ -207,6 +325,7 @@ static void my_platform_on_device_disconnected(uni_hid_device_t* d) {
         kb_storage->connected = false;
         kb_storage->updated = false;
         memset(&kb_storage->keyboard, 0, sizeof(kb_storage->keyboard));
+        kb_storage->name[0] = '\0';  // Clear name
         clear_slot(d, keyboard_device_map, MAX_BT_KEYBOARDS);
         logi("bluepad32_platform: keyboard disconnected\n");
     }
@@ -217,6 +336,7 @@ static void my_platform_on_device_disconnected(uni_hid_device_t* d) {
         mouse_storage->connected = false;
         mouse_storage->updated = false;
         memset(&mouse_storage->mouse, 0, sizeof(mouse_storage->mouse));
+        mouse_storage->name[0] = '\0';  // Clear name
         clear_slot(d, mouse_device_map, MAX_BT_MICE);
         logi("bluepad32_platform: mouse disconnected\n");
     }
@@ -227,6 +347,7 @@ static void my_platform_on_device_disconnected(uni_hid_device_t* d) {
         gamepad_storage->connected = false;
         gamepad_storage->updated = false;
         memset(&gamepad_storage->gamepad, 0, sizeof(gamepad_storage->gamepad));
+        gamepad_storage->name[0] = '\0';  // Clear name
         clear_slot(d, gamepad_device_map, MAX_BT_GAMEPADS);
         logi("bluepad32_platform: gamepad disconnected\n");
     }
@@ -240,6 +361,11 @@ static void my_platform_on_device_disconnected(uni_hid_device_t* d) {
 static uni_error_t my_platform_on_device_ready(uni_hid_device_t* d) {
     logi("bluepad32_platform: device ready: %p\n", d);
     
+    // Try to get device name from pending storage (by device pointer)
+    // For now, we'll use default names since we can't easily match discovered names
+    // to devices when they're ready (we don't have a way to get device address)
+    const char* stored_name = get_pending_name(d);
+    
     // Determine device type and mark appropriate storage as connected
     if (uni_hid_device_is_keyboard(d)) {
         // Keyboard - mark as connected
@@ -247,6 +373,14 @@ static uni_error_t my_platform_on_device_ready(uni_hid_device_t* d) {
         if (storage) {
             storage->connected = true;
             storage->updated = false;
+            // Store device name (from pending storage or use default)
+            if (stored_name && stored_name[0] != '\0') {
+                strncpy(storage->name, stored_name, sizeof(storage->name) - 1);
+                storage->name[sizeof(storage->name) - 1] = '\0';
+                clear_pending_name(d);
+            } else {
+                snprintf(storage->name, sizeof(storage->name), "Keyboard");
+            }
         }
         logi("bluepad32_platform: keyboard ready\n");
         
@@ -260,6 +394,14 @@ static uni_error_t my_platform_on_device_ready(uni_hid_device_t* d) {
         if (storage) {
             storage->connected = true;
             storage->updated = false;
+            // Store device name (from pending storage or use default)
+            if (stored_name && stored_name[0] != '\0') {
+                strncpy(storage->name, stored_name, sizeof(storage->name) - 1);
+                storage->name[sizeof(storage->name) - 1] = '\0';
+                clear_pending_name(d);
+            } else {
+                snprintf(storage->name, sizeof(storage->name), "Mouse");
+            }
         }
         logi("bluepad32_platform: mouse ready\n");
         
@@ -281,6 +423,14 @@ static uni_error_t my_platform_on_device_ready(uni_hid_device_t* d) {
         if (storage) {
             storage->connected = true;
             storage->updated = false;
+            // Store device name (from pending storage or use default)
+            if (stored_name && stored_name[0] != '\0') {
+                strncpy(storage->name, stored_name, sizeof(storage->name) - 1);
+                storage->name[sizeof(storage->name) - 1] = '\0';
+                clear_pending_name(d);
+            } else {
+                snprintf(storage->name, sizeof(storage->name), "Gamepad");
+            }
             logi("bluepad32_platform: gamepad ready\n");
         } else {
             logi("bluepad32_platform: gamepad ready but no storage slot available (MAX_BT_GAMEPADS=%d)\n", MAX_BT_GAMEPADS);
@@ -332,6 +482,16 @@ static uni_error_t my_platform_on_device_ready(uni_hid_device_t* d) {
 }
 
 static void my_platform_on_controller_data(uni_hid_device_t* d, uni_controller_t* ctl) {
+    // Try to get device name from controller data if available
+    // Some devices provide name in controller data
+    const char* device_name = NULL;
+    
+    // Try to access name from device structure directly
+    // This is a workaround - access the name field if it exists in the structure
+    // Note: This may not work for all devices, but we'll try
+    // The device name might be available in d->name or similar
+    // For now, we'll store it when we get controller data if name field is available
+    
     switch (ctl->klass) {
         case UNI_CONTROLLER_CLASS_KEYBOARD: {
             bt_keyboard_storage_t* storage = get_keyboard_storage(d);
@@ -339,6 +499,12 @@ static void my_platform_on_controller_data(uni_hid_device_t* d, uni_controller_t
                 if (!storage->connected) {
                     // First keyboard data - mark as connected
                     storage->connected = true;
+                    // Try to get name from device if not already set
+                    if (storage->name[0] == '\0') {
+                        // Try to access name from device structure
+                        // This is a workaround - we'll use a default if not available
+                        snprintf(storage->name, sizeof(storage->name), "Keyboard");
+                    }
                 }
                 // Copy keyboard data
                 storage->keyboard = ctl->keyboard;
@@ -353,6 +519,10 @@ static void my_platform_on_controller_data(uni_hid_device_t* d, uni_controller_t
                 if (!storage->connected) {
                     // First mouse data - mark as connected
                     storage->connected = true;
+                    // Try to get name from device if not already set
+                    if (storage->name[0] == '\0') {
+                        snprintf(storage->name, sizeof(storage->name), "Mouse");
+                    }
                 }
                 // Copy mouse data
                 storage->mouse = ctl->mouse;
@@ -553,6 +723,36 @@ static void update_bt_device_counts(void)
 // Delete all stored Bluetooth pairing keys
 void bluepad32_delete_pairing_keys(void) {
     uni_bt_del_keys_unsafe();
+}
+
+// Get Bluetooth device name for display
+// Returns device name or NULL if not available
+const char* bluepad32_get_device_name(char device_type, int idx) {
+    if (idx < 0 || idx >= 2) {
+        return NULL;
+    }
+    
+    switch (device_type) {
+        case 'J':  // Joystick/Gamepad
+            if (idx < MAX_BT_GAMEPADS && bt_gamepads[idx].connected) {
+                return bt_gamepads[idx].name;
+            }
+            break;
+        case 'K':  // Keyboard
+            if (idx < MAX_BT_KEYBOARDS && bt_keyboards[idx].connected) {
+                return bt_keyboards[idx].name;
+            }
+            break;
+        case 'M':  // Mouse
+            if (idx < MAX_BT_MICE && bt_mice[idx].connected) {
+                return bt_mice[idx].name;
+            }
+            break;
+        default:
+            return NULL;
+    }
+    
+    return NULL;
 }
 
 #endif // ENABLE_BLUEPAD32

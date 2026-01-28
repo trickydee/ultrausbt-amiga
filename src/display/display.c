@@ -15,6 +15,10 @@
 #include "bluepad32_platform.h"
 #endif
 
+#if ENABLE_BLUEPAD32
+#include "platform/amiga/joystick_port1.h"  // For joystick port 1 mode toggle
+#endif
+
 // Software version (from main.c)
 // These are fallback values if not defined elsewhere - should match main.c
 #ifndef SOFTWARE_VERSION_MAJOR
@@ -150,6 +154,13 @@ void display_show_devices(void)
     sprintf(buf, "Game    U %d BT %d", usb_joy_count, bt_joy_count);
     ssd1306_draw_string(&disp, 0, 18, 1, buf);
     
+#if ENABLE_BLUEPAD32
+    // Show Port 1 mode status on bottom line
+    bool is_joy_mode = amiga_joystick_port1_is_joystick_mode();
+    sprintf(buf, "Port1: %s", is_joy_mode ? "JOY" : "MOUSE");
+    ssd1306_draw_string(&disp, 0, 27, 1, buf);
+#endif
+    
     ssd1306_show(&disp);
     current_screen = DISPLAY_SCREEN_DEVICES;
 }
@@ -159,6 +170,10 @@ void display_update_devices(void)
     // If we're on the devices screen, update it
     if (current_screen == DISPLAY_SCREEN_DEVICES) {
         display_show_devices();
+    }
+    // Also update BT names screen if active
+    if (current_screen == DISPLAY_SCREEN_BT_NAMES) {
+        display_show_bt_names();
     }
 }
 
@@ -191,15 +206,14 @@ void display_set_bt_counts(uint8_t kb, uint8_t mouse, uint8_t joy)
 
 void display_handle_buttons(void)
 {
-    // Handle LEFT button (toggle USB/BT mode on splash screen)
+    // Handle LEFT button
     bool left_state = gpio_get(GPIO_BUTTON_LEFT);
     if (!left_state) {
         if (button_left_debounce <= BUTTON_DEBOUNCE_COUNT) {
             if (++button_left_debounce == BUTTON_DEBOUNCE_COUNT) {
-                // Button pressed - only act on splash screen
                 if (current_screen == DISPLAY_SCREEN_SPLASH) {
 #if ENABLE_BLUEPAD32
-                    // Toggle Bluetooth on/off (USB is always enabled)
+                    // On splash screen: Toggle Bluetooth on/off (USB is always enabled)
                     bool bt_enabled = bluepad32_is_enabled();
                     
                     if (bt_enabled) {
@@ -218,6 +232,15 @@ void display_handle_buttons(void)
                     // Refresh splash screen to show new mode
                     display_show_splash();
 #endif
+                } else if (current_screen == DISPLAY_SCREEN_DEVICES) {
+#if ENABLE_BLUEPAD32
+                    // On devices screen: Toggle joystick port 1 mode
+                    amiga_joystick_port1_toggle_mode();
+                    bool is_joy_mode = amiga_joystick_port1_is_joystick_mode();
+                    printf("Port 1 mode: %s\n", is_joy_mode ? "JOYSTICK" : "MOUSE");
+                    // Refresh devices screen
+                    display_show_devices();
+#endif
                 }
             }
         }
@@ -225,15 +248,17 @@ void display_handle_buttons(void)
         button_left_debounce = 0;
     }
     
-    // Handle MIDDLE button (toggle between splash and devices screen)
+    // Handle MIDDLE button (cycle through screens: SPLASH -> DEVICES -> BT_NAMES -> SPLASH)
     bool middle_state = gpio_get(GPIO_BUTTON_MIDDLE);
     if (!middle_state) {
         if (button_middle_debounce <= BUTTON_DEBOUNCE_COUNT) {
             if (++button_middle_debounce == BUTTON_DEBOUNCE_COUNT) {
-                // Button pressed - toggle between splash and devices screen
+                // Button pressed - cycle through screens
                 if (current_screen == DISPLAY_SCREEN_SPLASH) {
                     display_show_devices();
-                } else {
+                } else if (current_screen == DISPLAY_SCREEN_DEVICES) {
+                    display_show_bt_names();
+                } else if (current_screen == DISPLAY_SCREEN_BT_NAMES) {
                     display_show_splash();
                 }
             }
@@ -267,11 +292,63 @@ void display_handle_buttons(void)
     }
 }
 
+void display_show_bt_names(void)
+{
+    char buf[64];
+    const char* name;
+    
+    ssd1306_clear(&disp);
+    
+#if ENABLE_BLUEPAD32
+    // Show first two joysticks
+    name = bluepad32_get_device_name('J', 0);
+    if (name) {
+        // Truncate name to fit on screen (max ~20 chars)
+        snprintf(buf, sizeof(buf), "J1:%.20s", name);
+        ssd1306_draw_string(&disp, 0, 0, 1, buf);
+    } else {
+        ssd1306_draw_string(&disp, 0, 0, 1, (char*)"J1: --");
+    }
+    
+    name = bluepad32_get_device_name('J', 1);
+    if (name) {
+        snprintf(buf, sizeof(buf), "J2:%.20s", name);
+        ssd1306_draw_string(&disp, 0, 9, 1, buf);
+    } else {
+        ssd1306_draw_string(&disp, 0, 9, 1, (char*)"J2: --");
+    }
+    
+    // Show first keyboard
+    name = bluepad32_get_device_name('K', 0);
+    if (name) {
+        snprintf(buf, sizeof(buf), "K1:%.20s", name);
+        ssd1306_draw_string(&disp, 0, 18, 1, buf);
+    } else {
+        ssd1306_draw_string(&disp, 0, 18, 1, (char*)"K1: --");
+    }
+    
+    // Show first mouse
+    name = bluepad32_get_device_name('M', 0);
+    if (name) {
+        snprintf(buf, sizeof(buf), "M1:%.20s", name);
+        ssd1306_draw_string(&disp, 0, 27, 1, buf);
+    } else {
+        ssd1306_draw_string(&disp, 0, 27, 1, (char*)"M1: --");
+    }
+#else
+    ssd1306_draw_string(&disp, 0, 0, 1, (char*)"BT not enabled");
+#endif
+    
+    ssd1306_show(&disp);
+    current_screen = DISPLAY_SCREEN_BT_NAMES;
+}
+
 #else
 // For non-Rev5 boards, provide stub implementations
 void display_init(void) {}
 void display_show_splash(void) {}
 void display_show_devices(void) {}
+void display_show_bt_names(void) {}
 void display_update_devices(void) {}
 void display_get_counts(uint8_t *usb_kb, uint8_t *usb_mouse, uint8_t *usb_joy,
                        uint8_t *bt_kb, uint8_t *bt_mouse, uint8_t *bt_joy) {}
