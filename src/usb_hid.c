@@ -915,13 +915,23 @@ void process_bluepad32_gamepad(void)
     
     // Helper macro to convert gamepad input to direction bits
     // Returns: bit 0=UP, bit 1=DOWN, bit 2=LEFT, bit 3=RIGHT
+    // NOTE: HID standard hat value 0 = UP, so when no D-pad is pressed, dpad=0x01 (UP)
+    // This is the "neutral" state. We ignore D-pad UP when buttons are pressed,
+    // since that's when the neutral state incorrectly triggers UP movement.
     #define CONVERT_GAMEPAD_TO_DIRECTIONS(gp, deadzone) ({ \
         uint8_t dir_bits = 0; \
-        if ((gp)->dpad & 0x01) { dir_bits |= 0x01; }  /* UP */ \
-        if ((gp)->dpad & 0x02) { dir_bits |= 0x02; }  /* DOWN */ \
-        if ((gp)->dpad & 0x04) { dir_bits |= 0x08; }  /* RIGHT */ \
-        if ((gp)->dpad & 0x08) { dir_bits |= 0x04; }  /* LEFT */ \
+        uint8_t dpad_val = (gp)->dpad; \
+        /* If buttons are pressed, ignore D-pad UP (0x01) as it's likely the neutral state */ \
+        /* This prevents Circle/other buttons from triggering UP movement */ \
+        if ((gp)->buttons != 0 && (dpad_val == 0x01)) { \
+            dpad_val = 0;  /* Clear UP if buttons are pressed and dpad is only UP */ \
+        } \
+        if (dpad_val & 0x01) { dir_bits |= 0x01; }  /* UP */ \
+        if (dpad_val & 0x02) { dir_bits |= 0x02; }  /* DOWN */ \
+        if (dpad_val & 0x04) { dir_bits |= 0x08; }  /* RIGHT */ \
+        if (dpad_val & 0x08) { dir_bits |= 0x04; }  /* LEFT */ \
         if (dir_bits == 0) { \
+            /* No D-pad input, use analog sticks */ \
             if ((gp)->axis_x < -(deadzone)) dir_bits |= 0x04;  /* LEFT */ \
             if ((gp)->axis_x > (deadzone))  dir_bits |= 0x08;  /* RIGHT */ \
             if ((gp)->axis_y < -(deadzone)) dir_bits |= 0x01;  /* UP */ \
@@ -938,6 +948,7 @@ void process_bluepad32_gamepad(void)
             llamatron_active = true;
             
             // Helper macro to convert right stick to direction bits
+            // Note: Right stick doesn't use D-pad, so no Circle button filter needed here
             #define CONVERT_RIGHT_STICK_TO_DIRECTIONS(gp, deadzone) ({ \
                 uint8_t dir_bits = 0; \
                 int32_t rx = (gp)->axis_rx; \
@@ -981,6 +992,22 @@ void process_bluepad32_gamepad(void)
             bool has_data = bluepad32_get_gamepad(0, &bt_gamepad);
             
             if (has_data) {
+                // DEBUG: Log raw gamepad values when buttons or D-pad state changes
+                // This will help identify button mapping issues
+                static uint16_t last_buttons = 0;
+                static uint8_t last_dpad = 0;
+                if (bt_gamepad.buttons != last_buttons || bt_gamepad.dpad != last_dpad) {
+                    ahprintf("[GAMEPAD-DEBUG] buttons=0x%04X (A=%d B=%d X=%d Y=%d) dpad=0x%02X axis_x=%d axis_y=%d\n", 
+                             bt_gamepad.buttons,
+                             (bt_gamepad.buttons & 0x01) != 0,  // BUTTON_A (Fire)
+                             (bt_gamepad.buttons & 0x02) != 0,  // BUTTON_B (Circle)
+                             (bt_gamepad.buttons & 0x04) != 0,  // BUTTON_X
+                             (bt_gamepad.buttons & 0x08) != 0,  // BUTTON_Y
+                             bt_gamepad.dpad, bt_gamepad.axis_x, bt_gamepad.axis_y);
+                    last_buttons = bt_gamepad.buttons;
+                    last_dpad = bt_gamepad.dpad;
+                }
+                
                 uint8_t direction_bits = CONVERT_GAMEPAD_TO_DIRECTIONS(&bt_gamepad, ANALOG_STICK_DEADZONE);
                 
                 // Map direction bits to joystick port 2
@@ -997,7 +1024,6 @@ void process_bluepad32_gamepad(void)
                 // BUTTON_Y = BIT(3) = 8 (Button 3 alternative)
                 amiga_joystick_port2_set_button(AJ2_FIRE, (bt_gamepad.buttons & 0x01) != 0);      // BUTTON_A
                 amiga_joystick_port2_set_button(AJ2_BUTTON2, (bt_gamepad.buttons & 0x02) != 0);  // BUTTON_B
-                // Use X or Y for Button 3
                 amiga_joystick_port2_set_button(AJ2_BUTTON3, (bt_gamepad.buttons & 0x04) != 0 || (bt_gamepad.buttons & 0x08) != 0);  // BUTTON_X or BUTTON_Y
             }
         }

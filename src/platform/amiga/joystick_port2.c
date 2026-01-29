@@ -96,6 +96,7 @@ void amiga_joystick_port2_set_button(enum amiga_joystick_port2_buttons button, b
             }
             break;
         case AJ2_BUTTON3:
+            // Button 3 now uses GPIO 28 (remapped from GPIO 18) - no conflicts
             if (pressed != prev_button3) {
                 amiga_gpio_set_active_low(QM2_AMIGA_B3, pressed);
                 prev_button3 = pressed;

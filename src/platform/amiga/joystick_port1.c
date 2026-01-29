@@ -99,22 +99,12 @@ void amiga_joystick_port1_set_button(enum amiga_joystick_port1_buttons button, b
             amiga_gpio_set_active_low(QM1_AMIGA_B1, pressed);
             break;
         case AJ1_BUTTON2:
-            // Button 2 uses GPIO 12, which is the same as LEFT direction (QM1_AMIGA_VQ)
-            // In joystick mode, we can't use Button 2 because it conflicts with LEFT direction
-            // Only set Button 2 if NOT in joystick mode (when port 1 is in mouse mode)
-            if (!port1_joystick_mode) {
-                amiga_gpio_set_active_low(QM1_AMIGA_B2, pressed);
-            }
-            // Otherwise, ignore Button 2 to prevent conflict with LEFT direction
+            // Button 2 now uses GPIO 2 (remapped from GPIO 12) - no conflicts
+            amiga_gpio_set_active_low(QM1_AMIGA_B2, pressed);
             break;
         case AJ1_BUTTON3:
-            // Button 3 uses GPIO 13, which is the same as RIGHT direction (QM1_AMIGA_HQ)
-            // In joystick mode, we can't use Button 3 because it conflicts with RIGHT direction
-            // Only set Button 3 if NOT in joystick mode (when port 1 is in mouse mode)
-            if (!port1_joystick_mode) {
-                amiga_gpio_set_active_low(QM1_AMIGA_B3, pressed);
-            }
-            // Otherwise, ignore Button 3 to prevent conflict with RIGHT direction
+            // Button 3 now uses GPIO 3 (remapped from GPIO 13) - no conflicts
+            amiga_gpio_set_active_low(QM1_AMIGA_B3, pressed);
             break;
     }
 }

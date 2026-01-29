@@ -82,8 +82,8 @@
 
 // Port 1 button pins
 #  define QM1_AMIGA_B1   JOY1_ATARI_FIRE   // Fire button - Atari JOY1 FIRE
-#  define QM1_AMIGA_B2   12                 // Button 2 - Keep current GPIO (same as LEFT, will be remapped in hardware)
-#  define QM1_AMIGA_B3   13                 // Button 3 - Keep current GPIO (same as RIGHT, will be remapped in hardware)
+#  define QM1_AMIGA_B2   2                 // Button 2 - Remapped to GPIO 2 (no conflicts)
+#  define QM1_AMIGA_B3   3                 // Button 3 - Remapped to GPIO 3 (no conflicts)
 
 // Joystick Port 2 GPIO mappings (mapped to Atari JOY0 GPIOs for hardware compatibility)
 // Directions and FIRE use Atari JOY0 GPIO pins
@@ -101,8 +101,8 @@
 
 // Port 2 button pins
 #  define QM2_AMIGA_B1   JOY0_ATARI_FIRE   // Fire button - Atari JOY0 FIRE
-#  define QM2_AMIGA_B2   19                 // Button 2 - Keep current GPIO (same as UP, will be remapped in hardware)
-#  define QM2_AMIGA_B3   18                 // Button 3 - Keep current GPIO (will be remapped in hardware)
+#  define QM2_AMIGA_B2   27                 // Button 2 - Remapped to GPIO 27 (no conflicts)
+#  define QM2_AMIGA_B3   28                 // Button 3 - Remapped to GPIO 28 (no conflicts)
 
 // SSD1306 OLED Display configuration (matches Atari board)
 #  define SSD1306_SDA    I2C_PIN_SDA       // GPIO 8 (same as I2C_PIN_SDA)
