@@ -992,21 +992,6 @@ void process_bluepad32_gamepad(void)
             bool has_data = bluepad32_get_gamepad(0, &bt_gamepad);
             
             if (has_data) {
-                // DEBUG: Log raw gamepad values when buttons or D-pad state changes
-                // This will help identify button mapping issues
-                static uint16_t last_buttons = 0;
-                static uint8_t last_dpad = 0;
-                if (bt_gamepad.buttons != last_buttons || bt_gamepad.dpad != last_dpad) {
-                    ahprintf("[GAMEPAD-DEBUG] buttons=0x%04X (A=%d B=%d X=%d Y=%d) dpad=0x%02X axis_x=%d axis_y=%d\n", 
-                             bt_gamepad.buttons,
-                             (bt_gamepad.buttons & 0x01) != 0,  // BUTTON_A (Fire)
-                             (bt_gamepad.buttons & 0x02) != 0,  // BUTTON_B (Circle)
-                             (bt_gamepad.buttons & 0x04) != 0,  // BUTTON_X
-                             (bt_gamepad.buttons & 0x08) != 0,  // BUTTON_Y
-                             bt_gamepad.dpad, bt_gamepad.axis_x, bt_gamepad.axis_y);
-                    last_buttons = bt_gamepad.buttons;
-                    last_dpad = bt_gamepad.dpad;
-                }
                 
                 uint8_t direction_bits = CONVERT_GAMEPAD_TO_DIRECTIONS(&bt_gamepad, ANALOG_STICK_DEADZONE);
                 

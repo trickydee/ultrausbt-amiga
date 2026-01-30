@@ -12,6 +12,7 @@
 
 #include "gpio_util.h"
 #include "config.h"
+#include "util/output.h"
 #include <hardware/gpio.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -31,18 +32,34 @@ void amiga_gpio_set_active_low(uint32_t gpio, bool active)
     
     if (active) {
         // Active: set to LOW (0) and configure as output
-        // Always set direction to OUTPUT FIRST, then set level
-        // This ensures the GPIO is in the correct state even if mouse code changed it
+        // IMPORTANT: For GPIO 26 (ADC0), ensure ADC is not interfering
+        if (gpio == 26) {
+            // GPIO 26 is ADC0 - ensure ADC is not enabled on this pin
+            // ADC can interfere with GPIO operation if enabled
+            // Note: We can't easily check if ADC is enabled, but we can ensure GPIO function is set
+            gpio_set_function(gpio, GPIO_FUNC_SIO);  // Ensure GPIO function (not ADC)
+        }
+        
+        // IMPORTANT: Disable pull-ups FIRST (pull-ups can prevent LOW output on some GPIOs)
+        gpio_set_pulls(gpio, false, false);  // Disable both pull-up and pull-down
+        __sync_synchronize();  // Ensure pull-up disable is visible
+        
+        // Set direction to OUTPUT
         gpio_set_dir(gpio, GPIO_OUT);
         // Small delay to ensure direction is set before level (helps with cross-core timing)
         __sync_synchronize();
+        
+        // Set level to LOW
         gpio_put(gpio, 0);
+        // Small delay to ensure level is set (some GPIOs need time to settle)
+        __sync_synchronize();
         gpio_dir_cache |= (1U << gpio);  // Mark as output in cache
     } else {
         // Inactive: set to HIGH (1) by setting as input (pulled high)
-        // Always set direction to INPUT FIRST, then the pull-up will set it high
+        // Always set direction to INPUT FIRST, then enable pull-up to set it high
         // This ensures the GPIO is in the correct state even if mouse code changed it
         gpio_set_dir(gpio, GPIO_IN);
+        gpio_set_pulls(gpio, true, false);  // Enable pull-up, disable pull-down
         // Small delay to ensure direction is set (helps with cross-core timing)
         __sync_synchronize();
         gpio_dir_cache &= ~(1U << gpio);  // Mark as input in cache
@@ -60,11 +77,15 @@ void amiga_gpio_init_active_low(uint32_t gpio, bool initial_active)
     
     // Set initial state and cache direction
     if (initial_active) {
-        gpio_put(gpio, 0);
+        // Active: set to LOW output
+        gpio_set_pulls(gpio, false, false);  // Disable pull-ups/pull-downs for OUTPUT
         gpio_set_dir(gpio, GPIO_OUT);
+        gpio_put(gpio, 0);
         gpio_dir_cache |= (1U << gpio);  // Mark as output in cache
     } else {
+        // Inactive: set to INPUT with pull-up (HIGH)
         gpio_set_dir(gpio, GPIO_IN);
+        gpio_set_pulls(gpio, true, false);  // Enable pull-up, disable pull-down
         gpio_dir_cache &= ~(1U << gpio);  // Mark as input in cache
     }
 }
@@ -89,24 +110,31 @@ void amiga_gpio_reset_all_to_input(void)
     
     // Reset all Amiga joystick/mouse GPIOs to INPUT (inactive/high) state
     // This ensures clean state even if Amiga is already powered and pull-ups are active
+    // IMPORTANT: All GPIOs must be INPUT with pull-up at startup to prevent back-feeding
+    // 5V from the Amiga when the Pico is not powered or during power-up
+    // This is CRITICAL for hardware protection - OUTPUT GPIOs can be damaged by 5V back-feeding
     
-    // Port 1 / Mouse GPIOs
-    amiga_gpio_init_active_low(QM1_AMIGA_H, false);   // No horizontal direction
-    amiga_gpio_init_active_low(QM1_AMIGA_V, false);   // No vertical direction
-    amiga_gpio_init_active_low(QM1_AMIGA_HQ, false);  // No horizontal quadrature
-    amiga_gpio_init_active_low(QM1_AMIGA_VQ, false);  // No vertical quadrature
-    amiga_gpio_init_active_low(QM1_AMIGA_B1, false);  // Fire button not pressed
-    amiga_gpio_init_active_low(QM1_AMIGA_B2, false);  // Button 2 not pressed
-    amiga_gpio_init_active_low(QM1_AMIGA_B3, false);  // Button 3 not pressed
+    // Port 1 / Mouse GPIOs (GPIOs 10-14, 2-3)
+    amiga_gpio_init_active_low(QM1_AMIGA_H, false);   // GPIO 11 - No horizontal direction
+    amiga_gpio_init_active_low(QM1_AMIGA_V, false);   // GPIO 10 - No vertical direction
+    amiga_gpio_init_active_low(QM1_AMIGA_HQ, false);  // GPIO 13 - No horizontal quadrature
+    amiga_gpio_init_active_low(QM1_AMIGA_VQ, false);  // GPIO 12 - No vertical quadrature
+    amiga_gpio_init_active_low(QM1_AMIGA_B1, false);  // GPIO 14 - Fire button not pressed
+    amiga_gpio_init_active_low(QM1_AMIGA_B2, false);  // GPIO 2 - Button 2 not pressed (remapped)
+    amiga_gpio_init_active_low(QM1_AMIGA_B3, false);  // GPIO 3 - Button 3 not pressed (remapped)
     
-    // Port 2 GPIOs
-    amiga_gpio_init_active_low(QM2_AMIGA_H, false);   // No horizontal direction
-    amiga_gpio_init_active_low(QM2_AMIGA_V, false);   // No vertical direction
-    amiga_gpio_init_active_low(QM2_AMIGA_HQ, false);  // No horizontal quadrature
-    amiga_gpio_init_active_low(QM2_AMIGA_VQ, false);  // No vertical quadrature
-    amiga_gpio_init_active_low(QM2_AMIGA_B1, false);  // Fire button not pressed
-    amiga_gpio_init_active_low(QM2_AMIGA_B2, false);  // Button 2 not pressed
-    amiga_gpio_init_active_low(QM2_AMIGA_B3, false);  // Button 3 not pressed
+    // Port 2 GPIOs (GPIOs 19-22, 26-28)
+    amiga_gpio_init_active_low(QM2_AMIGA_H, false);   // GPIO 20 - No horizontal direction
+    amiga_gpio_init_active_low(QM2_AMIGA_V, false);   // GPIO 19 - No vertical direction
+    amiga_gpio_init_active_low(QM2_AMIGA_HQ, false);  // GPIO 22 - No horizontal quadrature
+    amiga_gpio_init_active_low(QM2_AMIGA_VQ, false);  // GPIO 21 - No vertical quadrature
+    amiga_gpio_init_active_low(QM2_AMIGA_B1, false);  // GPIO 26 - Fire button not pressed (ADC0 - sensitive!)
+    amiga_gpio_init_active_low(QM2_AMIGA_B2, false);  // GPIO 27 - Button 2 not pressed (remapped, ADC1)
+    amiga_gpio_init_active_low(QM2_AMIGA_B3, false);  // GPIO 28 - Button 3 not pressed (remapped, ADC2)
+    
+    // All GPIOs are now in INPUT mode with pull-up enabled (safe state)
+    // They will be set to OUTPUT only when actively driving a signal LOW
+    // This prevents 5V back-feeding damage when Amiga is powered but Pico is not
 #endif
 }
 

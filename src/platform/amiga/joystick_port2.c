@@ -15,6 +15,7 @@
 #include "joystick_port2.h"
 #include "config.h"
 #include "platform/common/gpio_util.h"
+#include "util/output.h"
 #include <hardware/gpio.h>
 #include <stdio.h>
 

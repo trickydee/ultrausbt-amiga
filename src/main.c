@@ -40,7 +40,7 @@ extern void process_bluepad32_devices(void);
 // Software version - increment this with each build to verify latest firmware is loaded
 #define SOFTWARE_VERSION_MAJOR 1
 #define SOFTWARE_VERSION_MINOR 0
-#define SOFTWARE_VERSION_PATCH 5
+#define SOFTWARE_VERSION_PATCH 11
 
 // main entry point
 int main(void)
@@ -49,8 +49,8 @@ int main(void)
     board_init();
 
 #if HIDPICO_REVISION == 5
-    // IMPORTANT: Clear Amiga GPIOs EARLY, before any other initialization that might use GPIOs
-    // This prevents race conditions where Amiga's pull-ups pull lines high before Pico initializes
+    // CRITICAL: Initialize all Amiga GPIOs to INPUT (safe state) BEFORE connecting to Amiga
+    // This prevents 5V back-feeding damage when Amiga is powered but Pico is not
     // We do this immediately after board_init() to ensure clean GPIO state before:
     // - CYW43 initialization (if board_init() didn't already do it)
     // - I2C display initialization
@@ -62,7 +62,11 @@ int main(void)
     
     // Clear all GPIO direction cache and reset all Amiga GPIOs to INPUT (inactive/high) state
     // This ensures clean state even if Amiga is already powered and pull-ups are active
-    // NOTE: This only touches Amiga joystick/mouse GPIOs (GPIOs 10-14, 18-22, 26 for Rev 5)
+    // All GPIOs are set to INPUT with pull-up enabled - this is the SAFE state
+    // GPIOs will only be set to OUTPUT when actively driving signals LOW
+    // NOTE: This initializes all Amiga joystick/mouse GPIOs:
+    //   Port 1: GPIOs 10-14 (directions + fire), GPIOs 2-3 (buttons 2-3)
+    //   Port 2: GPIOs 19-22 (directions), GPIOs 26-28 (fire + buttons 2-3)
     // It does NOT affect CYW43 SPI pins or other system GPIOs
     amiga_gpio_reset_all_to_input();
 #endif

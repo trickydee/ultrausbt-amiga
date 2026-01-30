@@ -28,7 +28,7 @@
 #define SOFTWARE_VERSION_MINOR 0
 #endif
 #ifndef SOFTWARE_VERSION_PATCH
-#define SOFTWARE_VERSION_PATCH 5
+#define SOFTWARE_VERSION_PATCH 11
 #endif
 
 #if HIDPICO_REVISION == 5
@@ -94,7 +94,7 @@ void display_show_splash(void)
     ssd1306_draw_string(&disp, 25, 0, 2, (char*)"AMIGA");
     
     // Branding
-    ssd1306_draw_string(&disp, 4, 24, 1, (char*)"amigahid-pico");
+    ssd1306_draw_string(&disp, 4, 24, 1, (char*)"ultramegausb.com");
     
     // Version
     sprintf(version_buf, "v%d.%d.%d", SOFTWARE_VERSION_MAJOR, SOFTWARE_VERSION_MINOR, SOFTWARE_VERSION_PATCH);
@@ -102,11 +102,14 @@ void display_show_splash(void)
     
 #if ENABLE_BLUEPAD32
     // Show USB/Bluetooth status on splash screen (bottom row)
-    // Get runtime state (USB is always enabled, BT can be toggled)
+    // USB is always enabled, check if BT is enabled AND has connected devices
     bool usb_enabled = true;  // USB is always enabled in this implementation
     bool bt_enabled = bluepad32_is_enabled();
+    bool bt_has_devices = (bt_kb_count + bt_mouse_count + bt_joy_count) > 0;
+    bool bt_working = bt_enabled && bt_has_devices;
     
-    if (usb_enabled && bt_enabled) {
+    // Determine mode: USB+BT if both are working, USB only if BT not working, etc.
+    if (usb_enabled && bt_working) {
         sprintf(mode_buf, "USB+BT");
     }
     else if (usb_enabled) {
@@ -124,7 +127,7 @@ void display_show_splash(void)
     ssd1306_draw_string(&disp, 0, 55, 1, mode_line);
     
     // Show button label on splash screen
-    // Right button: RST (Reset Bluetooth keys) - only show if BT is enabled
+    // Right button: RST (Reset Bluetooth keys) - show if BT is enabled (regardless of connected devices)
     if (bt_enabled) {
         ssd1306_draw_string(&disp, 100, 55, 1, (char*)"RST");
     }
@@ -202,6 +205,11 @@ void display_set_bt_counts(uint8_t kb, uint8_t mouse, uint8_t joy)
     bt_mouse_count = mouse;
     bt_joy_count = joy;
     display_update_devices();
+    
+    // Refresh splash screen if it's active (to update mode display)
+    if (current_screen == DISPLAY_SCREEN_SPLASH) {
+        display_show_splash();
+    }
 }
 
 void display_handle_buttons(void)
