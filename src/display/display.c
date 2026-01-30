@@ -102,14 +102,12 @@ void display_show_splash(void)
     
 #if ENABLE_BLUEPAD32
     // Show USB/Bluetooth status on splash screen (bottom row)
-    // USB is always enabled, check if BT is enabled AND has connected devices
+    // USB is always enabled, check if BT is enabled (initialized and ready)
     bool usb_enabled = true;  // USB is always enabled in this implementation
     bool bt_enabled = bluepad32_is_enabled();
-    bool bt_has_devices = (bt_kb_count + bt_mouse_count + bt_joy_count) > 0;
-    bool bt_working = bt_enabled && bt_has_devices;
     
-    // Determine mode: USB+BT if both are working, USB only if BT not working, etc.
-    if (usb_enabled && bt_working) {
+    // Determine mode: USB+BT if both are enabled, USB only if BT not enabled, etc.
+    if (usb_enabled && bt_enabled) {
         sprintf(mode_buf, "USB+BT");
     }
     else if (usb_enabled) {
