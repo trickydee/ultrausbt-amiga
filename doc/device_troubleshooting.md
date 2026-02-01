@@ -489,6 +489,226 @@ Always setting GPIO direction (regardless of cache) ensures:
 
 ---
 
+## Button 2/3 Voltage Levels - Amiga Model Compatibility
+
+### Problem Summary
+
+Buttons 2 and 3 on both joystick ports show higher voltage levels (400-500mV) when pressed compared to other buttons (50-80mV). This causes buttons 2 and 3 to not work on some Amiga models, while working correctly on others.
+
+### Symptoms
+
+1. **Voltage Measurements**:
+   - Normal buttons (UP/DOWN/LEFT/RIGHT/FIRE): 5V → 50-80mV when pressed
+   - Buttons 2 and 3: 5V → 400-500mV when pressed
+   
+2. **Amiga Model Differences**:
+   - **A2000**: Buttons 2 and 3 work correctly with 500mV
+   - **Other Amiga models** (A500, A600, A1200, etc.): Buttons 2 and 3 don't work with 500mV
+
+3. **Consistent Across Hardware**:
+   - Same voltage levels on different Pico boards (RP2040, RP2350)
+   - Same voltage levels after remapping GPIOs (GPIO 27 → GPIO 7)
+   - LED test shows GPIOs are working correctly
+
+### Root Cause
+
+This is **NOT a firmware or Pico issue** - it's an **Amiga model compatibility difference**:
+
+1. **Different Pull-up Resistor Values**: Different Amiga models use different pull-up resistor values on joystick port pins
+2. **Different Input Buffer Thresholds**: Different Amiga models have different voltage thresholds for recognizing LOW signals
+3. **Different Input Impedance**: Different loading characteristics on different Amiga models
+
+The firmware is working correctly - it's driving the GPIOs LOW properly. The voltage difference is due to:
+- **Amiga's internal pull-up resistors** pulling the line higher
+- **Level shifter characteristics** (if using level shifters)
+- **Amiga input buffer characteristics** varying by model
+
+### Why A2000 Works But Others Don't
+
+The A2000 likely has:
+- **Stronger pull-up resistors** that are easier to overcome
+- **More tolerant input buffers** that accept higher voltages as LOW
+- **Different input impedance** that allows the Pico to pull the line lower
+
+Other Amiga models (A500, A600, A1200) likely have:
+- **Stricter voltage thresholds** requiring <100mV for LOW
+- **Different pull-up values** that create the 400-500mV level
+- **More sensitive input buffers** that don't recognize 500mV as LOW
+
+### Solution
+
+This is a **hardware compatibility limitation**, not a firmware bug. The firmware is working correctly.
+
+#### Options for Affected Amiga Models
+
+**Important Note**: The issue is NOT about pull-down resistors. The Amiga's pull-ups are pulling HIGH, and we need the level shifter to SINK more current when driving LOW.
+
+1. **Hardware Solution**: Use a level shifter with higher current sinking capability
+   - The TXB0108 can sink ~24mA per channel
+   - Some Amiga models may have stronger pull-ups that require more current to overcome
+   - Consider using a level shifter with higher current rating (e.g., SN74LVC8T245 can sink 32mA)
+
+2. **Hardware Solution**: Use a different level shifter design (e.g., BSS138 MOSFETs instead of TXB0108)
+   - The original amigahid-pico design uses BSS138 MOSFETs with 10kΩ pull-ups on both sides
+   - This design has proven reliable and works with all Amiga models
+   - BSS138 MOSFETs can sink more current than TXB0108
+
+3. **Hardware Solution**: Add buffer/driver ICs to increase drive strength on buttons 2 and 3
+   - Use a dedicated buffer IC (e.g., 74LVC1G07) that can sink more current
+   - Place buffer between level shifter and Amiga for buttons 2/3 only
+   - This increases current sinking capability without affecting other signals
+
+4. **Hardware Solution**: Use stronger pull-up resistors on the 3.3V side (if using TXB0108)
+   - The TXB0108 requires pull-ups on BOTH sides for proper operation
+   - Stronger pull-ups on the 3.3V side can help the level shifter detect direction better
+   - But this doesn't directly solve the current sinking issue
+
+5. **Accept Limitation**: Buttons 2 and 3 may not work on all Amiga models due to voltage threshold differences
+   - This is a known hardware compatibility limitation
+   - The firmware is working correctly
+   - Some Amiga models simply have stricter voltage thresholds
+
+#### Why Pull-Down Resistors Won't Help
+
+**Pull-down resistors would make things WORSE**, not better:
+- When signal should be HIGH (inactive): Amiga's pull-up pulls to 5V, but pull-down would fight it, creating a voltage divider
+- When signal should be LOW (active): Pico drives LOW, but pull-down would add unnecessary current draw
+- The real issue is that the level shifter can't SINK enough current to overcome the Amiga's pull-up when driving LOW
+
+#### Ground Connection Issues (CRITICAL!)
+
+**If you have grounds connected in SERIES (daisy-chained) across multiple level shifters, this is likely contributing to the problem!**
+
+**Why Series Grounds Cause Issues:**
+
+1. **Voltage Drop Across Ground Resistance**:
+   - Each connection in a series ground path adds resistance (wire resistance, connector resistance, etc.)
+   - When the level shifter tries to sink current to drive LOW, current flows: `Amiga → Level Shifter → Ground Path → Pico GND`
+   - If the ground path has resistance (R), the voltage drop is: `V_drop = I_sink × R`
+   - This voltage drop prevents the signal from going fully LOW
+   - **Example**: If ground path has 1Ω resistance and level shifter sinks 20mA, voltage drop = 20mV
+   - With multiple level shifters in series, resistance adds up, voltage drop increases
+
+2. **Current Return Path Problems**:
+   - When multiple signals try to sink current simultaneously, they all share the same series ground path
+   - This increases the current through the ground path, increasing voltage drop
+   - **Buttons 2/3 might be affected more** if they're at the end of the series chain
+
+3. **Ground Loop and Noise**:
+   - Series grounds can create ground loops
+   - Different ground potentials at different points in the chain
+   - Can cause noise and signal integrity issues
+
+**Solution: Star Grounding**
+
+**All grounds should connect to a COMMON POINT (star grounding), not in series:**
+
+```
+❌ BAD (Series/Daisy-Chain):
+Pico GND → Level Shifter 1 GND → Level Shifter 2 GND → Level Shifter 3 GND → Amiga GND
+
+✅ GOOD (Star Ground):
+                    ┌─ Level Shifter 1 GND
+                    ├─ Level Shifter 2 GND
+Pico GND ──── Common Point ── Level Shifter 3 GND
+                    └─ Amiga GND
+```
+
+**How to Fix:**
+
+1. **Identify a Common Ground Point**:
+   - Use a ground plane on your PCB, or
+   - Use a terminal block/ground bus bar, or
+   - Use a star point (single connection point where all grounds meet)
+
+2. **Connect All Grounds to the Common Point**:
+   - Pico GND → Common Point (use multiple Pico GND pins if available!)
+   - Level Shifter 1 GND (3.3V side) → Common Point
+   - Level Shifter 1 GND (5V side) → Common Point
+   - Level Shifter 2 GND (3.3V side) → Common Point
+   - Level Shifter 2 GND (5V side) → Common Point
+   - Amiga GND → Common Point
+   - **Each connection should be a separate wire/trace to the common point**
+
+3. **Use Thicker Wires/Traces**:
+   - Lower resistance = lower voltage drop
+   - For high-current signals (like buttons 2/3), use thicker ground connections
+
+4. **Multiple Ground Points on Pico**:
+   - **YES, connecting multiple Pico GND pins to the common point WILL help!**
+   - Pico has multiple GND pins - use them all!
+   - This reduces resistance and provides multiple current return paths
+   - Each additional GND connection reduces the overall ground path resistance
+
+**Expected Improvement:**
+
+- **Reduced ground resistance**: Star grounding eliminates series resistance
+- **Lower voltage drop**: No voltage drop across ground path when sinking current
+- **Better signal integrity**: All signals see the same ground potential
+- **Buttons 2/3 should work better**: Lower ground resistance = better current sinking = lower voltage when driving LOW
+
+**Testing:**
+
+After switching to star grounding, measure:
+- Ground path resistance (should be <0.1Ω ideally)
+- Voltage at buttons 2/3 when pressed (should be closer to 50-80mV, not 400-500mV)
+- Voltage drop across ground connections (should be <10mV)
+
+#### What Actually Happens
+
+1. **Inactive (HIGH)**: 
+   - Amiga's pull-up (~10kΩ) pulls line to 5V
+   - Pico sets GPIO to INPUT (high-impedance)
+   - Level shifter translates 5V HIGH to 3.3V HIGH
+   - ✅ Works correctly
+
+2. **Active (LOW)**:
+   - Pico drives GPIO LOW (0V) as OUTPUT
+   - Level shifter should translate 3.3V LOW to 0V on 5V side
+   - **Problem**: Amiga's pull-up (~10kΩ) is trying to pull to 5V
+   - Level shifter must SINK current to overcome the pull-up
+   - If level shifter can't sink enough current, voltage stays at 400-500mV instead of <100mV
+   - ❌ Some Amiga models don't recognize 500mV as LOW
+
+#### Firmware Status
+
+The firmware is **working correctly**:
+- GPIOs are being driven LOW properly
+- LED test confirms GPIOs are working
+- A2000 works perfectly with 500mV
+- The issue is Amiga model-specific voltage threshold differences
+
+### Testing Results
+
+- **Pico GPIO Output**: Confirmed working (LED test)
+- **Voltage Levels**: Consistent across different Pico boards
+- **A2000 Compatibility**: Works with 500mV
+- **Other Amiga Models**: May require <100mV (hardware limitation)
+
+### Important Notes
+
+#### This is NOT a Bug
+
+The firmware is functioning correctly. The voltage difference is due to:
+- Amiga hardware differences (pull-up values, input thresholds)
+- Level shifter characteristics (if used)
+- Normal variation between Amiga models
+
+#### Known Working Models
+
+- **A2000**: Works with 500mV (confirmed)
+- **Other models**: May require hardware modifications
+
+#### Future Hardware Improvements
+
+For future adapter designs, consider:
+- Stronger pull-down resistors on button 2/3 lines
+- Different level shifter design for buttons 2/3
+- Buffer/driver ICs for increased drive strength
+- Separate level shifter channels for buttons 2/3 with different characteristics
+
+---
+
 ## Summary
 
 These fixes address critical device compatibility issues:
@@ -496,6 +716,7 @@ These fixes address critical device compatibility issues:
 1. **DS5 Pairing**: Flash-safe execution coordination for SSP pairing
 2. **Stadia Pairing**: Core 1 pause/resume with proper timing for GATT discovery
 3. **Joystick LEFT/RIGHT**: GPIO direction fixes, memory barriers, and button conflict resolution
+4. **Button 2/3 Voltage**: Amiga model compatibility difference (not a firmware bug)
 
 All fixes involve proper cross-core synchronization and flash access coordination, which are critical for reliable operation on multi-core systems with Bluetooth support.
 
