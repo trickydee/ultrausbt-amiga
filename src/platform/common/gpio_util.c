@@ -55,14 +55,27 @@ void amiga_gpio_set_active_low(uint32_t gpio, bool active)
         __sync_synchronize();
         gpio_dir_cache |= (1U << gpio);  // Mark as output in cache
     } else {
-        // Inactive: set to HIGH (1) by setting as input (pulled high)
-        // Always set direction to INPUT FIRST, then enable pull-up to set it high
+        // Inactive: set to HIGH (1)
+#if ENABLE_LEVEL_SHIFTER
+        // Level shifter mode: Set as INPUT with pull-up (3.3V)
+        // TXB0108 requires pull-ups on BOTH sides (A-side 3.3V and B-side 5V) for proper operation
+        // This matches the original BSS138 design which had pull-ups on both sides
+        // The 3.3V pull-up works with the 5V pull-up to ensure proper bidirectional operation
+        gpio_set_dir(gpio, GPIO_IN);
+        gpio_set_pulls(gpio, true, false);  // Enable pull-up (3.3V) - required for TXB0108
+        __sync_synchronize();
+        gpio_dir_cache &= ~(1U << gpio);  // Mark as input in cache
+#else
+        // Direct connection mode: Set as INPUT with pull-up (3.3V)
+        // This works when directly connected to Amiga (no level shifter)
+        // Always set direction to INPUT FIRST
         // This ensures the GPIO is in the correct state even if mouse code changed it
         gpio_set_dir(gpio, GPIO_IN);
         gpio_set_pulls(gpio, true, false);  // Enable pull-up, disable pull-down
         // Small delay to ensure direction is set (helps with cross-core timing)
         __sync_synchronize();
         gpio_dir_cache &= ~(1U << gpio);  // Mark as input in cache
+#endif
     }
 }
 
@@ -83,10 +96,20 @@ void amiga_gpio_init_active_low(uint32_t gpio, bool initial_active)
         gpio_put(gpio, 0);
         gpio_dir_cache |= (1U << gpio);  // Mark as output in cache
     } else {
-        // Inactive: set to INPUT with pull-up (HIGH)
+        // Inactive: set to HIGH state
+#if ENABLE_LEVEL_SHIFTER
+        // Level shifter mode: Set as INPUT with pull-up (3.3V)
+        // TXB0108 requires pull-ups on BOTH sides (A-side 3.3V and B-side 5V) for proper operation
+        // This matches the original BSS138 design which had pull-ups on both sides
+        gpio_set_dir(gpio, GPIO_IN);
+        gpio_set_pulls(gpio, true, false);  // Enable pull-up (3.3V) - required for TXB0108
+        gpio_dir_cache &= ~(1U << gpio);  // Mark as input in cache
+#else
+        // Direct connection mode: Set as INPUT with pull-up (3.3V)
         gpio_set_dir(gpio, GPIO_IN);
         gpio_set_pulls(gpio, true, false);  // Enable pull-up, disable pull-down
         gpio_dir_cache &= ~(1U << gpio);  // Mark as input in cache
+#endif
     }
 }
 
@@ -149,12 +172,17 @@ bool amiga_gpio_watchdog_check(void)
     // Only truly stuck states (GPIO is OUTPUT but cache says INPUT AND GPIO value is LOW)
     // will trigger recovery.
     
-    // Sample GPIOs to check (one from each port)
+    // Sample GPIOs to check (representative GPIOs from each port including buttons 2 and 3)
+    // We check buttons 2 and 3 specifically since they were remapped and might have different behavior
     const uint32_t sample_gpios[] = {
         QM1_AMIGA_V,   // Port 1 UP direction
         QM1_AMIGA_B1,  // Port 1 Fire button
+        QM1_AMIGA_B2,  // Port 1 Button 2 (GPIO 2 - remapped)
+        QM1_AMIGA_B3,  // Port 1 Button 3 (GPIO 3 - remapped)
         QM2_AMIGA_V,   // Port 2 UP direction
-        QM2_AMIGA_B1,  // Port 2 Fire button
+        QM2_AMIGA_B1,  // Port 2 Fire button (GPIO 26 - ADC0)
+        QM2_AMIGA_B2,  // Port 2 Button 2 (GPIO 27 - ADC1)
+        QM2_AMIGA_B3,  // Port 2 Button 3 (GPIO 28 - ADC2)
     };
     const int sample_count = sizeof(sample_gpios) / sizeof(sample_gpios[0]);
     

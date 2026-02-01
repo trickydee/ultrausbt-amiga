@@ -31,18 +31,26 @@ I2C pins use special function mode (not standard GPIO_IN/GPIO_OUT).
 
 ---
 
-### Joystick Port 1 / Mouse Interface (GPIO 10-14, 2-3)
+
+
+![pico2w-pinout](assets/pico2w-pinout.jpg)
+
+
+### Joystick Port 1 / Mouse Interface (GPIO 10-14, 2-3)![amiga-joystick-pinout](assets/amiga-joystick-pinout.png)
+
 Port 1 shares GPIOs with the mouse interface. All signals are **OUTPUT** (active low).
 
-| GPIO | Function | Signal Name | Direction | Notes |
-|------|----------|-------------|-----------|-------|
-| 10 | Port 1 UP / Mouse V | `QM1_AMIGA_V` | OUTPUT | Active low |
-| 11 | Port 1 DOWN / Mouse H | `QM1_AMIGA_H` | OUTPUT | Active low |
-| 12 | Port 1 LEFT / Mouse VQ | `QM1_AMIGA_VQ` | OUTPUT | Active low |
-| 13 | Port 1 RIGHT / Mouse HQ | `QM1_AMIGA_HQ` | OUTPUT | Active low |
-| 14 | Port 1 FIRE / Mouse B1 | `QM1_AMIGA_B1` | OUTPUT | Active low |
-| 2 | Port 1 Button 2 | `QM1_AMIGA_B2` | OUTPUT | Active low, remapped from GPIO 12 |
-| 3 | Port 1 Button 3 | `QM1_AMIGA_B3` | OUTPUT | Active low, remapped from GPIO 13 |
+| GPIO | DB-9 Pin | Cable Color | Function | Signal Name | Direction | Notes |
+|------|----------|-------------|----------|-------------|-----------|-------|
+| 10 | 1 | Blue | Port 1 UP / Mouse V | `QM1_AMIGA_V` | OUTPUT | Active low |
+| 11 | 2 | Yellow | Port 1 DOWN / Mouse H | `QM1_AMIGA_H` | OUTPUT | Active low |
+| 12 | 3 | Red | Port 1 LEFT / Mouse VQ | `QM1_AMIGA_VQ` | OUTPUT | Active low |
+| 13 | 4 | Orange | Port 1 RIGHT / Mouse HQ | `QM1_AMIGA_HQ` | OUTPUT | Active low |
+| 3 | 5 | Purple | Port 1 Button 3 | `QM1_AMIGA_B3` | OUTPUT | Active low, remapped from GPIO 13 |
+| 14 | 6 | Green | Port 1 FIRE / Mouse B1 | `QM1_AMIGA_B1` | OUTPUT | Active low |
+| - | 7 | - | +5V | - | - | Power supply |
+| - | 8 | White | GND | - | - | Ground |
+| 2 | 9 | Grey | Port 1 Button 2 | `QM1_AMIGA_B2` | OUTPUT | Active low, remapped from GPIO 12 |
 
 **Status:** ✅ No conflicts (buttons remapped to GPIO 2 and 3)
 
@@ -64,15 +72,17 @@ All display buttons are configured as **INPUT** with pull-up resistors.
 ### Joystick Port 2 (GPIO 19-22, 26-28)
 All Port 2 signals are configured as **OUTPUT** (active low).
 
-| GPIO | Function | Signal Name | Direction | Notes |
-|------|----------|-------------|-----------|-------|
-| 19 | Port 2 UP | `QM2_AMIGA_V` | OUTPUT | Active low |
-| 20 | Port 2 DOWN | `QM2_AMIGA_H` | OUTPUT | Active low |
-| 21 | Port 2 LEFT | `QM2_AMIGA_VQ` | OUTPUT | Active low |
-| 22 | Port 2 RIGHT | `QM2_AMIGA_HQ` | OUTPUT | Active low |
-| 26 | Port 2 FIRE | `QM2_AMIGA_B1` | OUTPUT | Active low |
-| 27 | Port 2 Button 2 | `QM2_AMIGA_B2` | OUTPUT | Active low, remapped from GPIO 19 |
-| 28 | Port 2 Button 3 | `QM2_AMIGA_B3` | OUTPUT | Active low, remapped from GPIO 18 |
+| GPIO | DB-9 Pin | Cable Color | Function | Signal Name | Direction | Notes |
+|------|----------|-------------|----------|-------------|-----------|-------|
+| 19 | 1 | Blue | Port 2 UP | `QM2_AMIGA_V` | OUTPUT | Active low |
+| 20 | 2 | Yellow | Port 2 DOWN | `QM2_AMIGA_H` | OUTPUT | Active low |
+| 21 | 3 | Red | Port 2 LEFT | `QM2_AMIGA_VQ` | OUTPUT | Active low |
+| 22 | 4 | Orange | Port 2 RIGHT | `QM2_AMIGA_HQ` | OUTPUT | Active low |
+| 28 | 5 | Purple | Port 2 Button 3 | `QM2_AMIGA_B3` | OUTPUT | Active low, remapped from GPIO 18 |
+| 26 | 6 | Green | Port 2 FIRE | `QM2_AMIGA_B1` | OUTPUT | Active low |
+| - | 7 | - | +5V | - | - | Power supply |
+| - | 8 | White | GND | - | - | Ground |
+| 27 | 9 | Grey | Port 2 Button 2 | `QM2_AMIGA_B2` | OUTPUT | Active low, remapped from GPIO 19 |
 
 **Status:** ✅ No conflicts (buttons remapped to GPIO 27 and 28)
 
@@ -80,38 +90,38 @@ All Port 2 signals are configured as **OUTPUT** (active low).
 
 ## Complete GPIO Usage Matrix
 
-| GPIO | Function | Signal Name | Direction | Status |
-|------|----------|-------------|-----------|--------|
-| 0 | Unused | - | - | ✅ Free |
-| 1 | Unused | - | - | ✅ Free |
-| 2 | Port 1 Button 2 | `QM1_AMIGA_B2` | OUTPUT | ✅ OK |
-| 3 | Port 1 Button 3 | `QM1_AMIGA_B3` | OUTPUT | ✅ OK |
-| 4 | Keyboard RST | `KBD_AMIGA_RST` | OUTPUT | ✅ OK |
-| 5 | Keyboard DAT | `KBD_AMIGA_DAT` | OUTPUT | ✅ OK |
-| 6 | Keyboard CLK | `KBD_AMIGA_CLK` | OUTPUT | ✅ OK |
-| 7 | Unused | - | - | ✅ Free |
-| 8 | I2C SDA | `I2C_PIN_SDA` / `SSD1306_SDA` | I2C Function | ✅ OK |
-| 9 | I2C SCL | `I2C_PIN_SCL` / `SSD1306_SCL` | I2C Function | ✅ OK |
-| 10 | Port 1 UP | `QM1_AMIGA_V` | OUTPUT | ✅ OK |
-| 11 | Port 1 DOWN | `QM1_AMIGA_H` | OUTPUT | ✅ OK |
-| 12 | Port 1 LEFT | `QM1_AMIGA_VQ` | OUTPUT | ✅ OK |
-| 13 | Port 1 RIGHT | `QM1_AMIGA_HQ` | OUTPUT | ✅ OK |
-| 14 | Port 1 FIRE | `QM1_AMIGA_B1` | OUTPUT | ✅ OK |
-| 15 | Unused | - | - | ✅ Free |
-| 16 | Display Right Button | `GPIO_BUTTON_RIGHT` | INPUT | ✅ OK |
-| 17 | Display Middle Button | `GPIO_BUTTON_MIDDLE` | INPUT | ✅ OK |
-| 18 | Display Left Button | `GPIO_BUTTON_LEFT` | INPUT | ✅ OK |
-| 19 | Port 2 UP | `QM2_AMIGA_V` | OUTPUT | ✅ OK |
-| 20 | Port 2 DOWN | `QM2_AMIGA_H` | OUTPUT | ✅ OK |
-| 21 | Port 2 LEFT | `QM2_AMIGA_VQ` | OUTPUT | ✅ OK |
-| 22 | Port 2 RIGHT | `QM2_AMIGA_HQ` | OUTPUT | ✅ OK |
-| 23 | Unused | - | - | ✅ Free |
-| 24 | Unused | - | - | ✅ Free |
-| 25 | Onboard LED | `PICO_DEFAULT_LED_PIN` | OUTPUT | ✅ OK |
-| 26 | Port 2 FIRE | `QM2_AMIGA_B1` | OUTPUT | ✅ OK |
-| 27 | Port 2 Button 2 | `QM2_AMIGA_B2` | OUTPUT | ✅ OK |
-| 28 | Port 2 Button 3 | `QM2_AMIGA_B3` | OUTPUT | ✅ OK |
-| 29 | Unused | - | - | ✅ Free (ADC3) |
+| GPIO | DB-9 Pin | Cable Color | Function | Signal Name | Direction | Status |
+|------|----------|-------------|----------|-------------|-----------|--------|
+| 0 | - | - | Unused | - | - | ✅ Free |
+| 1 | - | - | Unused | - | - | ✅ Free |
+| 2 | P1:9 | Grey | Port 1 Button 2 | `QM1_AMIGA_B2` | OUTPUT | ✅ OK |
+| 3 | P1:5 | Purple | Port 1 Button 3 | `QM1_AMIGA_B3` | OUTPUT | ✅ OK |
+| 4 | - | - | Keyboard RST | `KBD_AMIGA_RST` | OUTPUT | ✅ OK |
+| 5 | - | - | Keyboard DAT | `KBD_AMIGA_DAT` | OUTPUT | ✅ OK |
+| 6 | - | - | Keyboard CLK | `KBD_AMIGA_CLK` | OUTPUT | ✅ OK |
+| 7 | - | - | Unused | - | - | ✅ Free |
+| 8 | - | - | I2C SDA | `I2C_PIN_SDA` / `SSD1306_SDA` | I2C Function | ✅ OK |
+| 9 | - | - | I2C SCL | `I2C_PIN_SCL` / `SSD1306_SCL` | I2C Function | ✅ OK |
+| 10 | P1:1 | Blue | Port 1 UP | `QM1_AMIGA_V` | OUTPUT | ✅ OK |
+| 11 | P1:2 | Yellow | Port 1 DOWN | `QM1_AMIGA_H` | OUTPUT | ✅ OK |
+| 12 | P1:3 | Red | Port 1 LEFT | `QM1_AMIGA_VQ` | OUTPUT | ✅ OK |
+| 13 | P1:4 | Orange | Port 1 RIGHT | `QM1_AMIGA_HQ` | OUTPUT | ✅ OK |
+| 14 | P1:6 | Green | Port 1 FIRE | `QM1_AMIGA_B1` | OUTPUT | ✅ OK |
+| 15 | - | - | Unused | - | - | ✅ Free |
+| 16 | - | - | Display Right Button | `GPIO_BUTTON_RIGHT` | INPUT | ✅ OK |
+| 17 | - | - | Display Middle Button | `GPIO_BUTTON_MIDDLE` | INPUT | ✅ OK |
+| 18 | - | - | Display Left Button | `GPIO_BUTTON_LEFT` | INPUT | ✅ OK |
+| 19 | P2:1 | Blue | Port 2 UP | `QM2_AMIGA_V` | OUTPUT | ✅ OK |
+| 20 | P2:2 | Yellow | Port 2 DOWN | `QM2_AMIGA_H` | OUTPUT | ✅ OK |
+| 21 | P2:3 | Red | Port 2 LEFT | `QM2_AMIGA_VQ` | OUTPUT | ✅ OK |
+| 22 | P2:4 | Orange | Port 2 RIGHT | `QM2_AMIGA_HQ` | OUTPUT | ✅ OK |
+| 23 | - | - | Unused | - | - | ✅ Free |
+| 24 | - | - | Unused | - | - | ✅ Free |
+| 25 | - | - | Onboard LED | `PICO_DEFAULT_LED_PIN` | OUTPUT | ✅ OK |
+| 26 | P2:6 | Green | Port 2 FIRE | `QM2_AMIGA_B1` | OUTPUT | ✅ OK |
+| 27 | P2:9 | Grey | Port 2 Button 2 | `QM2_AMIGA_B2` | OUTPUT | ✅ OK |
+| 28 | P2:5 | Purple | Port 2 Button 3 | `QM2_AMIGA_B3` | OUTPUT | ✅ OK |
+| 29 | - | - | Unused | - | - | ✅ Free (ADC3) |
 
 **Summary:** ✅ **All GPIO conflicts resolved** - No conflicts detected
 

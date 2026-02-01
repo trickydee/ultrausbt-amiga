@@ -79,18 +79,39 @@ void amiga_quad_mouse_init()
 
 void amiga_quad_mouse_button(enum amiga_quad_mouse_buttons button, bool pressed)
 {
-    // ahprintf("[aqm] button %s state %s\n",
-    //     (button == AQM_LEFT) ? "left" :
-    //         (button == AQM_MIDDLE) ? "middle" :
-    //         (button == AQM_RIGHT) ? "right" : "<unknown?!>",
-    //     pressed ? "down" : "up"
-    // );
-
+    const char* button_name;
+    uint8_t gpio_pin;
+    
+    switch (button) {
+        case AQM_LEFT:
+            button_name = "LEFT";
+            gpio_pin = QM1_AMIGA_B1;
+            break;
+        case AQM_MIDDLE:
+            button_name = "MIDDLE";
+            gpio_pin = QM1_AMIGA_B3;
+            break;
+        case AQM_RIGHT:
+            button_name = "RIGHT";
+            gpio_pin = QM1_AMIGA_B2;
+            break;
+        default:
+            button_name = "UNKNOWN";
+            gpio_pin = 0;
+            break;
+    }
+    
+    ahprintf("[MOUSE-BTN] %s button %s -> GPIO %d %s\n",
+        button_name,
+        pressed ? "PRESSED" : "RELEASED",
+        gpio_pin,
+        pressed ? "(LOW/OUTPUT)" : "(HIGH/INPUT)");
+    
     switch (button) {
         case AQM_LEFT:      amiga_gpio_set_active_low(QM1_AMIGA_B1, pressed); break;
         case AQM_MIDDLE:    amiga_gpio_set_active_low(QM1_AMIGA_B3, pressed); break;
         case AQM_RIGHT:     amiga_gpio_set_active_low(QM1_AMIGA_B2, pressed); break;
-        // default:            ahprintf("[aqm] unhandled button press!\n");
+        default:            break;
     }
 }
 

@@ -17,6 +17,18 @@
 #  define HIDPICO_REVISION 4
 #endif
 
+// Level shifter configuration
+// Set to 1 if using level shifters (5V ↔ 3.3V) on joystick GPIOs
+// When enabled, Pico's internal pull-ups are disabled for inactive signals
+// to avoid conflicts with level shifter direction detection and 5V-side pull-ups
+// 
+// IMPORTANT: If you experience delayed input or signals only working when fire
+// button is pressed, ensure this is set to 1 and that your level shifter has
+// proper pull-ups on the 5V side (or rely on Amiga's internal pull-ups)
+#ifndef ENABLE_LEVEL_SHIFTER
+#  define ENABLE_LEVEL_SHIFTER 1  // Default to enabled for hardware protection
+#endif
+
 // the pico has an onboard led on gp25; use this as a default indicator
 #ifndef INDICATOR_LED
 #  define INDICATOR_LED PICO_DEFAULT_LED_PIN

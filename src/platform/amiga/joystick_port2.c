@@ -51,16 +51,16 @@ void amiga_joystick_port2_set_direction(enum amiga_joystick_port2_direction dir,
     
     // Amiga joystick port 2 uses separate GPIO pins for each direction (active low):
     // Documented pinout (after swapping LEFT and DOWN back):
-    // GPIO 27 (Pin 1) = UP
-    // GPIO 26 (Pin 2) = DOWN  
-    // GPIO 22 (Pin 3) = LEFT
-    // GPIO 21 (Pin 4) = RIGHT
+    // GPIO 19 (QM2_AMIGA_V) = UP
+    // GPIO 20 (QM2_AMIGA_H) = DOWN  
+    // GPIO 21 (QM2_AMIGA_VQ) = LEFT
+    // GPIO 22 (QM2_AMIGA_HQ) = RIGHT
     // Each pin is independent: LOW = active (direction pressed), HIGH = inactive (released)
     
     // Optimized: Only update GPIO pins that have changed state
     // This reduces GPIO operations by ~75% in typical usage (only 1 direction changes at a time)
     if (dir2_up != prev_dir2_up) {
-        amiga_gpio_set_active_low(QM2_AMIGA_V, dir2_up);      // GPIO 27 = UP
+        amiga_gpio_set_active_low(QM2_AMIGA_V, dir2_up);      // GPIO 19 = UP (JOY0_ATARI_UP)
         prev_dir2_up = dir2_up;
     }
     if (dir2_down != prev_dir2_down) {
@@ -92,6 +92,7 @@ void amiga_joystick_port2_set_button(enum amiga_joystick_port2_buttons button, b
             break;
         case AJ2_BUTTON2:
             if (pressed != prev_button2) {
+                printf("[JOY2-B2] Setting GPIO 27 to %s\n", pressed ? "PRESSED (LOW)" : "RELEASED (HIGH)");
                 amiga_gpio_set_active_low(QM2_AMIGA_B2, pressed);
                 prev_button2 = pressed;
             }
@@ -99,6 +100,7 @@ void amiga_joystick_port2_set_button(enum amiga_joystick_port2_buttons button, b
         case AJ2_BUTTON3:
             // Button 3 now uses GPIO 28 (remapped from GPIO 18) - no conflicts
             if (pressed != prev_button3) {
+                printf("[JOY2-B3] Setting GPIO 28 to %s\n", pressed ? "PRESSED (LOW)" : "RELEASED (HIGH)");
                 amiga_gpio_set_active_low(QM2_AMIGA_B3, pressed);
                 prev_button3 = pressed;
             }
