@@ -42,6 +42,36 @@ static bool llamatron_mode = false;
 static bool llamatron_active = false;  // True when mode is active and conditions are met
 static bool llamatron_restore_joystick_mode = false;  // Track if port 1 was in joystick mode before enabling Llamatron
 
+// Public functions to get and toggle Llamatron mode (for display interface)
+bool usb_hid_get_llamatron_mode(void)
+{
+    return llamatron_mode;
+}
+
+void usb_hid_toggle_llamatron_mode(void)
+{
+    llamatron_mode = !llamatron_mode;
+    if (llamatron_mode) {
+        // When enabling Llamatron mode, save current state and activate joystick mode on port 1
+        llamatron_restore_joystick_mode = amiga_joystick_port1_is_joystick_mode();
+        if (!llamatron_restore_joystick_mode) {
+            amiga_joystick_port1_toggle_mode();  // Switch to joystick mode
+        }
+        printf("[LLAMATRON] Llamatron mode ENABLED (was %s mode)\n", 
+               llamatron_restore_joystick_mode ? "JOYSTICK" : "MOUSE");
+        llamatron_active = false;
+    } else {
+        // When disabling Llamatron mode, restore previous port 1 mode
+        bool current_mode = amiga_joystick_port1_is_joystick_mode();
+        if (current_mode != llamatron_restore_joystick_mode) {
+            amiga_joystick_port1_toggle_mode();  // Restore previous mode
+        }
+        printf("[LLAMATRON] Llamatron mode DISABLED (restored %s mode)\n",
+               llamatron_restore_joystick_mode ? "JOYSTICK" : "MOUSE");
+        llamatron_active = false;
+    }
+}
+
 // repetitive modifier check macros (@todo probably better iterated in future?)
 #define _SINGLE_MOD_CHECK(hid_mod) \
     if ((report->modifier & hid_mod) && !(last_report.modifier & hid_mod)) \
