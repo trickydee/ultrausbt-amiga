@@ -332,21 +332,11 @@ static void handle_event_mouse(uint8_t dev_addr, uint8_t instance, hid_mouse_rep
         amiga_joystick_port1_set_from_mouse(report->x, report->y, report->buttons);
     } else {
         // Mouse-only mode: normal mouse operation
-        // Handle mouse buttons
-        if ((report->buttons & MOUSE_BUTTON_LEFT) && !(last_report.buttons & MOUSE_BUTTON_LEFT))
-            amiga_quad_mouse_button(AQM_LEFT, true);
-        if (!(report->buttons & MOUSE_BUTTON_LEFT) && (last_report.buttons & MOUSE_BUTTON_LEFT))
-            amiga_quad_mouse_button(AQM_LEFT, false);
-        
-        if ((report->buttons & MOUSE_BUTTON_MIDDLE) && !(last_report.buttons & MOUSE_BUTTON_MIDDLE))
-            amiga_quad_mouse_button(AQM_MIDDLE, true);
-        if (!(report->buttons & MOUSE_BUTTON_MIDDLE) && (last_report.buttons & MOUSE_BUTTON_MIDDLE))
-            amiga_quad_mouse_button(AQM_MIDDLE, false);
-        
-        if ((report->buttons & MOUSE_BUTTON_RIGHT) && !(last_report.buttons & MOUSE_BUTTON_RIGHT))
-            amiga_quad_mouse_button(AQM_RIGHT, true);
-        if (!(report->buttons & MOUSE_BUTTON_RIGHT) && (last_report.buttons & MOUSE_BUTTON_RIGHT))
-            amiga_quad_mouse_button(AQM_RIGHT, false);
+        // Handle mouse buttons - ALWAYS update state, not just on change
+        // This ensures buttons work even if state change detection fails
+        amiga_quad_mouse_button(AQM_LEFT, (report->buttons & MOUSE_BUTTON_LEFT) != 0);
+        amiga_quad_mouse_button(AQM_MIDDLE, (report->buttons & MOUSE_BUTTON_MIDDLE) != 0);
+        amiga_quad_mouse_button(AQM_RIGHT, (report->buttons & MOUSE_BUTTON_RIGHT) != 0);
         
         // Handle mouse movement (quadrature signals)
         // this would spam horrendously, so even when debug messages are on, this is probably... too much.
@@ -439,9 +429,22 @@ static void handle_event_gamepad(uint8_t dev_addr, uint8_t instance, uint8_t con
     }
     
     // Map buttons (bit 0 = Fire, bit 1 = Button 2, bit 2 = Button 3)
+    bool usb_b2 = (buttons & 0x02) != 0;
+    bool usb_b3 = (buttons & 0x04) != 0;
+    static bool last_usb_b2 = false, last_usb_b3 = false;
+    if (usb_b2 != last_usb_b2) {
+        printf("[USB-GAMEPAD] Port 2 Button 2: %s -> calling amiga_joystick_port2_set_button(AJ2_BUTTON2, %d)\n", 
+               usb_b2 ? "PRESSED" : "RELEASED", usb_b2);
+        last_usb_b2 = usb_b2;
+    }
+    if (usb_b3 != last_usb_b3) {
+        printf("[USB-GAMEPAD] Port 2 Button 3: %s -> calling amiga_joystick_port2_set_button(AJ2_BUTTON3, %d)\n", 
+               usb_b3 ? "PRESSED" : "RELEASED", usb_b3);
+        last_usb_b3 = usb_b3;
+    }
     amiga_joystick_port2_set_button(AJ2_FIRE, (buttons & 0x01) != 0);
-    amiga_joystick_port2_set_button(AJ2_BUTTON2, (buttons & 0x02) != 0);
-    amiga_joystick_port2_set_button(AJ2_BUTTON3, (buttons & 0x04) != 0);
+    amiga_joystick_port2_set_button(AJ2_BUTTON2, usb_b2);
+    amiga_joystick_port2_set_button(AJ2_BUTTON3, usb_b3);
 }
 
 static uint8_t led_report = 0;
@@ -1022,8 +1025,21 @@ void process_bluepad32_gamepad(void)
                     last_buttons_log = bt_gamepad.buttons;
                 }
                 amiga_joystick_port2_set_button(AJ2_FIRE, (bt_gamepad.buttons & 0x01) != 0);      // BUTTON_A
-                amiga_joystick_port2_set_button(AJ2_BUTTON2, (bt_gamepad.buttons & 0x02) != 0);  // BUTTON_B
-                amiga_joystick_port2_set_button(AJ2_BUTTON3, (bt_gamepad.buttons & 0x04) != 0 || (bt_gamepad.buttons & 0x08) != 0);  // BUTTON_X or BUTTON_Y
+                bool port2_b2 = (bt_gamepad.buttons & 0x02) != 0;
+                bool port2_b3 = (bt_gamepad.buttons & 0x04) != 0 || (bt_gamepad.buttons & 0x08) != 0;
+                static bool last_port2_b2 = false, last_port2_b3 = false;
+                if (port2_b2 != last_port2_b2) {
+                    printf("[BT-GAMEPAD] Port 2 Button 2: %s -> calling amiga_joystick_port2_set_button(AJ2_BUTTON2, %d)\n", 
+                           port2_b2 ? "PRESSED" : "RELEASED", port2_b2);
+                    last_port2_b2 = port2_b2;
+                }
+                if (port2_b3 != last_port2_b3) {
+                    printf("[BT-GAMEPAD] Port 2 Button 3: %s -> calling amiga_joystick_port2_set_button(AJ2_BUTTON3, %d)\n", 
+                           port2_b3 ? "PRESSED" : "RELEASED", port2_b3);
+                    last_port2_b3 = port2_b3;
+                }
+                amiga_joystick_port2_set_button(AJ2_BUTTON2, port2_b2);  // BUTTON_B
+                amiga_joystick_port2_set_button(AJ2_BUTTON3, port2_b3);  // BUTTON_X or BUTTON_Y
             }
         }
         
@@ -1043,27 +1059,46 @@ void process_bluepad32_gamepad(void)
                 
                 // Map buttons using Bluepad32 button constants
                 amiga_joystick_port1_set_button(AJ1_FIRE, (bt_gamepad.buttons & 0x01) != 0);      // BUTTON_A
-                amiga_joystick_port1_set_button(AJ1_BUTTON2, (bt_gamepad.buttons & 0x02) != 0);  // BUTTON_B
-                amiga_joystick_port1_set_button(AJ1_BUTTON3, (bt_gamepad.buttons & 0x04) != 0 || (bt_gamepad.buttons & 0x08) != 0);  // BUTTON_X or BUTTON_Y
+                bool port1_b2 = (bt_gamepad.buttons & 0x02) != 0;
+                bool port1_b3 = (bt_gamepad.buttons & 0x04) != 0 || (bt_gamepad.buttons & 0x08) != 0;
+                static bool last_port1_b2 = false, last_port1_b3 = false;
+                if (port1_b2 != last_port1_b2) {
+                    printf("[BT-GAMEPAD] Port 1 Button 2 (JOYSTICK MODE): %s -> calling amiga_joystick_port1_set_button(AJ1_BUTTON2, %d)\n", 
+                           port1_b2 ? "PRESSED" : "RELEASED", port1_b2);
+                    last_port1_b2 = port1_b2;
+                }
+                if (port1_b3 != last_port1_b3) {
+                    printf("[BT-GAMEPAD] Port 1 Button 3 (JOYSTICK MODE): %s -> calling amiga_joystick_port1_set_button(AJ1_BUTTON3, %d)\n", 
+                           port1_b3 ? "PRESSED" : "RELEASED", port1_b3);
+                    last_port1_b3 = port1_b3;
+                }
+                amiga_joystick_port1_set_button(AJ1_BUTTON2, port1_b2);  // BUTTON_B
+                amiga_joystick_port1_set_button(AJ1_BUTTON3, port1_b3);  // BUTTON_X or BUTTON_Y
+            }
+        }
+        
+        // Process second gamepad -> Port 1 mouse buttons (only if Port 1 is in mouse mode)
+        // Hardware mapping: QM1_AMIGA_B2 = right mouse, QM1_AMIGA_B3 = center mouse
+        if (bt_gamepad_count > 1 && !amiga_joystick_port1_is_joystick_mode()) {
+            bool has_data = bluepad32_get_gamepad(1, &bt_gamepad);
+            
+            if (has_data) {
+                bool b2_pressed = (bt_gamepad.buttons & 0x02) != 0;
+                bool b3_pressed = (bt_gamepad.buttons & 0x04) != 0 || (bt_gamepad.buttons & 0x08) != 0;
+                static bool last_b2 = false, last_b3 = false;
                 
-                // Note: When Port 1 is in joystick mode, buttons are already mapped above
-                // When Port 1 is in mouse mode, buttons 2 and 3 are also mapped to mouse buttons
-                // Hardware mapping: QM1_AMIGA_B2 = right mouse, QM1_AMIGA_B3 = center mouse
-                // Only map to mouse buttons if Port 1 is NOT in joystick mode
-                if (!amiga_joystick_port1_is_joystick_mode()) {
-                    bool b2_pressed = (bt_gamepad.buttons & 0x02) != 0;
-                    bool b3_pressed = (bt_gamepad.buttons & 0x04) != 0 || (bt_gamepad.buttons & 0x08) != 0;
-                    static bool last_b2 = false, last_b3 = false;
-                    
-                    // Only update mouse buttons when state changes
-                    if (b2_pressed != last_b2) {
-                        amiga_quad_mouse_button(AQM_RIGHT, b2_pressed);   // BUTTON_B -> Right mouse
-                        last_b2 = b2_pressed;
-                    }
-                    if (b3_pressed != last_b3) {
-                        amiga_quad_mouse_button(AQM_MIDDLE, b3_pressed);  // BUTTON_X or BUTTON_Y -> Center mouse
-                        last_b3 = b3_pressed;
-                    }
+                // Only update mouse buttons when state changes
+                if (b2_pressed != last_b2) {
+                    printf("[BT-GAMEPAD] Port 1 Button 2 (MOUSE MODE): %s -> calling amiga_quad_mouse_button(AQM_RIGHT, %d)\n", 
+                           b2_pressed ? "PRESSED" : "RELEASED", b2_pressed);
+                    amiga_quad_mouse_button(AQM_RIGHT, b2_pressed);   // BUTTON_B -> Right mouse
+                    last_b2 = b2_pressed;
+                }
+                if (b3_pressed != last_b3) {
+                    printf("[BT-GAMEPAD] Port 1 Button 3 (MOUSE MODE): %s -> calling amiga_quad_mouse_button(AQM_MIDDLE, %d)\n", 
+                           b3_pressed ? "PRESSED" : "RELEASED", b3_pressed);
+                    amiga_quad_mouse_button(AQM_MIDDLE, b3_pressed);  // BUTTON_X or BUTTON_Y -> Center mouse
+                    last_b3 = b3_pressed;
                 }
             }
         }

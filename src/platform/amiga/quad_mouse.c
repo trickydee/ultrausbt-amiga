@@ -101,17 +101,20 @@ void amiga_quad_mouse_button(enum amiga_quad_mouse_buttons button, bool pressed)
             break;
     }
     
-    ahprintf("[MOUSE-BTN] %s button %s -> GPIO %d %s\n",
-        button_name,
-        pressed ? "PRESSED" : "RELEASED",
-        gpio_pin,
-        pressed ? "(LOW/OUTPUT)" : "(HIGH/INPUT)");
-    
+    // Set GPIO state immediately - don't wait for state changes
+    // This ensures buttons respond instantly, not just on state transitions
     switch (button) {
         case AQM_LEFT:      amiga_gpio_set_active_low(QM1_AMIGA_B1, pressed); break;
         case AQM_MIDDLE:    amiga_gpio_set_active_low(QM1_AMIGA_B3, pressed); break;
         case AQM_RIGHT:     amiga_gpio_set_active_low(QM1_AMIGA_B2, pressed); break;
         default:            break;
+    }
+    
+    // Debug logging only on state changes to reduce spam
+    static bool last_pressed[3] = {false, false, false};
+    if (pressed != last_pressed[button]) {
+        printf("[MOUSE-BTN] amiga_quad_mouse_button(%s, %d) -> GPIO %d\n", button_name, pressed, gpio_pin);
+        last_pressed[button] = pressed;
     }
 }
 

@@ -92,7 +92,8 @@ void amiga_joystick_port2_set_button(enum amiga_joystick_port2_buttons button, b
             break;
         case AJ2_BUTTON2:
             if (pressed != prev_button2) {
-                printf("[JOY2-B2] Setting GPIO 27 to %s\n", pressed ? "PRESSED (LOW)" : "RELEASED (HIGH)");
+                printf("[JOY2-B2] amiga_joystick_port2_set_button(AJ2_BUTTON2, %d) -> GPIO %d (%s)\n", 
+                       pressed, QM2_AMIGA_B2, pressed ? "PRESSED (LOW)" : "RELEASED (HIGH)");
                 amiga_gpio_set_active_low(QM2_AMIGA_B2, pressed);
                 prev_button2 = pressed;
             }
@@ -100,7 +101,8 @@ void amiga_joystick_port2_set_button(enum amiga_joystick_port2_buttons button, b
         case AJ2_BUTTON3:
             // Button 3 now uses GPIO 28 (remapped from GPIO 18) - no conflicts
             if (pressed != prev_button3) {
-                printf("[JOY2-B3] Setting GPIO 28 to %s\n", pressed ? "PRESSED (LOW)" : "RELEASED (HIGH)");
+                printf("[JOY2-B3] amiga_joystick_port2_set_button(AJ2_BUTTON3, %d) -> GPIO %d (%s)\n", 
+                       pressed, QM2_AMIGA_B3, pressed ? "PRESSED (LOW)" : "RELEASED (HIGH)");
                 amiga_gpio_set_active_low(QM2_AMIGA_B3, pressed);
                 prev_button3 = pressed;
             }

@@ -100,10 +100,12 @@ void amiga_joystick_port1_set_button(enum amiga_joystick_port1_buttons button, b
             break;
         case AJ1_BUTTON2:
             // Button 2 now uses GPIO 2 (remapped from GPIO 12) - no conflicts
+            printf("[JOY1-B2] amiga_joystick_port1_set_button(AJ1_BUTTON2, %d) -> GPIO %d\n", pressed, QM1_AMIGA_B2);
             amiga_gpio_set_active_low(QM1_AMIGA_B2, pressed);
             break;
         case AJ1_BUTTON3:
             // Button 3 now uses GPIO 3 (remapped from GPIO 13) - no conflicts
+            printf("[JOY1-B3] amiga_joystick_port1_set_button(AJ1_BUTTON3, %d) -> GPIO %d\n", pressed, QM1_AMIGA_B3);
             amiga_gpio_set_active_low(QM1_AMIGA_B3, pressed);
             break;
     }

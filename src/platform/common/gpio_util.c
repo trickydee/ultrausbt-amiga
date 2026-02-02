@@ -32,12 +32,14 @@ void amiga_gpio_set_active_low(uint32_t gpio, bool active)
     
     if (active) {
         // Active: set to LOW (0) and configure as output
-        // IMPORTANT: For GPIO 26 (ADC0), ensure ADC is not interfering
-        if (gpio == 26) {
-            // GPIO 26 is ADC0 - ensure ADC is not enabled on this pin
-            // ADC can interfere with GPIO operation if enabled
-            // Note: We can't easily check if ADC is enabled, but we can ensure GPIO function is set
+        // IMPORTANT: For GPIOs that are also ADC inputs (26=ADC0, 27=ADC1, 28=ADC2), 
+        // ensure ADC is not interfering with GPIO operation
+        // ADC can prevent proper LOW output if enabled
+        if (gpio == 26 || gpio == 27 || gpio == 28) {
+            // GPIO 26 = ADC0, GPIO 27 = ADC1, GPIO 28 = ADC2
+            // Ensure GPIO function is set (not ADC) - this disables ADC on these pins
             gpio_set_function(gpio, GPIO_FUNC_SIO);  // Ensure GPIO function (not ADC)
+            __sync_synchronize();  // Ensure function change is visible
         }
         
         // IMPORTANT: Disable pull-ups FIRST (pull-ups can prevent LOW output on some GPIOs)
@@ -91,6 +93,12 @@ void amiga_gpio_init_active_low(uint32_t gpio, bool initial_active)
     // Set initial state and cache direction
     if (initial_active) {
         // Active: set to LOW output
+        // IMPORTANT: For GPIOs that are also ADC inputs (26=ADC0, 27=ADC1, 28=ADC2), 
+        // ensure ADC is not interfering
+        if (gpio == 26 || gpio == 27 || gpio == 28) {
+            gpio_set_function(gpio, GPIO_FUNC_SIO);  // Ensure GPIO function (not ADC)
+            __sync_synchronize();  // Ensure function change is visible
+        }
         gpio_set_pulls(gpio, false, false);  // Disable pull-ups/pull-downs for OUTPUT
         gpio_set_dir(gpio, GPIO_OUT);
         gpio_put(gpio, 0);
@@ -152,7 +160,7 @@ void amiga_gpio_reset_all_to_input(void)
     amiga_gpio_init_active_low(QM2_AMIGA_HQ, false);  // GPIO 22 - No horizontal quadrature
     amiga_gpio_init_active_low(QM2_AMIGA_VQ, false);  // GPIO 21 - No vertical quadrature
     amiga_gpio_init_active_low(QM2_AMIGA_B1, false);  // GPIO 26 - Fire button not pressed (ADC0 - sensitive!)
-    amiga_gpio_init_active_low(QM2_AMIGA_B2, false);  // GPIO 27 - Button 2 not pressed (remapped, ADC1)
+    amiga_gpio_init_active_low(QM2_AMIGA_B2, false);  // GPIO 7 - Button 2 not pressed (remapped, non-ADC)
     amiga_gpio_init_active_low(QM2_AMIGA_B3, false);  // GPIO 28 - Button 3 not pressed (remapped, ADC2)
     
     // All GPIOs are now in INPUT mode with pull-up enabled (safe state)
@@ -172,17 +180,18 @@ bool amiga_gpio_watchdog_check(void)
     // Only truly stuck states (GPIO is OUTPUT but cache says INPUT AND GPIO value is LOW)
     // will trigger recovery.
     
-    // Sample GPIOs to check (representative GPIOs from each port including buttons 2 and 3)
-    // We check buttons 2 and 3 specifically since they were remapped and might have different behavior
+    // Sample GPIOs to check (representative GPIOs from each port)
+    // NOTE: We EXCLUDE buttons 2 and 3 from watchdog checks to prevent interference
+    // Buttons 2 and 3 may be actively pressed and should not be reset by watchdog
     const uint32_t sample_gpios[] = {
         QM1_AMIGA_V,   // Port 1 UP direction
         QM1_AMIGA_B1,  // Port 1 Fire button
-        QM1_AMIGA_B2,  // Port 1 Button 2 (GPIO 2 - remapped)
-        QM1_AMIGA_B3,  // Port 1 Button 3 (GPIO 3 - remapped)
+        // QM1_AMIGA_B2,  // Port 1 Button 2 (GPIO 2) - EXCLUDED from watchdog
+        // QM1_AMIGA_B3,  // Port 1 Button 3 (GPIO 3) - EXCLUDED from watchdog
         QM2_AMIGA_V,   // Port 2 UP direction
         QM2_AMIGA_B1,  // Port 2 Fire button (GPIO 26 - ADC0)
-        QM2_AMIGA_B2,  // Port 2 Button 2 (GPIO 27 - ADC1)
-        QM2_AMIGA_B3,  // Port 2 Button 3 (GPIO 28 - ADC2)
+        // QM2_AMIGA_B2,  // Port 2 Button 2 (GPIO 7) - EXCLUDED from watchdog
+        // QM2_AMIGA_B3,  // Port 2 Button 3 (GPIO 28) - EXCLUDED from watchdog
     };
     const int sample_count = sizeof(sample_gpios) / sizeof(sample_gpios[0]);
     
@@ -205,6 +214,8 @@ bool amiga_gpio_watchdog_check(void)
         // 2. Cache says it should be INPUT
         // 3. GPIO value is LOW (stuck in active state)
         // This avoids false positives during normal button presses
+        // NOTE: Buttons 2 and 3 are already excluded from sample_gpios[], so this check is redundant
+        // but kept for safety in case sample_gpios[] is modified in the future
         if (is_output && !cached_as_output && !gpio_value) {
             recovery_needed = true;
             break;
@@ -216,9 +227,34 @@ bool amiga_gpio_watchdog_check(void)
     if (recovery_needed) {
         consecutive_mismatches++;
         if (consecutive_mismatches >= 3) {
+            // Reset GPIOs to INPUT (inactive) state, but PRESERVE buttons 2 and 3
+            // Buttons 2 and 3 may be actively pressed and should not be reset
+            // Save current state of buttons 2 and 3 before reset
+            // Check if buttons are actually pressed (GPIO is OUTPUT and LOW)
+            bool b2_state = (gpio_get_dir(QM1_AMIGA_B2) == GPIO_OUT) && !gpio_get(QM1_AMIGA_B2);
+            bool b3_state = (gpio_get_dir(QM1_AMIGA_B3) == GPIO_OUT) && !gpio_get(QM1_AMIGA_B3);
+            bool b2_port2_state = (gpio_get_dir(QM2_AMIGA_B2) == GPIO_OUT) && !gpio_get(QM2_AMIGA_B2);
+            bool b3_port2_state = (gpio_get_dir(QM2_AMIGA_B3) == GPIO_OUT) && !gpio_get(QM2_AMIGA_B3);
+            
             // Reset all GPIOs to INPUT (inactive) state
             // This will fix any stuck GPIO states
             amiga_gpio_reset_all_to_input();
+            
+            // Restore buttons 2 and 3 if they were pressed
+            // Only restore if they were actually active (LOW/OUTPUT)
+            if (b2_state && gpio_get_dir(QM1_AMIGA_B2) == GPIO_OUT) {
+                amiga_gpio_set_active_low(QM1_AMIGA_B2, true);
+            }
+            if (b3_state && gpio_get_dir(QM1_AMIGA_B3) == GPIO_OUT) {
+                amiga_gpio_set_active_low(QM1_AMIGA_B3, true);
+            }
+            if (b2_port2_state && gpio_get_dir(QM2_AMIGA_B2) == GPIO_OUT) {
+                amiga_gpio_set_active_low(QM2_AMIGA_B2, true);
+            }
+            if (b3_port2_state && gpio_get_dir(QM2_AMIGA_B3) == GPIO_OUT) {
+                amiga_gpio_set_active_low(QM2_AMIGA_B3, true);
+            }
+            
             consecutive_mismatches = 0;  // Reset counter after recovery
             return true;  // Recovery was performed
         }
