@@ -17,6 +17,7 @@
 
 #if ENABLE_BLUEPAD32
 #include "platform/amiga/joystick_port1.h"  // For joystick port 1 mode toggle
+#include "platform/amiga/quad_mouse.h"     // For mouse type toggle
 #endif
 
 // Software version (from main.c)
@@ -28,7 +29,7 @@
 #define SOFTWARE_VERSION_MINOR 0
 #endif
 #ifndef SOFTWARE_VERSION_PATCH
-#define SOFTWARE_VERSION_PATCH 25
+#define SOFTWARE_VERSION_PATCH 31
 #endif
 
 #if HIDPICO_REVISION == 5
@@ -156,10 +157,19 @@ void display_show_devices(void)
     ssd1306_draw_string(&disp, 0, 18, 1, buf);
     
 #if ENABLE_BLUEPAD32
-    // Show Port 1 mode status on bottom line
+    // Show Port 1 mode status and mouse type on bottom lines
     bool is_joy_mode = amiga_joystick_port1_is_joystick_mode();
-    sprintf(buf, "Port1: %s", is_joy_mode ? "JOY" : "MOUSE");
-    ssd1306_draw_string(&disp, 0, 27, 1, buf);
+    if (is_joy_mode) {
+        sprintf(buf, "Port1: JOY");
+        ssd1306_draw_string(&disp, 0, 27, 1, buf);
+    } else {
+        sprintf(buf, "Port1: MOUSE");
+        ssd1306_draw_string(&disp, 0, 27, 1, buf);
+        // Show mouse type (Amiga or Atari)
+        mouse_type_t mouse_type = amiga_quad_mouse_get_type();
+        sprintf(buf, "Type: %s", mouse_type == MOUSE_TYPE_ATARI ? "Atari" : "Amiga");
+        ssd1306_draw_string(&disp, 0, 36, 1, buf);
+    }
 #endif
     
     ssd1306_show(&disp);
@@ -273,13 +283,13 @@ void display_handle_buttons(void)
         button_middle_debounce = 0;
     }
     
-    // Handle RIGHT button (clear Bluetooth pairings on splash screen)
+    // Handle RIGHT button
     bool right_state = gpio_get(GPIO_BUTTON_RIGHT);
     if (!right_state) {
         if (button_right_debounce <= BUTTON_DEBOUNCE_COUNT) {
             if (++button_right_debounce == BUTTON_DEBOUNCE_COUNT) {
-                // Button pressed - only act on splash screen
                 if (current_screen == DISPLAY_SCREEN_SPLASH) {
+                    // On splash screen: Clear Bluetooth pairings
 #if ENABLE_BLUEPAD32
                     if (bluepad32_is_enabled()) {
                         bluepad32_delete_pairing_keys();
@@ -288,6 +298,19 @@ void display_handle_buttons(void)
                         display_show_splash();
                     } else {
                         printf("Bluetooth not enabled\n");
+                    }
+#endif
+                } else if (current_screen == DISPLAY_SCREEN_DEVICES) {
+                    // On devices screen: Toggle mouse type (Amiga/Atari)
+#if ENABLE_BLUEPAD32
+                    bool is_joy_mode = amiga_joystick_port1_is_joystick_mode();
+                    if (!is_joy_mode) {
+                        // Only toggle mouse type when Port 1 is in mouse mode
+                        amiga_quad_mouse_toggle_type();
+                        mouse_type_t mouse_type = amiga_quad_mouse_get_type();
+                        printf("Mouse type: %s\n", mouse_type == MOUSE_TYPE_ATARI ? "Atari" : "Amiga");
+                        // Refresh devices screen
+                        display_show_devices();
                     }
 #endif
                 }

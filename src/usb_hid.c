@@ -429,22 +429,9 @@ static void handle_event_gamepad(uint8_t dev_addr, uint8_t instance, uint8_t con
     }
     
     // Map buttons (bit 0 = Fire, bit 1 = Button 2, bit 2 = Button 3)
-    bool usb_b2 = (buttons & 0x02) != 0;
-    bool usb_b3 = (buttons & 0x04) != 0;
-    static bool last_usb_b2 = false, last_usb_b3 = false;
-    if (usb_b2 != last_usb_b2) {
-        printf("[USB-GAMEPAD] Port 2 Button 2: %s -> calling amiga_joystick_port2_set_button(AJ2_BUTTON2, %d)\n", 
-               usb_b2 ? "PRESSED" : "RELEASED", usb_b2);
-        last_usb_b2 = usb_b2;
-    }
-    if (usb_b3 != last_usb_b3) {
-        printf("[USB-GAMEPAD] Port 2 Button 3: %s -> calling amiga_joystick_port2_set_button(AJ2_BUTTON3, %d)\n", 
-               usb_b3 ? "PRESSED" : "RELEASED", usb_b3);
-        last_usb_b3 = usb_b3;
-    }
     amiga_joystick_port2_set_button(AJ2_FIRE, (buttons & 0x01) != 0);
-    amiga_joystick_port2_set_button(AJ2_BUTTON2, usb_b2);
-    amiga_joystick_port2_set_button(AJ2_BUTTON3, usb_b3);
+    amiga_joystick_port2_set_button(AJ2_BUTTON2, (buttons & 0x02) != 0);
+    amiga_joystick_port2_set_button(AJ2_BUTTON3, (buttons & 0x04) != 0);
 }
 
 static uint8_t led_report = 0;
@@ -650,17 +637,6 @@ void process_bluepad32_mouse(void)
             // Convert buttons (uint16_t) to uint8_t (take low 8 bits)
             // UNI_MOUSE_BUTTON values match MOUSE_BUTTON values (both use BIT(0), BIT(1), BIT(2))
             uint8_t buttons = (uint8_t)(bt_mouse.buttons & 0xFF);
-            
-            // Debug: Log button state changes
-            static uint8_t last_bt_mouse_buttons = 0;
-            if (buttons != last_bt_mouse_buttons) {
-                ahprintf("[BT-MOUSE] buttons=0x%02X (L=%d M=%d R=%d)\n",
-                    buttons,
-                    (buttons & 0x01) != 0,
-                    (buttons & 0x04) != 0,
-                    (buttons & 0x02) != 0);
-                last_bt_mouse_buttons = buttons;
-            }
             
             // Create a temporary mouse report to use existing mouse handling logic
             hid_mouse_report_t mouse_report;
@@ -918,28 +894,23 @@ void process_bluepad32_gamepad(void)
     
     // Helper macro to convert gamepad input to direction bits
     // Returns: bit 0=UP, bit 1=DOWN, bit 2=LEFT, bit 3=RIGHT
-    // NOTE: HID standard hat value 0 = UP, so when no D-pad is pressed, dpad=0x01 (UP)
-    // This is the "neutral" state. We ignore D-pad UP when buttons are pressed,
-    // since that's when the neutral state incorrectly triggers UP movement.
+    // Convert gamepad input (D-pad and analog sticks) to direction bits
+    // Returns: bit 0=UP, bit 1=DOWN, bit 2=LEFT, bit 3=RIGHT
+    // D-pad and analog sticks are both checked, with analog sticks taking priority
     #define CONVERT_GAMEPAD_TO_DIRECTIONS(gp, deadzone) ({ \
         uint8_t dir_bits = 0; \
         uint8_t dpad_val = (gp)->dpad; \
-        /* If buttons are pressed, ignore D-pad UP (0x01) as it's likely the neutral state */ \
-        /* This prevents Circle/other buttons from triggering UP movement */ \
-        if ((gp)->buttons != 0 && (dpad_val == 0x01)) { \
-            dpad_val = 0;  /* Clear UP if buttons are pressed and dpad is only UP */ \
-        } \
+        /* Process D-pad directions */ \
         if (dpad_val & 0x01) { dir_bits |= 0x01; }  /* UP */ \
         if (dpad_val & 0x02) { dir_bits |= 0x02; }  /* DOWN */ \
         if (dpad_val & 0x04) { dir_bits |= 0x08; }  /* RIGHT */ \
         if (dpad_val & 0x08) { dir_bits |= 0x04; }  /* LEFT */ \
-        if (dir_bits == 0) { \
-            /* No D-pad input, use analog sticks */ \
-            if ((gp)->axis_x < -(deadzone)) dir_bits |= 0x04;  /* LEFT */ \
-            if ((gp)->axis_x > (deadzone))  dir_bits |= 0x08;  /* RIGHT */ \
-            if ((gp)->axis_y < -(deadzone)) dir_bits |= 0x01;  /* UP */ \
-            if ((gp)->axis_y > (deadzone))  dir_bits |= 0x02;  /* DOWN */ \
-        } \
+        /* Always check analog sticks - they override D-pad for directions they report */ \
+        /* This ensures analog stick input works correctly, including UP+FIRE combinations */ \
+        if ((gp)->axis_x < -(deadzone)) dir_bits |= 0x04;  /* LEFT */ \
+        if ((gp)->axis_x > (deadzone))  dir_bits |= 0x08;  /* RIGHT */ \
+        if ((gp)->axis_y < -(deadzone)) dir_bits |= 0x01;  /* UP */ \
+        if ((gp)->axis_y > (deadzone))  dir_bits |= 0x02;  /* DOWN */ \
         dir_bits; \
     })
     
@@ -1013,33 +984,9 @@ void process_bluepad32_gamepad(void)
                 // BUTTON_B = BIT(1) = 2 (Button 2)
                 // BUTTON_X = BIT(2) = 4 (Button 3)
                 // BUTTON_Y = BIT(3) = 8 (Button 3 alternative)
-                // Debug: Log button values to diagnose Stadia controller button mapping
-                static uint16_t last_buttons_log = 0;
-                if (bt_gamepad.buttons != last_buttons_log) {
-                    printf("[BT-GAMEPAD] Port 2 buttons=0x%04X (A=%d B=%d X=%d Y=%d)\n", 
-                           bt_gamepad.buttons,
-                           (bt_gamepad.buttons & 0x01) != 0,
-                           (bt_gamepad.buttons & 0x02) != 0,
-                           (bt_gamepad.buttons & 0x04) != 0,
-                           (bt_gamepad.buttons & 0x08) != 0);
-                    last_buttons_log = bt_gamepad.buttons;
-                }
                 amiga_joystick_port2_set_button(AJ2_FIRE, (bt_gamepad.buttons & 0x01) != 0);      // BUTTON_A
-                bool port2_b2 = (bt_gamepad.buttons & 0x02) != 0;
-                bool port2_b3 = (bt_gamepad.buttons & 0x04) != 0 || (bt_gamepad.buttons & 0x08) != 0;
-                static bool last_port2_b2 = false, last_port2_b3 = false;
-                if (port2_b2 != last_port2_b2) {
-                    printf("[BT-GAMEPAD] Port 2 Button 2: %s -> calling amiga_joystick_port2_set_button(AJ2_BUTTON2, %d)\n", 
-                           port2_b2 ? "PRESSED" : "RELEASED", port2_b2);
-                    last_port2_b2 = port2_b2;
-                }
-                if (port2_b3 != last_port2_b3) {
-                    printf("[BT-GAMEPAD] Port 2 Button 3: %s -> calling amiga_joystick_port2_set_button(AJ2_BUTTON3, %d)\n", 
-                           port2_b3 ? "PRESSED" : "RELEASED", port2_b3);
-                    last_port2_b3 = port2_b3;
-                }
-                amiga_joystick_port2_set_button(AJ2_BUTTON2, port2_b2);  // BUTTON_B
-                amiga_joystick_port2_set_button(AJ2_BUTTON3, port2_b3);  // BUTTON_X or BUTTON_Y
+                amiga_joystick_port2_set_button(AJ2_BUTTON2, (bt_gamepad.buttons & 0x02) != 0);   // BUTTON_B
+                amiga_joystick_port2_set_button(AJ2_BUTTON3, (bt_gamepad.buttons & 0x04) != 0 || (bt_gamepad.buttons & 0x08) != 0);  // BUTTON_X or BUTTON_Y
             }
         }
         
@@ -1059,21 +1006,8 @@ void process_bluepad32_gamepad(void)
                 
                 // Map buttons using Bluepad32 button constants
                 amiga_joystick_port1_set_button(AJ1_FIRE, (bt_gamepad.buttons & 0x01) != 0);      // BUTTON_A
-                bool port1_b2 = (bt_gamepad.buttons & 0x02) != 0;
-                bool port1_b3 = (bt_gamepad.buttons & 0x04) != 0 || (bt_gamepad.buttons & 0x08) != 0;
-                static bool last_port1_b2 = false, last_port1_b3 = false;
-                if (port1_b2 != last_port1_b2) {
-                    printf("[BT-GAMEPAD] Port 1 Button 2 (JOYSTICK MODE): %s -> calling amiga_joystick_port1_set_button(AJ1_BUTTON2, %d)\n", 
-                           port1_b2 ? "PRESSED" : "RELEASED", port1_b2);
-                    last_port1_b2 = port1_b2;
-                }
-                if (port1_b3 != last_port1_b3) {
-                    printf("[BT-GAMEPAD] Port 1 Button 3 (JOYSTICK MODE): %s -> calling amiga_joystick_port1_set_button(AJ1_BUTTON3, %d)\n", 
-                           port1_b3 ? "PRESSED" : "RELEASED", port1_b3);
-                    last_port1_b3 = port1_b3;
-                }
-                amiga_joystick_port1_set_button(AJ1_BUTTON2, port1_b2);  // BUTTON_B
-                amiga_joystick_port1_set_button(AJ1_BUTTON3, port1_b3);  // BUTTON_X or BUTTON_Y
+                amiga_joystick_port1_set_button(AJ1_BUTTON2, (bt_gamepad.buttons & 0x02) != 0);   // BUTTON_B
+                amiga_joystick_port1_set_button(AJ1_BUTTON3, (bt_gamepad.buttons & 0x04) != 0 || (bt_gamepad.buttons & 0x08) != 0);  // BUTTON_X or BUTTON_Y
             }
         }
         
@@ -1089,14 +1023,10 @@ void process_bluepad32_gamepad(void)
                 
                 // Only update mouse buttons when state changes
                 if (b2_pressed != last_b2) {
-                    printf("[BT-GAMEPAD] Port 1 Button 2 (MOUSE MODE): %s -> calling amiga_quad_mouse_button(AQM_RIGHT, %d)\n", 
-                           b2_pressed ? "PRESSED" : "RELEASED", b2_pressed);
                     amiga_quad_mouse_button(AQM_RIGHT, b2_pressed);   // BUTTON_B -> Right mouse
                     last_b2 = b2_pressed;
                 }
                 if (b3_pressed != last_b3) {
-                    printf("[BT-GAMEPAD] Port 1 Button 3 (MOUSE MODE): %s -> calling amiga_quad_mouse_button(AQM_MIDDLE, %d)\n", 
-                           b3_pressed ? "PRESSED" : "RELEASED", b3_pressed);
                     amiga_quad_mouse_button(AQM_MIDDLE, b3_pressed);  // BUTTON_X or BUTTON_Y -> Center mouse
                     last_b3 = b3_pressed;
                 }
