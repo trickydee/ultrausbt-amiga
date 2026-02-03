@@ -145,19 +145,22 @@ void display_show_devices(void)
     
     ssd1306_clear(&disp);
     
+    // Title at the top
+    ssd1306_draw_string(&disp, 0, 0, 1, (char*)"Devices");
+    
     // Combined layout with aligned spacing:
     // Keybd   U X BT X
     // Mouse  U X BT X
     // Game    U X BT X
     // Use fixed-width labels (6 chars) so U/BT align properly
     sprintf(buf, "Keybd   U %d BT %d", usb_kb_count, bt_kb_count);
-    ssd1306_draw_string(&disp, 0, 0, 1, buf);
-    
-    sprintf(buf, "Mouse   U %d BT %d", usb_mouse_count, bt_mouse_count);
     ssd1306_draw_string(&disp, 0, 9, 1, buf);
     
-    sprintf(buf, "Game    U %d BT %d", usb_joy_count, bt_joy_count);
+    sprintf(buf, "Mouse   U %d BT %d", usb_mouse_count, bt_mouse_count);
     ssd1306_draw_string(&disp, 0, 18, 1, buf);
+    
+    sprintf(buf, "Game    U %d BT %d", usb_joy_count, bt_joy_count);
+    ssd1306_draw_string(&disp, 0, 27, 1, buf);
     
 #if ENABLE_BLUEPAD32
     // Show Port 1 mode status and mouse type on bottom lines
@@ -166,19 +169,19 @@ void display_show_devices(void)
     
     if (is_joy_mode && llamatron_enabled) {
         // Llamatron mode (LTRON)
-        sprintf(buf, "Port1: LTRON");
-        ssd1306_draw_string(&disp, 0, 27, 1, buf);
+        sprintf(buf, "Port1:  LTRON");
+        ssd1306_draw_string(&disp, 0, 36, 1, buf);
     } else if (is_joy_mode) {
         // Joystick mode
-        sprintf(buf, "Port1: JOY");
-        ssd1306_draw_string(&disp, 0, 27, 1, buf);
+        sprintf(buf, "Port1:  JOY");
+        ssd1306_draw_string(&disp, 0, 36, 1, buf);
     } else {
         // Mouse mode - show mouse type
         mouse_type_t mouse_type = amiga_quad_mouse_get_type();
-        sprintf(buf, "Port1: MOUSE");
-        ssd1306_draw_string(&disp, 0, 27, 1, buf);
-        sprintf(buf, "Type: %s", mouse_type == MOUSE_TYPE_ATARI ? "Atari" : "Amiga");
+        sprintf(buf, "Port1:  MOUSE");
         ssd1306_draw_string(&disp, 0, 36, 1, buf);
+        sprintf(buf, "Type:   %s", mouse_type == MOUSE_TYPE_ATARI ? "Atari" : "Amiga");
+        ssd1306_draw_string(&disp, 0, 45, 1, buf);
     }
 #endif
     
