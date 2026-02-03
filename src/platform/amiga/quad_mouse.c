@@ -35,6 +35,9 @@ volatile bool g_core1_paused = false;
 // Core 1 heartbeat counter - increments every loop to detect if Core 1 is running
 volatile uint32_t g_core1_heartbeat = 0;
 
+// Mouse type: Amiga (default) or Atari (swapped pins 1 and 4)
+volatile mouse_type_t g_mouse_type = MOUSE_TYPE_AMIGA;
+
 // Speed-proportional timing constants (based on Atari implementation)
 #define MAX_SPEED 30000.0    // Maximum speed value for period calculation (reduced for better fast movement)
 #define MIN_PERIOD_US 200    // Minimum period in microseconds (lowered to allow faster updates)
@@ -43,6 +46,10 @@ volatile uint32_t g_core1_heartbeat = 0;
 // Mouse speed multiplier (1.0 = normal, higher = faster)
 // Can be adjusted for different mouse sensitivities
 #define MOUSE_SPEED_MULTIPLIER 1.0
+
+// Forward declarations for GPIO pin selection based on mouse type
+static uint32_t get_gpio_v(void);
+static uint32_t get_gpio_hq(void);
 
 void amiga_quad_mouse_init()
 {
@@ -141,6 +148,54 @@ void amiga_quad_mouse_set_motion(int8_t in_x, int8_t in_y)
         y = (int8_t)new_y;
         motion_flag = true;
     }
+}
+
+// Get GPIO pin for V signal based on mouse type
+// For Amiga: V -> DB-9 Pin 1 (normal)
+// For Atari: HQ -> DB-9 Pin 1 (swapped with Pin 4)
+static uint32_t get_gpio_v(void) {
+    __sync_synchronize();
+    mouse_type_t type = g_mouse_type;
+    __sync_synchronize();
+    if (type == MOUSE_TYPE_ATARI) {
+        return QM1_AMIGA_HQ;  // Atari: HQ goes to DB-9 Pin 1
+    }
+    return QM1_AMIGA_V;  // Amiga: V goes to DB-9 Pin 1
+}
+
+// Get GPIO pin for HQ signal based on mouse type
+// For Amiga: HQ -> DB-9 Pin 4 (normal)
+// For Atari: V -> DB-9 Pin 4 (swapped with Pin 1)
+static uint32_t get_gpio_hq(void) {
+    __sync_synchronize();
+    mouse_type_t type = g_mouse_type;
+    __sync_synchronize();
+    if (type == MOUSE_TYPE_ATARI) {
+        return QM1_AMIGA_V;  // Atari: V goes to DB-9 Pin 4
+    }
+    return QM1_AMIGA_HQ;  // Amiga: HQ goes to DB-9 Pin 4
+}
+
+void amiga_quad_mouse_set_type(mouse_type_t type)
+{
+    __sync_synchronize();
+    g_mouse_type = type;
+    __sync_synchronize();
+}
+
+mouse_type_t amiga_quad_mouse_get_type(void)
+{
+    __sync_synchronize();
+    mouse_type_t type = g_mouse_type;
+    __sync_synchronize();
+    return type;
+}
+
+void amiga_quad_mouse_toggle_type(void)
+{
+    __sync_synchronize();
+    g_mouse_type = (g_mouse_type == MOUSE_TYPE_AMIGA) ? MOUSE_TYPE_ATARI : MOUSE_TYPE_AMIGA;
+    __sync_synchronize();
 }
 
 void amiga_quad_mouse_motion()
@@ -278,12 +333,13 @@ void amiga_quad_mouse_motion()
                 __sync_synchronize();
                 if (!joy_mode) {
                     // Only update H and HQ if not in joystick mode
-                    // Note: H is DOWN (GPIO 11), HQ is RIGHT (GPIO 13)
+                    // Note: H is always GPIO 9, HQ is GPIO 7 (Amiga) or GPIO 10 (Atari)
+                    uint32_t gpio_hq = get_gpio_hq();
                     switch (quad_mx_state) {
                         case 0: amiga_gpio_set_active_low(QM1_AMIGA_H, false); break;   // HIGH = inactive
-                        case 1: amiga_gpio_set_active_low(QM1_AMIGA_HQ, false); break;  // HIGH = inactive
+                        case 1: amiga_gpio_set_active_low(gpio_hq, false); break;  // HIGH = inactive
                         case 2: amiga_gpio_set_active_low(QM1_AMIGA_H, true); break;    // LOW = active
-                        case 3: amiga_gpio_set_active_low(QM1_AMIGA_HQ, true); break;   // LOW = active
+                        case 3: amiga_gpio_set_active_low(gpio_hq, true); break;   // LOW = active
                     }
                 }
                 // If joystick mode is active, we skip updating H/HQ to avoid conflicts
@@ -329,11 +385,12 @@ void amiga_quad_mouse_motion()
                 __sync_synchronize();
                 if (!joy_mode) {
                     // Only update V and VQ if not in joystick mode
-                    // Note: V is UP (GPIO 10), VQ is LEFT (GPIO 12)
+                    // Note: V is GPIO 10 (Amiga) or GPIO 7 (Atari), VQ is always GPIO 8
+                    uint32_t gpio_v = get_gpio_v();
                     switch (quad_my_state) {
-                        case 0: amiga_gpio_set_active_low(QM1_AMIGA_V, false); break;   // HIGH = inactive
+                        case 0: amiga_gpio_set_active_low(gpio_v, false); break;   // HIGH = inactive
                         case 1: amiga_gpio_set_active_low(QM1_AMIGA_VQ, false); break;  // HIGH = inactive
-                        case 2: amiga_gpio_set_active_low(QM1_AMIGA_V, true); break;    // LOW = active
+                        case 2: amiga_gpio_set_active_low(gpio_v, true); break;    // LOW = active
                         case 3: amiga_gpio_set_active_low(QM1_AMIGA_VQ, true); break;   // LOW = active
                     }
                 }

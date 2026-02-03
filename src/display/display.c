@@ -32,7 +32,7 @@ extern void usb_hid_toggle_llamatron_mode(void);
 #define SOFTWARE_VERSION_MINOR 0
 #endif
 #ifndef SOFTWARE_VERSION_PATCH
-#define SOFTWARE_VERSION_PATCH 32
+#define SOFTWARE_VERSION_PATCH 33
 #endif
 
 #if HIDPICO_REVISION == 5
@@ -173,11 +173,10 @@ void display_show_devices(void)
         sprintf(buf, "Port1: JOY");
         ssd1306_draw_string(&disp, 0, 27, 1, buf);
     } else {
-        // Mouse mode
+        // Mouse mode - show mouse type
+        mouse_type_t mouse_type = amiga_quad_mouse_get_type();
         sprintf(buf, "Port1: MOUSE");
         ssd1306_draw_string(&disp, 0, 27, 1, buf);
-        // Show mouse type (Amiga or Atari)
-        mouse_type_t mouse_type = amiga_quad_mouse_get_type();
         sprintf(buf, "Type: %s", mouse_type == MOUSE_TYPE_ATARI ? "Atari" : "Amiga");
         ssd1306_draw_string(&disp, 0, 36, 1, buf);
     }
@@ -327,15 +326,15 @@ void display_handle_buttons(void)
                     }
 #endif
                 } else if (current_screen == DISPLAY_SCREEN_DEVICES) {
-                    // On devices screen: Toggle mouse type (Amiga/Atari)
+                    // On devices screen: Toggle mouse type if Port 1 is in mouse mode
 #if ENABLE_BLUEPAD32
                     bool is_joy_mode = amiga_joystick_port1_is_joystick_mode();
                     if (!is_joy_mode) {
-                        // Only toggle mouse type when Port 1 is in mouse mode
+                        // Port 1 is in mouse mode - toggle mouse type
                         amiga_quad_mouse_toggle_type();
                         mouse_type_t mouse_type = amiga_quad_mouse_get_type();
                         printf("Mouse type: %s\n", mouse_type == MOUSE_TYPE_ATARI ? "Atari" : "Amiga");
-                        // Refresh devices screen
+                        // Refresh devices screen to show updated mouse type
                         display_show_devices();
                     }
 #endif
@@ -355,40 +354,45 @@ void display_show_bt_names(void)
     ssd1306_clear(&disp);
     
 #if ENABLE_BLUEPAD32
-    // Show first two joysticks
+    // Title at the top
+    ssd1306_draw_string(&disp, 0, 0, 1, (char*)"Bluetooth Devices");
+    
+    // Show joysticks (swapped: index 0 -> J2, index 1 -> J1)
+    // Index 0 is mapped to Joystick Port 2, so show as J2
     name = bluepad32_get_device_name('J', 0);
     if (name) {
         // Truncate name to fit on screen (max ~20 chars)
-        snprintf(buf, sizeof(buf), "J1:%.20s", name);
-        ssd1306_draw_string(&disp, 0, 0, 1, buf);
-    } else {
-        ssd1306_draw_string(&disp, 0, 0, 1, (char*)"J1: --");
-    }
-    
-    name = bluepad32_get_device_name('J', 1);
-    if (name) {
         snprintf(buf, sizeof(buf), "J2:%.20s", name);
         ssd1306_draw_string(&disp, 0, 9, 1, buf);
     } else {
         ssd1306_draw_string(&disp, 0, 9, 1, (char*)"J2: --");
     }
     
+    // Index 1 is mapped to Joystick Port 1, so show as J1
+    name = bluepad32_get_device_name('J', 1);
+    if (name) {
+        snprintf(buf, sizeof(buf), "J1:%.20s", name);
+        ssd1306_draw_string(&disp, 0, 18, 1, buf);
+    } else {
+        ssd1306_draw_string(&disp, 0, 18, 1, (char*)"J1: --");
+    }
+    
     // Show first keyboard
     name = bluepad32_get_device_name('K', 0);
     if (name) {
         snprintf(buf, sizeof(buf), "K1:%.20s", name);
-        ssd1306_draw_string(&disp, 0, 18, 1, buf);
+        ssd1306_draw_string(&disp, 0, 27, 1, buf);
     } else {
-        ssd1306_draw_string(&disp, 0, 18, 1, (char*)"K1: --");
+        ssd1306_draw_string(&disp, 0, 27, 1, (char*)"K1: --");
     }
     
     // Show first mouse
     name = bluepad32_get_device_name('M', 0);
     if (name) {
         snprintf(buf, sizeof(buf), "M1:%.20s", name);
-        ssd1306_draw_string(&disp, 0, 27, 1, buf);
+        ssd1306_draw_string(&disp, 0, 36, 1, buf);
     } else {
-        ssd1306_draw_string(&disp, 0, 27, 1, (char*)"M1: --");
+        ssd1306_draw_string(&disp, 0, 36, 1, (char*)"M1: --");
     }
 #else
     ssd1306_draw_string(&disp, 0, 0, 1, (char*)"BT not enabled");
