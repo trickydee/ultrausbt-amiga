@@ -32,7 +32,7 @@ extern void usb_hid_toggle_llamatron_mode(void);
 #define SOFTWARE_VERSION_MINOR 0
 #endif
 #ifndef SOFTWARE_VERSION_PATCH
-#define SOFTWARE_VERSION_PATCH 33
+#define SOFTWARE_VERSION_PATCH 35
 #endif
 
 #if HIDPICO_REVISION == 5
