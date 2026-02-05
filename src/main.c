@@ -127,6 +127,12 @@ int main(void)
 #if ENABLE_BLUEPAD32
     // initialize bluepad32 for Bluetooth keyboard support (Pico 2 W only)
     bluepad32_init();
+    
+#if HIDPICO_REVISION == 5
+    // Refresh splash screen after Bluetooth is initialized
+    // This ensures the correct mode (USB+BT) is displayed
+    display_show_splash();
+#endif
 #endif
 
 #if HIDPICO_REVISION == 5
