@@ -94,11 +94,28 @@ void display_show_splash(void)
     
     ssd1306_clear(&disp);
     
-    // Show mouse type as title (AMIGA or ATARI, centered, scale 2x)
+    // Show Port 1 mode as title (AMIGA, ATARI, JOYSTICK, or LLAMA, centered, scale 2x)
 #if ENABLE_BLUEPAD32
-    mouse_type_t mouse_type = amiga_quad_mouse_get_type();
-    const char* title = (mouse_type == MOUSE_TYPE_ATARI) ? "ATARI" : "AMIGA";
-    ssd1306_draw_string(&disp, 25, 0, 2, (char*)title);
+    bool is_joy_mode = amiga_joystick_port1_is_joystick_mode();
+    bool llamatron_enabled = usb_hid_get_llamatron_mode();
+    const char* title;
+    int x_pos;
+    
+    if (is_joy_mode && llamatron_enabled) {
+        // Llamatron mode - shortened to "LLAMA" (5 chars at 2x scale)
+        title = "LLAMA";
+        x_pos = 25;
+    } else if (is_joy_mode) {
+        // Joystick mode - move left to fit (8 chars at 2x scale)
+        title = "JOYSTICK";
+        x_pos = 5;
+    } else {
+        // Mouse mode - show mouse type (5 chars at 2x scale, centered)
+        mouse_type_t mouse_type = amiga_quad_mouse_get_type();
+        title = (mouse_type == MOUSE_TYPE_ATARI) ? "ATARI" : "AMIGA";
+        x_pos = 25;
+    }
+    ssd1306_draw_string(&disp, x_pos, 0, 2, (char*)title);
 #else
     ssd1306_draw_string(&disp, 25, 0, 2, (char*)"AMIGA");
 #endif
@@ -248,21 +265,25 @@ void display_handle_buttons(void)
             if (++button_left_debounce == BUTTON_DEBOUNCE_COUNT) {
                 if (current_screen == DISPLAY_SCREEN_SPLASH) {
 #if ENABLE_BLUEPAD32
-                    // On splash screen: Toggle Bluetooth on/off (USB is always enabled)
-                    bool bt_enabled = bluepad32_is_enabled();
+                    // On splash screen: Cycle through Port 1 modes
+                    // MOUSE -> JOY -> LTRON -> MOUSE (3-state cycle)
+                    bool is_joy_mode = amiga_joystick_port1_is_joystick_mode();
+                    bool llamatron_enabled = usb_hid_get_llamatron_mode();
                     
-                    if (bt_enabled) {
-                        // Bluetooth enabled -> disable it (USB only mode)
-                        bluepad32_disable();
-                        printf("Toggled to USB only mode\n");
-                    } else {
-                        // Bluetooth disabled -> enable it (USB + BT mode)
-                        bluepad32_enable();
-                        printf("Toggled to USB + Bluetooth mode\n");
+                    if (!is_joy_mode) {
+                        // Currently in MOUSE mode: switch to JOY mode
+                        amiga_joystick_port1_toggle_mode();
+                        printf("Port 1 mode: JOYSTICK\n");
+                    } else if (is_joy_mode && !llamatron_enabled) {
+                        // Currently in JOY mode, Llamatron OFF: enable Llamatron (LTRON mode)
+                        usb_hid_toggle_llamatron_mode();
+                        printf("Port 1 mode: LLAMA\n");
+                    } else if (is_joy_mode && llamatron_enabled) {
+                        // Currently in LTRON mode: disable Llamatron and switch back to MOUSE mode
+                        usb_hid_toggle_llamatron_mode();
+                        amiga_joystick_port1_toggle_mode();  // Switch back to MOUSE mode
+                        printf("Port 1 mode: MOUSE\n");
                     }
-                    
-                    // Wait a moment for state to update
-                    sleep_ms(50);
                     
                     // Refresh splash screen to show new mode
                     display_show_splash();
