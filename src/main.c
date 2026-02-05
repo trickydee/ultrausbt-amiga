@@ -40,7 +40,7 @@ extern void process_bluepad32_devices(void);
 // Software version - increment this with each build to verify latest firmware is loaded
 #define SOFTWARE_VERSION_MAJOR 1
 #define SOFTWARE_VERSION_MINOR 0
-#define SOFTWARE_VERSION_PATCH 35
+#define SOFTWARE_VERSION_PATCH 36
 
 // main entry point
 int main(void)
@@ -111,6 +111,12 @@ int main(void)
 
     // start amiga mouse emulation
     amiga_quad_mouse_init();
+
+#if HIDPICO_REVISION == 5
+    // Refresh splash screen after mouse type is loaded from flash
+    // This ensures the correct title (AMIGA/ATARI) is displayed
+    display_show_splash();
+#endif
 
     // initialize joystick port 1 (shares GPIO pins with mouse)
     amiga_joystick_port1_init();

@@ -32,7 +32,7 @@ extern void usb_hid_toggle_llamatron_mode(void);
 #define SOFTWARE_VERSION_MINOR 0
 #endif
 #ifndef SOFTWARE_VERSION_PATCH
-#define SOFTWARE_VERSION_PATCH 35
+#define SOFTWARE_VERSION_PATCH 36
 #endif
 
 #if HIDPICO_REVISION == 5
@@ -94,8 +94,14 @@ void display_show_splash(void)
     
     ssd1306_clear(&disp);
     
-    // AMIGA text (centered, scale 2x)
+    // Show mouse type as title (AMIGA or ATARI, centered, scale 2x)
+#if ENABLE_BLUEPAD32
+    mouse_type_t mouse_type = amiga_quad_mouse_get_type();
+    const char* title = (mouse_type == MOUSE_TYPE_ATARI) ? "ATARI" : "AMIGA";
+    ssd1306_draw_string(&disp, 25, 0, 2, (char*)title);
+#else
     ssd1306_draw_string(&disp, 25, 0, 2, (char*)"AMIGA");
+#endif
     
     // Branding
     ssd1306_draw_string(&disp, 4, 24, 1, (char*)"ultramegausb.com");
