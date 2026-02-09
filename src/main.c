@@ -40,7 +40,7 @@ extern void process_bluepad32_devices(void);
 // Software version - increment this with each build to verify latest firmware is loaded
 #define SOFTWARE_VERSION_MAJOR 1
 #define SOFTWARE_VERSION_MINOR 0
-#define SOFTWARE_VERSION_PATCH 36
+#define SOFTWARE_VERSION_PATCH 37
 
 // main entry point
 int main(void)

@@ -113,7 +113,7 @@
 
 // Port 2 button pins
 #  define QM2_AMIGA_B1   JOY0_ATARI_FIRE   // Fire button - Atari JOY0 FIRE
-#  define QM2_AMIGA_B2   7                  // Button 2 - Remapped to GPIO 7 (non-ADC, no conflicts)
+#  define QM2_AMIGA_B2   27                 // Button 2 - GPIO 27 (ADC1)
 #  define QM2_AMIGA_B3   28                 // Button 3 - Remapped to GPIO 28 (no conflicts)
 
 // SSD1306 OLED Display configuration (matches Atari board)
