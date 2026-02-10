@@ -29,6 +29,10 @@
 #include "util/debug_cons.h"
 #include "display/display.h"
 
+// USB controller support
+#include "usb_controllers/ps3_controller.h"
+#include "usb_controllers/ps4_controller.h"
+
 #if ENABLE_BLUEPAD32
 #include "bluepad32_platform.h"
 #endif
@@ -140,6 +144,19 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const *desc_re
 
     dbgcons_plug(hid_protocol_type[hid_protocol]);
 
+    // Check for vendor-specific controllers first
+    uint16_t vid, pid;
+    tuh_vid_pid_get(dev_addr, &vid, &pid);
+    
+    bool is_vendor_controller = false;
+    if (ps3_is_dualshock3(vid, pid)) {
+        ps3_mount_cb(dev_addr);
+        is_vendor_controller = true;
+    } else if (ps4_is_dualshock4(vid, pid)) {
+        ps4_mount_cb(dev_addr);
+        is_vendor_controller = true;
+    }
+
     // this part doesn't entirely make sense to me; hid devices come in two modes, boot protocol and report;
     // as i understand it, boot proto is intended for simplistic software such as bios which don't want to
     // implement a full stack. so if we're not in boot proto mode, display... something?
@@ -161,10 +178,13 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const *desc_re
         usb_mouse_count++;
     } else if (hid_protocol == HID_ITF_PROTOCOL_NONE) {
         // Could be a gamepad/joystick (non-boot protocol)
-        // Track first gamepad
-        if (first_gamepad_dev_addr == 0) {
+        // Track first gamepad (only if not a vendor-specific controller)
+        if (!is_vendor_controller && first_gamepad_dev_addr == 0) {
             first_gamepad_dev_addr = dev_addr;
             first_gamepad_instance = instance;
+            usb_joy_count++;
+        } else if (is_vendor_controller) {
+            // Vendor controllers count as joysticks
             usb_joy_count++;
         }
     }
@@ -184,11 +204,26 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance)
 
     dbgcons_unplug(hid_protocol_type[hid_protocol]);
     
+    // Check for vendor-specific controllers first
+    uint16_t vid, pid;
+    tuh_vid_pid_get(dev_addr, &vid, &pid);
+    
+    bool is_vendor_controller = false;
+    if (ps3_is_dualshock3(vid, pid)) {
+        ps3_unmount_cb(dev_addr);
+        is_vendor_controller = true;
+    } else if (ps4_is_dualshock4(vid, pid)) {
+        ps4_unmount_cb(dev_addr);
+        is_vendor_controller = true;
+    }
+    
     // Clear first gamepad if it was disconnected
     if (first_gamepad_dev_addr == dev_addr && first_gamepad_instance == instance) {
         first_gamepad_dev_addr = 0;
         first_gamepad_instance = 0;
-        amiga_joystick_port2_reset();
+        if (!is_vendor_controller) {
+            amiga_joystick_port2_reset();
+        }
     }
     
 #if HIDPICO_REVISION == 5
@@ -198,7 +233,7 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance)
     } else if (hid_protocol == HID_ITF_PROTOCOL_MOUSE) {
         if (usb_mouse_count > 0) usb_mouse_count--;
     } else if (hid_protocol == HID_ITF_PROTOCOL_NONE) {
-        if (dev_addr == first_gamepad_dev_addr && instance == first_gamepad_instance) {
+        if (is_vendor_controller || (dev_addr == first_gamepad_dev_addr && instance == first_gamepad_instance)) {
             if (usb_joy_count > 0) usb_joy_count--;
         }
     }
@@ -225,6 +260,25 @@ static void update_usb_device_counts(void)
 void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t const *report, uint16_t len)
 {
     uint8_t const hid_protocol = tuh_hid_interface_protocol(dev_addr, instance);
+    
+    // Check for vendor-specific controllers before protocol-based routing
+    uint16_t vid, pid;
+    tuh_vid_pid_get(dev_addr, &vid, &pid);
+    
+    if (ps3_is_dualshock3(vid, pid)) {
+        ps3_process_report(dev_addr, report, len);
+        tuh_hid_receive_report(dev_addr, instance);
+        return;
+    } else if (ps4_is_dualshock4(vid, pid)) {
+        static bool ps4_first_report = true;
+        if (ps4_first_report) {
+            printf("PS4: Report received in tuh_hid_report_received_cb (len=%d, protocol=%d)\n", len, hid_protocol);
+            ps4_first_report = false;
+        }
+        ps4_process_report(dev_addr, report, len);
+        tuh_hid_receive_report(dev_addr, instance);
+        return;
+    }
 
     switch (hid_protocol) {
         case HID_ITF_PROTOCOL_KEYBOARD:
@@ -320,7 +374,30 @@ static void process_report(uint8_t dev_addr, uint8_t instance, uint8_t const *re
 
             case HID_USAGE_DESKTOP_JOYSTICK:
             case HID_USAGE_DESKTOP_GAMEPAD:
-                // gamepad/joystick event - map first one to joystick port 2
+                // Check for vendor-specific controllers first
+                {
+                    uint16_t vid, pid;
+                    tuh_vid_pid_get(dev_addr, &vid, &pid);
+                    
+                    if (ps3_is_dualshock3(vid, pid)) {
+                        ps3_process_report(dev_addr, report, len);
+                        // Continue to request reports
+                        tuh_hid_receive_report(dev_addr, instance);
+                        return;
+                    } else if (ps4_is_dualshock4(vid, pid)) {
+                        static bool ps4_debug_printed = false;
+                        if (!ps4_debug_printed) {
+                            printf("PS4: Report received in process_report (len=%d, usage=0x%04X)\n", len, report_info->usage);
+                            ps4_debug_printed = true;
+                        }
+                        ps4_process_report(dev_addr, report, len);
+                        // Continue to request reports
+                        tuh_hid_receive_report(dev_addr, instance);
+                        return;
+                    }
+                }
+                
+                // Generic gamepad/joystick event - map first one to joystick port 2
                 if (first_gamepad_dev_addr == 0 || (first_gamepad_dev_addr == dev_addr && first_gamepad_instance == instance)) {
                     // Track first gamepad or update existing one
                     if (first_gamepad_dev_addr == 0) {
@@ -346,8 +423,6 @@ static void process_report(uint8_t dev_addr, uint8_t instance, uint8_t const *re
  */
 static void handle_event_mouse(uint8_t dev_addr, uint8_t instance, hid_mouse_report_t const *report)
 {
-    static hid_mouse_report_t last_report = { 0 };
-
     if (report == NULL) {
         // ahprintf("[hid] report was null, aborting mouse event\n");
         return;
@@ -375,8 +450,6 @@ static void handle_event_mouse(uint8_t dev_addr, uint8_t instance, hid_mouse_rep
         if (report->x || report->y)
             amiga_quad_mouse_set_motion(report->x, report->y);
     }
-
-    last_report = *report;
 }
 
 /**

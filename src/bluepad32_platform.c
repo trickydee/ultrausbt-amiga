@@ -340,8 +340,7 @@ static uni_error_t my_platform_on_device_ready(uni_hid_device_t* d) {
             storage->updated = false;
             // Store device name
             if (device_name && device_name[0] != '\0') {
-                strncpy(storage->name, device_name, sizeof(storage->name) - 1);
-                storage->name[sizeof(storage->name) - 1] = '\0';
+                snprintf(storage->name, sizeof(storage->name), "%.*s", (int)(sizeof(storage->name) - 1), device_name);
                 clear_pending_name_by_addr(addr);
             } else {
                 snprintf(storage->name, sizeof(storage->name), "Keyboard");
@@ -361,8 +360,7 @@ static uni_error_t my_platform_on_device_ready(uni_hid_device_t* d) {
             storage->updated = false;
             // Store device name
             if (device_name && device_name[0] != '\0') {
-                strncpy(storage->name, device_name, sizeof(storage->name) - 1);
-                storage->name[sizeof(storage->name) - 1] = '\0';
+                snprintf(storage->name, sizeof(storage->name), "%.*s", (int)(sizeof(storage->name) - 1), device_name);
                 clear_pending_name_by_addr(addr);
             } else {
                 snprintf(storage->name, sizeof(storage->name), "Mouse");
@@ -402,8 +400,7 @@ static uni_error_t my_platform_on_device_ready(uni_hid_device_t* d) {
             storage->updated = false;
             // Store device name
             if (device_name && device_name[0] != '\0') {
-                strncpy(storage->name, device_name, sizeof(storage->name) - 1);
-                storage->name[sizeof(storage->name) - 1] = '\0';
+                snprintf(storage->name, sizeof(storage->name), "%.*s", (int)(sizeof(storage->name) - 1), device_name);
                 clear_pending_name_by_addr(addr);
             } else {
                 snprintf(storage->name, sizeof(storage->name), "Gamepad");
@@ -468,8 +465,7 @@ static void my_platform_on_controller_data(uni_hid_device_t* d, uni_controller_t
                     storage->connected = true;
                     // Update name from device if not already set
                     if (storage->name[0] == '\0' && uni_hid_device_has_name(d) && d->name[0] != '\0') {
-                        strncpy(storage->name, d->name, sizeof(storage->name) - 1);
-                        storage->name[sizeof(storage->name) - 1] = '\0';
+                        snprintf(storage->name, sizeof(storage->name), "%.*s", (int)(sizeof(storage->name) - 1), d->name);
                     } else if (storage->name[0] == '\0') {
                         snprintf(storage->name, sizeof(storage->name), "Keyboard");
                     }
@@ -489,8 +485,7 @@ static void my_platform_on_controller_data(uni_hid_device_t* d, uni_controller_t
                     storage->connected = true;
                     // Update name from device if not already set
                     if (storage->name[0] == '\0' && uni_hid_device_has_name(d) && d->name[0] != '\0') {
-                        strncpy(storage->name, d->name, sizeof(storage->name) - 1);
-                        storage->name[sizeof(storage->name) - 1] = '\0';
+                        snprintf(storage->name, sizeof(storage->name), "%.*s", (int)(sizeof(storage->name) - 1), d->name);
                     } else if (storage->name[0] == '\0') {
                         snprintf(storage->name, sizeof(storage->name), "Mouse");
                     }

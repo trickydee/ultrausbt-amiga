@@ -7,6 +7,7 @@
 #include "ssd1306.h"
 #include <hardware/i2c.h>
 #include <hardware/gpio.h>
+#include <pico/time.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -32,7 +33,7 @@ extern void usb_hid_toggle_llamatron_mode(void);
 #define SOFTWARE_VERSION_MINOR 0
 #endif
 #ifndef SOFTWARE_VERSION_PATCH
-#define SOFTWARE_VERSION_PATCH 37
+#define SOFTWARE_VERSION_PATCH 40
 #endif
 
 #if HIDPICO_REVISION == 5
@@ -89,8 +90,6 @@ void display_init(void)
 void display_show_splash(void)
 {
     char version_buf[16];
-    char mode_buf[8];
-    char mode_line[16];
     
     ssd1306_clear(&disp);
     
@@ -130,6 +129,8 @@ void display_show_splash(void)
 #if ENABLE_BLUEPAD32
     // Show USB/Bluetooth status on splash screen (bottom row)
     // USB is always enabled, check if BT is enabled (initialized and ready)
+    char mode_buf[8];
+    char mode_line[16];
     bool usb_enabled = true;  // USB is always enabled in this implementation
     bool bt_enabled = bluepad32_is_enabled();
     
@@ -256,6 +257,17 @@ void display_set_bt_counts(uint8_t kb, uint8_t mouse, uint8_t joy)
     }
 }
 
+void display_show_controller_detected(const char* controller_name, const char* controller_model, uint32_t duration_ms)
+{
+    ssd1306_clear(&disp);
+    ssd1306_draw_string(&disp, 25, 10, 2, (char*)controller_name);
+    if (controller_model) {
+        ssd1306_draw_string(&disp, 10, 35, 1, (char*)controller_model);
+    }
+    ssd1306_show(&disp);
+    sleep_ms(duration_ms);
+}
+
 void display_handle_buttons(void)
 {
     // Handle LEFT button
@@ -378,12 +390,12 @@ void display_handle_buttons(void)
 
 void display_show_bt_names(void)
 {
-    char buf[64];
-    const char* name;
-    
     ssd1306_clear(&disp);
     
 #if ENABLE_BLUEPAD32
+    char buf[64];
+    const char* name;
+    
     // Title at the top
     ssd1306_draw_string(&disp, 0, 0, 1, (char*)"Bluetooth Devices");
     
@@ -444,5 +456,6 @@ void display_get_counts(uint8_t *usb_kb, uint8_t *usb_mouse, uint8_t *usb_joy,
 void display_set_usb_counts(uint8_t kb, uint8_t mouse, uint8_t joy) {}
 void display_set_bt_counts(uint8_t kb, uint8_t mouse, uint8_t joy) {}
 void display_handle_buttons(void) {}
+void display_show_controller_detected(const char* controller_name, const char* controller_model, uint32_t duration_ms) {}
 #endif // HIDPICO_REVISION == 5
 
