@@ -59,5 +59,13 @@ void display_set_bt_counts(uint8_t kb, uint8_t mouse, uint8_t joy);
  */
 void display_handle_buttons(void);
 
+/**
+ * Show controller detection message on OLED
+ * @param controller_name Name of controller (e.g., "PS4", "PS3")
+ * @param controller_model Model name (e.g., "DualShock 4")
+ * @param duration_ms How long to show the message (milliseconds)
+ */
+void display_show_controller_detected(const char* controller_name, const char* controller_model, uint32_t duration_ms);
+
 #endif // _DISPLAY_DISPLAY_H
 

@@ -41,6 +41,12 @@ add_executable(amigahid-pico
   ${CMAKE_SOURCE_DIR}/ssd1306/ssd1306.c
 )
 
+# USB controller support
+target_sources(amigahid-pico PRIVATE
+  usb_controllers/ps3_controller.c
+  usb_controllers/ps4_controller.c
+)
+
 # Add Bluepad32 source files if enabled
 if(ENABLE_BLUEPAD32)
     target_sources(amigahid-pico PRIVATE

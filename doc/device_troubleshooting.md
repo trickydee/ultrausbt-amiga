@@ -507,7 +507,7 @@ Buttons 2 and 3 on both joystick ports show higher voltage levels (400-500mV) wh
 
 3. **Consistent Across Hardware**:
    - Same voltage levels on different Pico boards (RP2040, RP2350)
-   - Same voltage levels after remapping GPIOs (GPIO 27 → GPIO 7)
+   - Voltage levels tested on both GPIO 27 (current) and GPIO 7 (temporarily used during debugging)
    - LED test shows GPIOs are working correctly
 
 ### Root Cause

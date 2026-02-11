@@ -82,7 +82,7 @@ All Port 2 signals are configured as **OUTPUT** (active low).
 | 26 | 6 | Green | Port 2 FIRE | `QM2_AMIGA_B1` | OUTPUT | Active low |
 | - | 7 | - | +5V | - | - | Power supply |
 | - | 8 | White | GND | - | - | Ground |
-| 27 | 9 | Grey | Port 2 Button 2 | `QM2_AMIGA_B2` | OUTPUT | Active low, remapped from GPIO 19 |
+| 27 | 9 | Grey | Port 2 Button 2 | `QM2_AMIGA_B2` | OUTPUT | Active low, GPIO 27 (ADC1) |
 
 **Status:** ✅ No conflicts (buttons remapped to GPIO 27 and 28)
 
@@ -141,7 +141,8 @@ The following buttons have been remapped in hardware to resolve GPIO conflicts:
   - **Status:** Remapped and working
 
 ### Port 2 Buttons
-- **Button 2** (`QM2_AMIGA_B2`): **GPIO 19 → GPIO 27** ✅
+- **Button 2** (`QM2_AMIGA_B2`): **GPIO 27** (ADC1) ✅
+  - Note: Was temporarily moved to GPIO 7 during debugging but reverted back to GPIO 27
   - **Reason:** GPIO 19 conflicted with UP direction (`QM2_AMIGA_V`)
   - **Status:** Remapped and working
 
@@ -206,7 +207,7 @@ The following GPIOs are currently unused and available for future expansion:
 - **v1.0.5**: Remapped all joystick buttons to resolve GPIO conflicts
   - Port 1 Button 2: GPIO 12 → GPIO 2
   - Port 1 Button 3: GPIO 13 → GPIO 3
-  - Port 2 Button 2: GPIO 19 → GPIO 27
+  - Port 2 Button 2: GPIO 27 (ADC1) - Note: Was temporarily moved to GPIO 7 during debugging but reverted
   - Port 2 Button 3: GPIO 18 → GPIO 28
 - **v1.0.4**: Fixed GPIO 18 conflict (Port 2 Button 3 vs Display Left Button) by disabling Button 3
 - **v1.0.3**: Fixed Port 1 LEFT/RIGHT movement issues (GPIO direction conflicts)

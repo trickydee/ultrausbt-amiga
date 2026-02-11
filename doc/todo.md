@@ -135,7 +135,8 @@ This document tracks outstanding tasks and improvements for the amigahid-pico pr
 
 - [ ] **Hardware documentation**
   - [ ] Document GPIO pin conflicts that were resolved
-  - [ ] Create hardware remapping guide for Button 2/3
+  - [x] Create hardware remapping guide for Button 2/3
+  - [x] Port 2 Button 2: Currently using GPIO 27 (ADC1). Was temporarily moved to GPIO 7 during debugging but reverted back to GPIO 27.
   - [ ] Document electrical protection requirements (5V back-feeding)
 
 ## Future Enhancements

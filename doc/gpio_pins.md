@@ -84,19 +84,19 @@ Joystick Port 1 uses the **same GPIO pins as the mouse interface** (they share t
 
 ---
 
-## Joystick Port 2 (Revision 4)
+## Joystick Port 2 (Revision 5)
 
 Joystick Port 2 uses **7 GPIO pins**:
 
 | Function | GPIO Pin | Signal Name | Description | Notes |
 |----------|----------|-------------|-------------|-------|
-| Button 1 (Fire) | 18 | `/lcont2 b1` | Fire button (active low) | |
-| Button 2 | 19 | `/lcont2 b2` | Second button (active low) | |
-| Button 3 | 20 | `/lcont2 b3` | Third button (active low) | |
-| Horizontal Quadrature | 21 | `/lcont2 hq` | Horizontal quadrature signal | |
-| Vertical Quadrature | 22 | `/lcont2 vq` | Vertical quadrature signal | |
-| Horizontal | 26 | `/lcont2 h` | Horizontal direction signal | GPIO26_ADC0 |
-| Vertical | 27 | `/lcont2 v` | Vertical direction signal | GPIO27_ADC1 |
+| Button 1 (Fire) | 26 | `QM2_AMIGA_B1` | Fire button (active low) | Atari JOY0 FIRE |
+| Button 2 | 27 | `QM2_AMIGA_B2` | Second button (active low) | GPIO27_ADC1 |
+| Button 3 | 28 | `QM2_AMIGA_B3` | Third button (active low) | |
+| UP | 19 | `QM2_AMIGA_V` | UP direction | Atari JOY0 UP |
+| DOWN | 20 | `QM2_AMIGA_H` | DOWN direction | Atari JOY0 DOWN |
+| LEFT | 21 | `QM2_AMIGA_VQ` | LEFT direction | Atari JOY0 LEFT |
+| RIGHT | 22 | `QM2_AMIGA_HQ` | RIGHT direction | Atari JOY0 RIGHT |
 
 ### Notes:
 - All signals are **active low**
