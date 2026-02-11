@@ -45,6 +45,7 @@ add_executable(amigahid-pico
 target_sources(amigahid-pico PRIVATE
   usb_controllers/ps3_controller.c
   usb_controllers/ps4_controller.c
+  usb_controllers/stadia_controller.c
 )
 
 # Add Bluepad32 source files if enabled
