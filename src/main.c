@@ -33,6 +33,7 @@
 
 // defined within usb_hid.c
 extern void hid_app_task(void);
+extern void switch_check_delayed_init(void);
 #if ENABLE_BLUEPAD32
 extern void process_bluepad32_devices(void);
 #endif
@@ -145,6 +146,7 @@ int main(void)
     while (1) {
         // run host mode jobs (hotplug events, packet io callbacks)
         tuh_task();
+        switch_check_delayed_init();
 
         // amiga keyboard service routine
         amiga_service();

@@ -33,6 +33,7 @@
 #include "usb_controllers/ps3_controller.h"
 #include "usb_controllers/ps4_controller.h"
 #include "usb_controllers/stadia_controller.h"
+#include "usb_controllers/switch_controller.h"
 
 #if ENABLE_BLUEPAD32
 #include "bluepad32_platform.h"
@@ -159,6 +160,9 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const *desc_re
     } else if (stadia_is_controller(vid, pid)) {
         stadia_mount_cb(dev_addr);
         is_vendor_controller = true;
+    } else if (switch_is_controller(vid, pid)) {
+        switch_mount_cb(dev_addr);
+        is_vendor_controller = true;
     }
 
     // this part doesn't entirely make sense to me; hid devices come in two modes, boot protocol and report;
@@ -221,6 +225,9 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance)
         is_vendor_controller = true;
     } else if (stadia_is_controller(vid, pid)) {
         stadia_unmount_cb(dev_addr);
+        is_vendor_controller = true;
+    } else if (switch_is_controller(vid, pid)) {
+        switch_unmount_cb(dev_addr);
         is_vendor_controller = true;
     }
     
@@ -287,6 +294,10 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
         return;
     } else if (stadia_is_controller(vid, pid)) {
         stadia_process_report(dev_addr, report, len);
+        tuh_hid_receive_report(dev_addr, instance);
+        return;
+    } else if (switch_is_controller(vid, pid)) {
+        switch_process_report(dev_addr, report, len);
         tuh_hid_receive_report(dev_addr, instance);
         return;
     }
@@ -407,6 +418,10 @@ static void process_report(uint8_t dev_addr, uint8_t instance, uint8_t const *re
                         return;
                     } else if (stadia_is_controller(vid, pid)) {
                         stadia_process_report(dev_addr, report, len);
+                        tuh_hid_receive_report(dev_addr, instance);
+                        return;
+                    } else if (switch_is_controller(vid, pid)) {
+                        switch_process_report(dev_addr, report, len);
                         tuh_hid_receive_report(dev_addr, instance);
                         return;
                     }
