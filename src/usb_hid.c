@@ -32,6 +32,7 @@
 // USB controller support
 #include "usb_controllers/ps3_controller.h"
 #include "usb_controllers/ps4_controller.h"
+#include "usb_controllers/ps5_controller.h"
 #include "usb_controllers/stadia_controller.h"
 #include "usb_controllers/switch_controller.h"
 #include "usb_controllers/xbox_controller.h"
@@ -158,6 +159,9 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const *desc_re
     } else if (ps4_is_dualshock4(vid, pid)) {
         ps4_mount_cb(dev_addr);
         is_vendor_controller = true;
+    } else if (ps5_is_dualsense(vid, pid)) {
+        ps5_mount_cb(dev_addr);
+        is_vendor_controller = true;
     } else if (stadia_is_controller(vid, pid)) {
         stadia_mount_cb(dev_addr);
         is_vendor_controller = true;
@@ -226,6 +230,9 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance)
         is_vendor_controller = true;
     } else if (ps4_is_dualshock4(vid, pid)) {
         ps4_unmount_cb(dev_addr);
+        is_vendor_controller = true;
+    } else if (ps5_is_dualsense(vid, pid)) {
+        ps5_unmount_cb(dev_addr);
         is_vendor_controller = true;
     } else if (stadia_is_controller(vid, pid)) {
         stadia_unmount_cb(dev_addr);
@@ -297,6 +304,10 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
             ps4_first_report = false;
         }
         ps4_process_report(dev_addr, report, len);
+        tuh_hid_receive_report(dev_addr, instance);
+        return;
+    } else if (ps5_is_dualsense(vid, pid)) {
+        ps5_process_report(dev_addr, report, len);
         tuh_hid_receive_report(dev_addr, instance);
         return;
     } else if (stadia_is_controller(vid, pid)) {
@@ -421,6 +432,10 @@ static void process_report(uint8_t dev_addr, uint8_t instance, uint8_t const *re
                         }
                         ps4_process_report(dev_addr, report, len);
                         // Continue to request reports
+                        tuh_hid_receive_report(dev_addr, instance);
+                        return;
+                    } else if (ps5_is_dualsense(vid, pid)) {
+                        ps5_process_report(dev_addr, report, len);
                         tuh_hid_receive_report(dev_addr, instance);
                         return;
                     } else if (stadia_is_controller(vid, pid)) {
