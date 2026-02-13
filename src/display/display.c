@@ -33,7 +33,7 @@ extern void usb_hid_toggle_llamatron_mode(void);
 #define SOFTWARE_VERSION_MINOR 0
 #endif
 #ifndef SOFTWARE_VERSION_PATCH
-#define SOFTWARE_VERSION_PATCH 42
+#define SOFTWARE_VERSION_PATCH 49
 #endif
 
 #if HIDPICO_REVISION == 5
@@ -266,6 +266,8 @@ void display_show_controller_detected(const char* controller_name, const char* c
     }
     ssd1306_show(&disp);
     sleep_ms(duration_ms);
+    /* Restore splash screen after the delay so the controller message clears automatically */
+    display_show_splash();
 }
 
 void display_handle_buttons(void)

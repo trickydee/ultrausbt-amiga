@@ -273,7 +273,7 @@ void switch_mount_cb(uint8_t dev_addr) {
     printf("Switch controller mount: %s %s (addr=%d)\n", name, model, dev_addr);
 
 #if HIDPICO_REVISION == 5
-    display_show_controller_detected(name, model, 2000);
+    display_show_controller_detected(name, model, 3000);
 #endif
 
     switch_controller_t* ctrl = allocate_controller(dev_addr);

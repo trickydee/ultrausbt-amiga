@@ -225,7 +225,7 @@ void ps3_mount_cb(uint8_t dev_addr) {
     
 #if HIDPICO_REVISION == 5
     // Show on OLED - match Atari IKBD style
-    display_show_controller_detected("PS3", "DualShock 3", 2000);
+    display_show_controller_detected("PS3", "DualShock 3", 3000);
 #endif
     
     ps3_controller_t* ctrl = allocate_controller(dev_addr);

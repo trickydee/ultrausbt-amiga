@@ -10,6 +10,20 @@ it currently supports keyboards and mice and provides connection via the interna
 
 **this project is very much a work in progress.**
 
+### Supported USB controllers (Joystick Port 2)
+
+USB gamepads are mapped to Amiga joystick port 2 (directions, fire, and second/third button where supported). The following have dedicated drivers:
+
+| Controller | Notes |
+|------------|--------|
+| **Sony DualShock 3** (PS3) | Wired USB |
+| **Sony DualShock 4** (PS4) | Wired USB |
+| **Nintendo Switch Pro Controller** | Wired USB; compatible third‑party Switch-style pads also supported |
+| **Google Stadia** | Wired USB (Google Controller) |
+| **Xbox** | XInput: Xbox 360 (wired/wireless dongle), Xbox One, OG Xbox; HID fallback for Xbox pads that enumerate as HID |
+
+Other USB HID gamepads may work via the generic gamepad path (directions + up to 3 buttons). Bluetooth gamepads are supported on Pico W / Pico 2 W builds via Bluepad32.
+
 ## **important note**
 
 * current kicad files are for r5 pcb, pin mappings are not yet in the source tree! i have not yet generated this board as a pcb, but it is mostly identical to r4. the keyboard and controller port 1 are correct at time of writing, and will be fixed for the second controller port when the next prototype arrives.

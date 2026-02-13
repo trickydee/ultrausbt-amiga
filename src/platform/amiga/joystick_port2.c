@@ -17,7 +17,6 @@
 #include "platform/common/gpio_util.h"
 #include "util/output.h"
 #include <hardware/gpio.h>
-#include <stdio.h>
 
 #if HIDPICO_REVISION == 5
 
@@ -60,22 +59,18 @@ void amiga_joystick_port2_set_direction(enum amiga_joystick_port2_direction dir,
     // Optimized: Only update GPIO pins that have changed state
     // This reduces GPIO operations by ~75% in typical usage (only 1 direction changes at a time)
     if (dir2_up != prev_dir2_up) {
-        printf("PS4: GPIO UP changed: %d -> %d (GPIO %d)\n", prev_dir2_up, dir2_up, QM2_AMIGA_V);
         amiga_gpio_set_active_low(QM2_AMIGA_V, dir2_up);      // GPIO 19 = UP (JOY0_ATARI_UP)
         prev_dir2_up = dir2_up;
     }
     if (dir2_down != prev_dir2_down) {
-        printf("PS4: GPIO DOWN changed: %d -> %d (GPIO %d)\n", prev_dir2_down, dir2_down, QM2_AMIGA_H);
         amiga_gpio_set_active_low(QM2_AMIGA_H, dir2_down);    // GPIO 26 = DOWN
         prev_dir2_down = dir2_down;
     }
     if (dir2_left != prev_dir2_left) {
-        printf("PS4: GPIO LEFT changed: %d -> %d (GPIO %d)\n", prev_dir2_left, dir2_left, QM2_AMIGA_VQ);
         amiga_gpio_set_active_low(QM2_AMIGA_VQ, dir2_left);   // GPIO 22 = LEFT
         prev_dir2_left = dir2_left;
     }
     if (dir2_right != prev_dir2_right) {
-        printf("PS4: GPIO RIGHT changed: %d -> %d (GPIO %d)\n", prev_dir2_right, dir2_right, QM2_AMIGA_HQ);
         amiga_gpio_set_active_low(QM2_AMIGA_HQ, dir2_right);  // GPIO 21 = RIGHT
         prev_dir2_right = dir2_right;
     }
@@ -90,14 +85,12 @@ void amiga_joystick_port2_set_button(enum amiga_joystick_port2_buttons button, b
     switch (button) {
         case AJ2_FIRE:
             if (pressed != prev_button1) {
-                printf("PS4: GPIO FIRE changed: %d -> %d (GPIO %d)\n", prev_button1, pressed, QM2_AMIGA_B1);
                 amiga_gpio_set_active_low(QM2_AMIGA_B1, pressed);
                 prev_button1 = pressed;
             }
             break;
         case AJ2_BUTTON2:
             if (pressed != prev_button2) {
-                printf("PS4: GPIO B2 changed: %d -> %d (GPIO %d)\n", prev_button2, pressed, QM2_AMIGA_B2);
                 amiga_gpio_set_active_low(QM2_AMIGA_B2, pressed);
                 prev_button2 = pressed;
             }
@@ -105,7 +98,6 @@ void amiga_joystick_port2_set_button(enum amiga_joystick_port2_buttons button, b
         case AJ2_BUTTON3:
             // Button 3 now uses GPIO 28 (remapped from GPIO 18) - no conflicts
             if (pressed != prev_button3) {
-                printf("PS4: GPIO B3 changed: %d -> %d (GPIO %d)\n", prev_button3, pressed, QM2_AMIGA_B3);
                 amiga_gpio_set_active_low(QM2_AMIGA_B3, pressed);
                 prev_button3 = pressed;
             }

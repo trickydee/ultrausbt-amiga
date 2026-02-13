@@ -193,14 +193,6 @@ void ps4_update_amiga_joystick(uint8_t dev_addr) {
     int16_t stick_x = (int16_t)input->x - 128;
     int16_t stick_y = (int16_t)input->y - 128;
     
-    // Debug: Print direction calculation every 100 updates
-    static uint32_t update_count = 0;
-    update_count++;
-    if ((update_count % 100) == 0) {
-        printf("PS4: Update #%lu - raw_x=%d raw_y=%d stick_x=%d stick_y=%d dpad=%d deadzone=%d\n",
-               update_count, input->x, input->y, stick_x, stick_y, input->dpad, ctrl->deadzone);
-    }
-    
     // Check if D-pad is active (takes priority)
     if (input->dpad != PS4_DPAD_CENTER) {
         // D-pad active - use it
@@ -226,26 +218,11 @@ void ps4_update_amiga_joystick(uint8_t dev_addr) {
         }
     }
     
-    // Debug: Print direction and GPIO states every 100 updates
-    if ((update_count % 100) == 0) {
-        printf("PS4: Direction=0x%02X (UP=%d DOWN=%d LEFT=%d RIGHT=%d)\n",
-               direction,
-               (direction & 0x01) != 0,
-               (direction & 0x02) != 0,
-               (direction & 0x04) != 0,
-               (direction & 0x08) != 0);
-    }
-    
     // Map direction bits to Amiga joystick port 2
     bool up = (direction & 0x01) != 0;
     bool down = (direction & 0x02) != 0;
     bool left = (direction & 0x04) != 0;
     bool right = (direction & 0x08) != 0;
-    
-    // Debug: Print GPIO updates every 100 updates
-    if ((update_count % 100) == 0) {
-        printf("PS4: GPIO Update - UP=%d DOWN=%d LEFT=%d RIGHT=%d\n", up, down, left, right);
-    }
     
     amiga_joystick_port2_set_direction(AJ2_UP, up);
     amiga_joystick_port2_set_direction(AJ2_DOWN, down);
@@ -260,12 +237,6 @@ void ps4_update_amiga_joystick(uint8_t dev_addr) {
     bool fire = input->cross || (input->r2_trigger > 128);
     bool button2 = input->circle;
     bool button3 = input->square;
-    
-    // Debug: Print button updates every 100 updates
-    if ((update_count % 100) == 0) {
-        printf("PS4: Button Update - FIRE=%d (cross=%d r2=%d) B2=%d B3=%d\n",
-               fire, input->cross, input->r2_trigger, button2, button3);
-    }
     
     amiga_joystick_port2_set_button(AJ2_FIRE, fire);
     amiga_joystick_port2_set_button(AJ2_BUTTON2, button2);
@@ -293,7 +264,7 @@ void ps4_mount_cb(uint8_t dev_addr) {
     
 #if HIDPICO_REVISION == 5
     // Show on OLED - match Atari IKBD style
-    display_show_controller_detected("PS4", "DualShock 4", 2000);
+    display_show_controller_detected("PS4", "DualShock 4", 3000);
 #endif
     
     ps4_controller_t* ctrl = allocate_controller(dev_addr);

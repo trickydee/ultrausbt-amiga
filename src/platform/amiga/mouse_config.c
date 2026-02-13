@@ -18,9 +18,11 @@
 #include <string.h>
 
 // Flash storage configuration
-// Using 0x40000 (256KB offset) - same as Yaumataca's mouse mode storage
-// This is a 4KB flash sector (4096 bytes)
-#define CONFIG_FLASH_OFFSET 0x40000
+// CRITICAL: Use the LAST 4KB sector of flash so config never overwrites firmware.
+// Pico W / Pico 2 W firmware can be ~1.2–1.3MB; storing at 0x40000 (256KB) was
+// inside the firmware region and caused hangs/corruption when saving mouse type.
+// Last sector of 2MB flash: 0x200000 - 0x1000 = 0x1FF000
+#define CONFIG_FLASH_OFFSET (PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE)
 #define CONFIG_MAGIC 0x4D4F5553  // "MOUS" in ASCII
 
 // Configuration data structure
