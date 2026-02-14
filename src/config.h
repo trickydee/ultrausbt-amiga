@@ -13,6 +13,18 @@
 #ifndef _CONFIG_H
 #define _CONFIG_H
 
+// Software version - single source of truth for main.c, OLED display, and serial output.
+// Increment PATCH with each build to verify latest firmware is loaded.
+#ifndef SOFTWARE_VERSION_MAJOR
+#  define SOFTWARE_VERSION_MAJOR 1
+#endif
+#ifndef SOFTWARE_VERSION_MINOR
+#  define SOFTWARE_VERSION_MINOR 0
+#endif
+#ifndef SOFTWARE_VERSION_PATCH
+#  define SOFTWARE_VERSION_PATCH 53
+#endif
+
 #ifndef HIDPICO_REVISION
 #  define HIDPICO_REVISION 4
 #endif

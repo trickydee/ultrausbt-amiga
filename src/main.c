@@ -38,10 +38,7 @@ extern void switch_check_delayed_init(void);
 extern void process_bluepad32_devices(void);
 #endif
 
-// Software version - increment this with each build to verify latest firmware is loaded
-#define SOFTWARE_VERSION_MAJOR 1
-#define SOFTWARE_VERSION_MINOR 0
-#define SOFTWARE_VERSION_PATCH 51
+// Software version is defined in config.h (single source for main, display, serial)
 
 // main entry point
 int main(void)

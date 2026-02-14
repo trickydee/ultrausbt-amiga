@@ -24,17 +24,7 @@ extern bool usb_hid_get_llamatron_mode(void);
 extern void usb_hid_toggle_llamatron_mode(void);
 #endif
 
-// Software version (from main.c)
-// These are fallback values if not defined elsewhere - should match main.c
-#ifndef SOFTWARE_VERSION_MAJOR
-#define SOFTWARE_VERSION_MAJOR 1
-#endif
-#ifndef SOFTWARE_VERSION_MINOR
-#define SOFTWARE_VERSION_MINOR 0
-#endif
-#ifndef SOFTWARE_VERSION_PATCH
-#define SOFTWARE_VERSION_PATCH 50
-#endif
+// Software version is defined in config.h (included above)
 
 #if HIDPICO_REVISION == 5
 

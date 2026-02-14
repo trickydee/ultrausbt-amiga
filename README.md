@@ -16,8 +16,9 @@ USB gamepads are mapped to Amiga joystick port 2 (directions, fire, and second/t
 
 | Controller | Notes |
 |------------|--------|
-| **Sony DualShock 3** (PS3) | Wired USB |
-| **Sony DualShock 4** (PS4) | Wired USB |
+| **Sony DualShock 3** (PS3) | Wired USB; also third‑party PS3‑compatible devices (HORI, Mad Catz, Qanba, Nacon, Logitech F310, Zero Delay encoder, etc.) using the same HID report format |
+| **Sony DualShock 4** (PS4) | Wired USB; also third‑party PS4‑compatible devices (HORI, Razer, Brook, Mad Catz, Qanba, Nacon, PowerA, etc.) using the same HID report format |
+| **Sony DualSense** (PS5) | Wired USB (report ID 0x01); DualSense and DualSense Edge supported |
 | **Nintendo Switch Pro Controller** | Wired USB; compatible third‑party Switch-style pads also supported |
 | **Google Stadia** | Wired USB (Google Controller) |
 | **Xbox** | XInput: Xbox 360 (wired/wireless dongle), Xbox One, OG Xbox; HID fallback for Xbox pads that enumerate as HID |
@@ -53,6 +54,11 @@ the rp2040 made sense as a target because it is widely available, has sufficient
 i have not measured the latency, but the keyboard signals are sent out the moment they are received on the usb bus. the potential latency is likely fractionally longer than the amiga mcu but bear in mind the rp2040 is significantly faster than the standard amiga keyboard controller.
 
 ## release notes
+
+### Controller support and version display (v1.0.53)
+- **PS5 DualSense**: Added USB support for Sony DualSense and DualSense Edge (report ID 0x01, joypad-os compatible report layout). Left stick, D-pad, Cross/Circle/Square/Triangle, R2/L2 (analog and digital) mapped to Amiga joystick.
+- **PS3 / PS4 third‑party devices**: Extended VID/PID lists to match joypad-os; arcade sticks and compatible pads (HORI, Mad Catz, Qanba, Razer, Brook, Nacon, Logitech F310, PowerA, etc.) that use the same HID report format are now recognised and work as PS3 or PS4.
+- **Version display**: Firmware version is defined in `config.h` (single source of truth); serial startup output and OLED splash both show the same version (e.g. v1.0.53).
 
 ### Bluetooth Fix (revision5-wip branch)
 - **Fixed Bluetooth pairing issue**: Added `pico_btstack_ble` library to linker dependencies
