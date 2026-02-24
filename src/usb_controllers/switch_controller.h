@@ -18,6 +18,8 @@ extern "C" {
 #define SWITCH_JOYCON_L         0x2006
 #define SWITCH_JOYCON_R         0x2007
 #define SWITCH_JOYCON_PAIR      0x2008
+#define SWITCH_JOYCON_GRIP      0x200E  // JoyCon Charge Grip (same report as Pro)
+#define SWITCH_SNES_NSO         0x2017  // SNES Controller (NSO)
 
 #define POWERA_VENDOR_ID        0x20D6
 #define POWERA_FUSION_ARCADE    0xA711

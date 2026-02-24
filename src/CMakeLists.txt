@@ -46,8 +46,10 @@ target_sources(amigahid-pico PRIVATE
   usb_controllers/ps3_controller.c
   usb_controllers/ps4_controller.c
   usb_controllers/ps5_controller.c
+  usb_controllers/psc_controller.c
   usb_controllers/stadia_controller.c
   usb_controllers/switch_controller.c
+  usb_controllers/horipad_controller.c
   usb_controllers/xbox_controller.c
   xinput_host.c
 )

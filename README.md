@@ -19,7 +19,9 @@ USB gamepads are mapped to Amiga joystick port 2 (directions, fire, and second/t
 | **Sony DualShock 3** (PS3) | Wired USB; also third‑party PS3‑compatible devices (HORI, Mad Catz, Qanba, Nacon, Logitech F310, Zero Delay encoder, etc.) using the same HID report format |
 | **Sony DualShock 4** (PS4) | Wired USB; also third‑party PS4‑compatible devices (HORI, Razer, Brook, Mad Catz, Qanba, Nacon, PowerA, etc.) using the same HID report format |
 | **Sony DualSense** (PS5) | Wired USB (report ID 0x01); DualSense and DualSense Edge supported |
-| **Nintendo Switch Pro Controller** | Wired USB; compatible third‑party Switch-style pads also supported |
+| **Nintendo Switch Pro Controller** | Wired USB; Pro, JoyCon L/R/pair, JoyCon Charge Grip (0x200E), SNES Controller NSO (0x2017); compatible third‑party Switch-style pads (e.g. PowerA) also supported |
+| **Sony PlayStation Classic** (PSC) | Wired USB (0x054C / 0x0CDA); D-pad and face/shoulder buttons mapped to port 2 |
+| **HORI HORIPAD** (Switch) | Wired USB (0x0F0D / 0x00C1); D-pad or left stick, B/A/Y and shoulders mapped to port 2 |
 | **Google Stadia** | Wired USB (Google Controller) |
 | **Xbox** | XInput: Xbox 360 (wired/wireless dongle), Xbox One, OG Xbox; HID fallback for Xbox pads that enumerate as HID |
 
@@ -54,6 +56,11 @@ the rp2040 made sense as a target because it is widely available, has sufficient
 i have not measured the latency, but the keyboard signals are sent out the moment they are received on the usb bus. the potential latency is likely fractionally longer than the amiga mcu but bear in mind the rp2040 is significantly faster than the standard amiga keyboard controller.
 
 ## release notes
+
+### More controllers and Switch PIDs (v1.0.54)
+- **Switch**: Added JoyCon Charge Grip (0x200E) and SNES Controller NSO (0x2017) to the Switch driver; same report format as Pro Controller.
+- **PlayStation Classic (PSC)**: New dedicated driver for Sony PS Classic controller (0x054C / 0x0CDA). D-pad, Cross/Circle/Square/Triangle, L1/R1/L2/R2 mapped to Amiga joystick port 2.
+- **HORI HORIPAD**: New dedicated driver for HORI HORIPAD for Nintendo Switch (0x0F0D / 0x00C1). D-pad or left stick for direction; B/A/Y and R2 for fire/buttons.
 
 ### Controller support and version display (v1.0.53)
 - **PS5 DualSense**: Added USB support for Sony DualSense and DualSense Edge (report ID 0x01, joypad-os compatible report layout). Left stick, D-pad, Cross/Circle/Square/Triangle, R2/L2 (analog and digital) mapped to Amiga joystick.

@@ -66,6 +66,8 @@ bool switch_is_controller(uint16_t vid, uint16_t pid) {
             case SWITCH_JOYCON_L:
             case SWITCH_JOYCON_R:
             case SWITCH_JOYCON_PAIR:
+            case SWITCH_JOYCON_GRIP:   // JoyCon Charge Grip (same report as Pro)
+            case SWITCH_SNES_NSO:     // SNES Controller (NSO)
                 return true;
         }
     }
