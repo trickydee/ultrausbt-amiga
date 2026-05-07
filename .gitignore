@@ -27,3 +27,7 @@ bluepad32/
 
 # Documentation files (optional, remove if you want to track these)
 BLUETOOTH_INTEGRATION.md
+
+# Local build artifacts / helper scripts not for commits
+amigahid-pico-atari-debug.uf2
+build-pico2w.sh
