@@ -60,6 +60,11 @@ void display_set_bt_counts(uint8_t kb, uint8_t mouse, uint8_t joy);
 void display_handle_buttons(void);
 
 /**
+ * Periodic display refresh work (call from main loop)
+ */
+void display_tick(void);
+
+/**
  * Show controller detection message on OLED
  * @param controller_name Name of controller (e.g., "PS4", "PS3")
  * @param controller_model Model name (e.g., "DualShock 4")
