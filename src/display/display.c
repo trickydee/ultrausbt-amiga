@@ -9,6 +9,7 @@
 #include <hardware/gpio.h>
 #include <pico/time.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <string.h>
 
 #if ENABLE_BLUEPAD32
@@ -44,9 +45,30 @@ static display_screen_t current_screen = DISPLAY_SCREEN_SPLASH;
 
 // Button handling
 #define BUTTON_DEBOUNCE_COUNT 10
+#define BT_PAIR_PRESS_MIN_MS 50
+#define BT_WIPE_COMBO_HOLD_MS 5000
 static uint8_t button_middle_debounce = 0;
 static uint8_t button_left_debounce = 0;
-static uint8_t button_right_debounce = 0;
+static bool button_right_pressed = false;
+static absolute_time_t button_right_press_start;
+#if ENABLE_BLUEPAD32
+static bool bt_wipe_combo_active = false;
+static bool bt_wipe_combo_done = false;
+static absolute_time_t bt_wipe_combo_start;
+static uint32_t bt_wipe_overlay_last_seconds = UINT32_MAX;
+#endif
+
+#if ENABLE_BLUEPAD32
+static void display_show_bt_clear_overlay(uint32_t seconds_left) {
+    char countdown[20];
+    ssd1306_clear(&disp);
+    ssd1306_draw_string(&disp, 0, 10, 2, (char*)"Pairing");
+    ssd1306_draw_string(&disp, 0, 28, 2, (char*)"Clear");
+    snprintf(countdown, sizeof(countdown), "%2lus", (unsigned long)seconds_left);
+    ssd1306_draw_string(&disp, 96, 48, 1, countdown);
+    ssd1306_show(&disp);
+}
+#endif
 
 void display_init(void)
 {
@@ -142,10 +164,10 @@ void display_show_splash(void)
     sprintf(mode_line, "Mode %s", mode_buf);
     ssd1306_draw_string(&disp, 0, 55, 1, mode_line);
     
-    // Show button label on splash screen
-    // Right button: RST (Reset Bluetooth keys) - show if BT is enabled (regardless of connected devices)
+    // Show pairing status and right button action.
+    ssd1306_draw_string(&disp, 0, 46, 1, bluepad32_pairing_is_active() ? (char*)"Pair ON" : (char*)"Pair OFF");
     if (bt_enabled) {
-        ssd1306_draw_string(&disp, 100, 55, 1, (char*)"RST");
+        ssd1306_draw_string(&disp, 96, 55, 1, (char*)"PAIR");
     }
 #endif
     
@@ -264,6 +286,52 @@ void display_handle_buttons(void)
 {
     // Handle LEFT button
     bool left_state = gpio_get(GPIO_BUTTON_LEFT);
+    bool right_state = gpio_get(GPIO_BUTTON_RIGHT);
+#if ENABLE_BLUEPAD32
+    // Left+Right combo: hold 5s to clear Bluetooth pairing keys.
+    if (!left_state && !right_state) {
+        if (!bt_wipe_combo_active) {
+            bt_wipe_combo_active = true;
+            bt_wipe_combo_done = false;
+            bt_wipe_combo_start = get_absolute_time();
+            bt_wipe_overlay_last_seconds = 5;
+            display_show_bt_clear_overlay(5);
+        } else if (!bt_wipe_combo_done) {
+            uint32_t combo_ms = (uint32_t)(absolute_time_diff_us(bt_wipe_combo_start, get_absolute_time()) / 1000);
+            uint32_t remaining_ms = (combo_ms >= BT_WIPE_COMBO_HOLD_MS) ? 0 : (BT_WIPE_COMBO_HOLD_MS - combo_ms);
+            uint32_t remaining_s = (remaining_ms + 999) / 1000;
+            if (remaining_s != bt_wipe_overlay_last_seconds) {
+                bt_wipe_overlay_last_seconds = remaining_s;
+                display_show_bt_clear_overlay(remaining_s);
+            }
+            if (combo_ms >= BT_WIPE_COMBO_HOLD_MS) {
+                bluepad32_delete_pairing_keys();
+                printf("Bluetooth pairing keys deleted\n");
+                bt_wipe_combo_done = true;
+                bt_wipe_overlay_last_seconds = UINT32_MAX;
+                display_show_splash();
+            }
+        }
+        button_left_debounce = 0;
+        button_right_pressed = false;
+        return;
+    } else {
+        bool combo_was_active = bt_wipe_combo_active;
+        bt_wipe_combo_active = false;
+        bt_wipe_combo_done = false;
+        bt_wipe_overlay_last_seconds = UINT32_MAX;
+        if (combo_was_active) {
+            if (current_screen == DISPLAY_SCREEN_SPLASH) {
+                display_show_splash();
+            } else if (current_screen == DISPLAY_SCREEN_DEVICES) {
+                display_show_devices();
+            } else if (current_screen == DISPLAY_SCREEN_BT_NAMES) {
+                display_show_bt_names();
+            }
+        }
+    }
+#endif
+
     if (!left_state) {
         if (button_left_debounce <= BUTTON_DEBOUNCE_COUNT) {
             if (++button_left_debounce == BUTTON_DEBOUNCE_COUNT) {
@@ -342,41 +410,43 @@ void display_handle_buttons(void)
         button_middle_debounce = 0;
     }
     
-    // Handle RIGHT button
-    bool right_state = gpio_get(GPIO_BUTTON_RIGHT);
-    if (!right_state) {
-        if (button_right_debounce <= BUTTON_DEBOUNCE_COUNT) {
-            if (++button_right_debounce == BUTTON_DEBOUNCE_COUNT) {
-                if (current_screen == DISPLAY_SCREEN_SPLASH) {
-                    // On splash screen: Clear Bluetooth pairings
-#if ENABLE_BLUEPAD32
-                    if (bluepad32_is_enabled()) {
-                        bluepad32_delete_pairing_keys();
-                        printf("Bluetooth pairing keys deleted\n");
-                        // Refresh splash screen
-                        display_show_splash();
-                    } else {
-                        printf("Bluetooth not enabled\n");
-                    }
-#endif
-                } else if (current_screen == DISPLAY_SCREEN_DEVICES) {
-                    // On devices screen: Toggle mouse type if Port 1 is in mouse mode
-#if ENABLE_BLUEPAD32
-                    bool is_joy_mode = amiga_joystick_port1_is_joystick_mode();
-                    if (!is_joy_mode) {
-                        // Port 1 is in mouse mode - toggle mouse type
-                        amiga_quad_mouse_toggle_type();
-                        mouse_type_t mouse_type = amiga_quad_mouse_get_type();
-                        printf("Mouse type: %s\n", mouse_type == MOUSE_TYPE_ATARI ? "Atari" : "Amiga");
-                        // Refresh devices screen to show updated mouse type
-                        display_show_devices();
-                    }
-#endif
-                }
-            }
+    // Handle RIGHT button (single button only)
+    if (!right_state && !button_right_pressed) {
+        button_right_pressed = true;
+        button_right_press_start = get_absolute_time();
+    } else if (right_state && button_right_pressed) {
+        button_right_pressed = false;
+        uint32_t press_ms = (uint32_t)(absolute_time_diff_us(button_right_press_start, get_absolute_time()) / 1000);
+        if (press_ms < BT_PAIR_PRESS_MIN_MS) {
+            return;
         }
-    } else {
-        button_right_debounce = 0;
+        if (current_screen == DISPLAY_SCREEN_SPLASH) {
+#if ENABLE_BLUEPAD32
+            if (!bluepad32_is_enabled()) {
+                printf("Bluetooth not enabled\n");
+                return;
+            }
+            if (bluepad32_pairing_is_active()) {
+                bluepad32_pairing_stop();
+                printf("Bluetooth pairing OFF\n");
+            } else {
+                bluepad32_pairing_start();
+                printf("Bluetooth pairing ON\n");
+            }
+            display_show_splash();
+#endif
+        } else if (current_screen == DISPLAY_SCREEN_DEVICES) {
+            // On devices screen: Toggle mouse type if Port 1 is in mouse mode
+#if ENABLE_BLUEPAD32
+            bool is_joy_mode = amiga_joystick_port1_is_joystick_mode();
+            if (!is_joy_mode) {
+                amiga_quad_mouse_toggle_type();
+                mouse_type_t mouse_type = amiga_quad_mouse_get_type();
+                printf("Mouse type: %s\n", mouse_type == MOUSE_TYPE_ATARI ? "Atari" : "Amiga");
+                display_show_devices();
+            }
+#endif
+        }
     }
 }
 

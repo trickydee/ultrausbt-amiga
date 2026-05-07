@@ -50,6 +50,11 @@ int bluepad32_get_gamepad_count(void);
 // Delete all stored Bluetooth pairing keys
 void bluepad32_delete_pairing_keys(void);
 
+// Pairing mode runtime control
+void bluepad32_pairing_start(void);
+void bluepad32_pairing_stop(void);
+bool bluepad32_pairing_is_active(void);
+
 // Get Bluetooth device name for display
 // Returns device name or NULL if not available
 // idx: 0 = first device, 1 = second device
