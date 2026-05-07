@@ -1,15 +1,76 @@
+# Overclock to 200 MHz for all Pico boards (pico, pico_w, pico2_w)
+if(PICO_BOARD STREQUAL "pico" OR PICO_BOARD STREQUAL "pico_w" OR PICO_BOARD STREQUAL "pico2_w")
+    add_compile_definitions(SYS_CLK_MHZ=200)
+    
+    # RP2350 (pico2_w) requires manual PLL configuration for 200 MHz
+    # RP2040 (pico, pico_w) has automatic PLL configuration in the SDK
+    if(PICO_BOARD STREQUAL "pico2_w")
+        # PLL settings for 200 MHz on RP2350
+        # VCO = 1200 MHz, POSTDIV1 = 6, POSTDIV2 = 1 => 1200 / 6 / 1 = 200 MHz
+        # VREG_VOLTAGE_1_15 = 0b01100 = 12 (decimal)
+        add_compile_definitions(
+            PLL_SYS_VCO_FREQ_HZ=1200000000
+            PLL_SYS_POSTDIV1=6
+            PLL_SYS_POSTDIV2=1
+            SYS_CLK_VREG_VOLTAGE_AUTO_ADJUST=1
+            SYS_CLK_VREG_VOLTAGE_MIN=12
+        )
+        message(STATUS "Overclock: 200 MHz enabled for ${PICO_BOARD} with manual PLL configuration")
+    else()
+        message(STATUS "Overclock: 200 MHz enabled for ${PICO_BOARD} (automatic PLL configuration)")
+    endif()
+else()
+    message(STATUS "Overclock: Using default clock for ${PICO_BOARD}")
+endif()
+
+# Bluepad32 Bluetooth support (wireless boards only)
+# Pico 2 W (pico2_w) has CYW43 for Bluetooth
+if(PICO_BOARD STREQUAL "pico2_w" OR PICO_BOARD STREQUAL "pico_w")
+    set(ENABLE_BLUEPAD32 ON)
+    add_definitions(-DENABLE_BLUEPAD32=1)
+    message(STATUS "Bluepad32: ENABLED (${PICO_BOARD} detected)")
+else()
+    set(ENABLE_BLUEPAD32 OFF)
+    add_definitions(-DENABLE_BLUEPAD32=0)
+    message(STATUS "Bluepad32: DISABLED (non-wireless board ${PICO_BOARD})")
+endif()
+
 add_executable(amigahid-pico
   main.c
   usb_hid.c
+  ${CMAKE_SOURCE_DIR}/ssd1306/ssd1306.c
 )
+
+# USB controller support
+target_sources(amigahid-pico PRIVATE
+  usb_controllers/ps3_controller.c
+  usb_controllers/ps4_controller.c
+  usb_controllers/ps5_controller.c
+  usb_controllers/psc_controller.c
+  usb_controllers/stadia_controller.c
+  usb_controllers/switch_controller.c
+  usb_controllers/horipad_controller.c
+  usb_controllers/xbox_controller.c
+  xinput_host.c
+)
+
+# Add Bluepad32 source files if enabled
+if(ENABLE_BLUEPAD32)
+    target_sources(amigahid-pico PRIVATE
+        bluepad32_init.c
+        bluepad32_platform.c
+    )
+endif()
 
 add_subdirectory(platform)
 add_subdirectory(util)
 add_subdirectory(display)
 
 # make the src subdirectory availabe in the include path so tinyusb can find tusb_config.h
+# also add ssd1306 directory for the display library
 target_include_directories(amigahid-pico PUBLIC
   ${CMAKE_CURRENT_LIST_DIR}
+  ${CMAKE_SOURCE_DIR}/ssd1306
 )
 
 pico_enable_stdio_uart(amigahid-pico 1)
@@ -24,6 +85,31 @@ target_link_libraries(amigahid-pico PUBLIC
   tinyusb_host
   tinyusb_board
 )
+
+# Add Bluepad32 libraries if enabled
+if(ENABLE_BLUEPAD32)
+    # Add bluepad32 subdirectory first
+    add_subdirectory(${CMAKE_SOURCE_DIR}/bluepad32/src/components/bluepad32 libbluepad32)
+    
+    # Add include directory for btstack_config.h to bluepad32 library
+    target_include_directories(bluepad32 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    
+    # Add Bluepad32 include directories
+    target_include_directories(amigahid-pico PRIVATE
+        ${CMAKE_SOURCE_DIR}/bluepad32/src/components/bluepad32/include
+        ${CMAKE_CURRENT_SOURCE_DIR}  # For btstack_config.h and sdkconfig.h
+        ${PICO_SDK_PATH}/lib/btstack/src  # For btstack headers
+    )
+    
+    target_link_libraries(amigahid-pico PUBLIC
+        pico_cyw43_arch_none
+        pico_btstack_ble      # Required for GATT client functions (HID service discovery)
+        pico_btstack_classic
+        pico_btstack_cyw43
+        pico_async_context_poll  # For async_context_poll_init_with_defaults
+        bluepad32
+    )
+endif()
 
 add_compile_definitions(PICO_USE_MALLOC_MUTEX=0)
 

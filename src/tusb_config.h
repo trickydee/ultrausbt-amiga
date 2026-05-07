@@ -57,6 +57,7 @@
 #define CFG_TUH_HID 4 // keyboard/mouse/joystick; 4 endpoints maximum per device
 #define CFG_TUH_MSC 0 // no mass storage
 #define CFG_TUH_VENDOR 0 // not sure what this is but no anyway
+#define CFG_TUH_XINPUT 2 // Xbox 360 / Xbox One / OG Xbox (XInput vendor driver)
 
 // max device support (excluding hub)
 #define CFG_TUH_DEVICE_MAX 16
@@ -64,5 +65,9 @@
 // hid event buffer sizes
 #define CFG_TUH_HID_EPIN_BUFSIZE 64
 #define CFG_TUH_HID_EPOUT_BUFSIZE 64
+
+// XInput (Xbox) buffer sizes
+#define CFG_TUH_XINPUT_EPIN_BUFSIZE 64
+#define CFG_TUH_XINPUT_EPOUT_BUFSIZE 64
 
 #endif // _TUSB_CONFIG_H

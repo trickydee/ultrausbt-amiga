@@ -12,6 +12,7 @@
 #include "keyboard_serial_io.h"
 #include "keyboard.h"
 #include "keyboard.pio.h" // generated at compile time
+#include "platform/common/gpio_util.h"
 #include "util/output.h"
 #include "util/debug_cons.h"
 
@@ -29,21 +30,6 @@ volatile bool clock_timer_fired = false;
 
 // caps lock will be read by the hid loop
 bool caps_lock = false;
-
-enum _keyboard_pin_state { LOW, HIGH };
-
-// @todo this is copy-pasta from quad_mouse; move to util/io.c
-static inline void _keyboard_gpio_set(uint gpio, enum _keyboard_pin_state state)
-{
-    if (state == LOW) {
-        gpio_put(gpio, 0);
-        gpio_set_dir(gpio, GPIO_OUT);
-        return;
-    }
-
-    // assume it's high otherwise
-    gpio_set_dir(gpio, GPIO_IN);
-}
 
 /*
 // _.-._.-._ @todo i've not been doing sync correctly for sooooooo long; fix/remove? -._.-._.-
@@ -83,9 +69,10 @@ void amiga_init()
 
     // all pins are active low, meaning if /rst is current at 0, the amiga is held in reset.
     // rectify this by putting all pins in open drain. this should bring the amiga to boot.
-    _keyboard_gpio_set(KBD_AMIGA_DAT, HIGH);
-    _keyboard_gpio_set(KBD_AMIGA_CLK, HIGH);
-    _keyboard_gpio_set(KBD_AMIGA_RST, HIGH);
+    // Use optimized shared GPIO utility
+    amiga_gpio_init_active_low(KBD_AMIGA_DAT, false);
+    amiga_gpio_init_active_low(KBD_AMIGA_CLK, false);
+    amiga_gpio_init_active_low(KBD_AMIGA_RST, false);
 
     // now the pins are setup, setup the timer callback to maintain keyboard comms in sync.
     // @todo add_alarm_in_ms() here
@@ -113,7 +100,8 @@ void amiga_hid_send(uint8_t hidcode, bool up)
         return;
     }
 
-    dbgcons_amiga_key(hidcode, mapHidToAmiga[hidcode], up ? "u" : "d");
+    // Disabled keyboard logging for now (can be re-enabled if needed)
+    // dbgcons_amiga_key(hidcode, mapHidToAmiga[hidcode], up ? "u" : "d");
 
     amiga_send(mapHidToAmiga[hidcode], up);
 }
@@ -123,8 +111,9 @@ void amiga_hid_modifier(hid_keyboard_modifier_bm_t modifier, bool up)
     uint8_t amiga_code;
     amiga_code = get_modifier_from_hid(modifier);
 
+    // Disabled keyboard logging for now (can be re-enabled if needed)
     // @todo indicate the modifier state in dbgcons, somehow
-    dbgcons_amiga_key(0, amiga_code, up ? "u" : "d");
+    // dbgcons_amiga_key(0, amiga_code, up ? "u" : "d");
 
     amiga_send(amiga_code, up);
 }
@@ -172,15 +161,15 @@ void amiga_send(uint8_t keycode, bool up)
 
     for (bit_position = 0; bit_position < 8; bit_position++) {
         if (sendcode & bit_mask)
-            _keyboard_gpio_set(KBD_AMIGA_DAT, LOW);
+            amiga_gpio_set_active_low(KBD_AMIGA_DAT, true);   // LOW = active
         else
-            _keyboard_gpio_set(KBD_AMIGA_DAT, HIGH);
+            amiga_gpio_set_active_low(KBD_AMIGA_DAT, false); // HIGH = inactive
 
         // hold /dat for 20us before pulsing /clk, then wait 50us before next bit
         sleep_us(20);
-        _keyboard_gpio_set(KBD_AMIGA_CLK, LOW);
+        amiga_gpio_set_active_low(KBD_AMIGA_CLK, true);   // LOW = active (pulse)
         sleep_us(20);
-        _keyboard_gpio_set(KBD_AMIGA_CLK, HIGH);
+        amiga_gpio_set_active_low(KBD_AMIGA_CLK, false);  // HIGH = inactive
         sleep_us(50); // @todo should be 20?
 
         // shift the bit pattern for next iteration
@@ -188,7 +177,7 @@ void amiga_send(uint8_t keycode, bool up)
     }
 
     // set /dat to input for 5ms to signal end of key
-    _keyboard_gpio_set(KBD_AMIGA_DAT, HIGH);
+    amiga_gpio_set_active_low(KBD_AMIGA_DAT, false); // HIGH = inactive
     sleep_ms(5);
 
     // @todo we _should_ be checking that the amiga has acked the code by watching /dat
@@ -200,20 +189,20 @@ void amiga_send(uint8_t keycode, bool up)
 void amiga_assert_reset()
 {
     // ahprintf("[akb] *** RESET BEING ASSERTED ***\n");
-    _keyboard_gpio_set(KBD_AMIGA_RST, LOW);
+    amiga_gpio_set_active_low(KBD_AMIGA_RST, true);  // LOW = active (reset asserted)
 }
 
 void amiga_release_reset()
 {
     // ahprintf("[akb] *** RESET BEING RELEASED ***\n");
-    _keyboard_gpio_set(KBD_AMIGA_RST, HIGH);
+    amiga_gpio_set_active_low(KBD_AMIGA_RST, false); // HIGH = inactive (reset released)
 }
 
 void amiga_service()
 {
     if ((sync_state == SYNC) && clock_timer_fired) {
         // @todo THIS IS WRONG
-        _keyboard_gpio_set(KBD_AMIGA_RST, HIGH);
+        amiga_gpio_set_active_low(KBD_AMIGA_RST, false); // HIGH = inactive
         sync_state = IDLE;
         clock_timer_fired = false;
     }
