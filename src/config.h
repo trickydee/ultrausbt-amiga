@@ -16,13 +16,13 @@
 // Software version - single source of truth for main.c, OLED display, and serial output.
 // Increment PATCH with each build to verify latest firmware is loaded.
 #ifndef SOFTWARE_VERSION_MAJOR
-#  define SOFTWARE_VERSION_MAJOR 1
+#  define SOFTWARE_VERSION_MAJOR 2
 #endif
 #ifndef SOFTWARE_VERSION_MINOR
-#  define SOFTWARE_VERSION_MINOR 0
+#  define SOFTWARE_VERSION_MINOR 1
 #endif
 #ifndef SOFTWARE_VERSION_PATCH
-#  define SOFTWARE_VERSION_PATCH 57
+#  define SOFTWARE_VERSION_PATCH 0
 #endif
 
 #ifndef HIDPICO_REVISION

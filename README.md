@@ -57,6 +57,12 @@ i have not measured the latency, but the keyboard signals are sent out the momen
 
 ## release notes
 
+### Pairing UX and startup window (v2.1.0)
+- **Bluetooth pairing control on splash**: Right button now toggles pairing ON/OFF directly from the splash screen.
+- **Safer key reset flow**: Hold **Left + Right** for 5 seconds to clear stored pairing keys, with on-screen `Pairing Clear` countdown feedback.
+- **Startup pairing window**: Pairing is automatically enabled for 60 seconds after boot, then disabled until manually toggled back on.
+- **Live countdown refresh**: Splash screen pairing status updates once per second (for example `Pair ON 42s`) without needing to switch screens.
+
 ### More controllers and Switch PIDs (v1.0.54)
 - **Switch**: Added JoyCon Charge Grip (0x200E) and SNES Controller NSO (0x2017) to the Switch driver; same report format as Pro Controller.
 - **PlayStation Classic (PSC)**: New dedicated driver for Sony PS Classic controller (0x054C / 0x0CDA). D-pad, Cross/Circle/Square/Triangle, L1/R1/L2/R2 mapped to Amiga joystick port 2.
