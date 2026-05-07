@@ -63,8 +63,12 @@ static bt_keyboard_storage_t bt_keyboards[MAX_BT_KEYBOARDS] = {0};
 static bt_mouse_storage_t bt_mice[MAX_BT_MICE] = {0};
 static bt_gamepad_storage_t bt_gamepads[MAX_BT_GAMEPADS] = {0};
 static bool g_pairing_active = false;
+static bool g_pairing_boot_window_active = false;
+static absolute_time_t g_pairing_boot_deadline;
+static const uint32_t PAIRING_BOOT_WINDOW_MS = 60000;
 
 void bluepad32_pairing_start(void);
+void bluepad32_pairing_stop(void);
 
 // Store device pointer to slot mapping for keyboards, mice, and gamepads
 static uni_hid_device_t* keyboard_device_map[MAX_BT_KEYBOARDS] = {0};
@@ -192,8 +196,10 @@ static void my_platform_on_init_complete(void) {
     logi("Waiting for HCI to be ready...\n");
     sleep_ms(2000);  // Give HCI 2 seconds to initialize
 
-    // Default pairing to ON at startup.
+    // Pairing is ON for 60 seconds at boot, then auto-locks OFF.
     bluepad32_pairing_start();
+    g_pairing_boot_window_active = true;
+    g_pairing_boot_deadline = make_timeout_time_ms(PAIRING_BOOT_WINDOW_MS);
 
     // Turn off LED once init is done
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
@@ -706,12 +712,35 @@ void bluepad32_pairing_stop(void) {
         return;
     }
     g_pairing_active = false;
+    g_pairing_boot_window_active = false;
     logi("Bluetooth pairing: OFF\n");
     uni_bt_stop_scanning_unsafe();
 }
 
 bool bluepad32_pairing_is_active(void) {
     return g_pairing_active;
+}
+
+uint32_t bluepad32_pairing_remaining_seconds(void) {
+    if (!g_pairing_active || !g_pairing_boot_window_active) {
+        return 0;
+    }
+    int64_t us_left = absolute_time_diff_us(get_absolute_time(), g_pairing_boot_deadline);
+    if (us_left <= 0) {
+        return 0;
+    }
+    return (uint32_t)((us_left + 999999) / 1000000);
+}
+
+void bluepad32_pairing_tick(void) {
+    if (!g_pairing_active || !g_pairing_boot_window_active) {
+        return;
+    }
+    if (absolute_time_diff_us(get_absolute_time(), g_pairing_boot_deadline) <= 0) {
+        logi("Bluetooth pairing: boot window expired after %lu seconds\n",
+             (unsigned long)(PAIRING_BOOT_WINDOW_MS / 1000));
+        bluepad32_pairing_stop();
+    }
 }
 
 // Get Bluetooth device name for display

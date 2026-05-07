@@ -29,6 +29,7 @@
 
 #if ENABLE_BLUEPAD32
 #include "bluepad32_init.h"
+#include "bluepad32_platform.h"
 #endif
 
 // defined within usb_hid.c
@@ -152,6 +153,7 @@ int main(void)
         // poll bluepad32 for Bluetooth events (only if enabled)
         if (bluepad32_is_enabled()) {
             bluepad32_poll();
+            bluepad32_pairing_tick();
             
             // Optimized: batch process all Bluetooth devices with early returns
             // Only processes devices that are actually connected, reducing overhead
@@ -172,6 +174,7 @@ int main(void)
         
         // Handle display button presses
         display_handle_buttons();
+        display_tick();
 #endif
     }
 

@@ -56,6 +56,7 @@ static bool bt_wipe_combo_active = false;
 static bool bt_wipe_combo_done = false;
 static absolute_time_t bt_wipe_combo_start;
 static uint32_t bt_wipe_overlay_last_seconds = UINT32_MAX;
+static uint32_t splash_pair_countdown_last_seconds = UINT32_MAX;
 #endif
 
 #if ENABLE_BLUEPAD32
@@ -139,36 +140,25 @@ void display_show_splash(void)
     ssd1306_draw_string(&disp, 40, 40, 1, version_buf);
     
 #if ENABLE_BLUEPAD32
-    // Show USB/Bluetooth status on splash screen (bottom row)
-    // USB is always enabled, check if BT is enabled (initialized and ready)
-    char mode_buf[8];
-    char mode_line[16];
-    bool usb_enabled = true;  // USB is always enabled in this implementation
+    // Show pairing status / action on splash screen.
+    char pair_status[20];
     bool bt_enabled = bluepad32_is_enabled();
-    
-    // Determine mode: USB+BT if both are enabled, USB only if BT not enabled, etc.
-    if (usb_enabled && bt_enabled) {
-        sprintf(mode_buf, "USB+BT");
+    uint32_t secs = 0;
+    if (bluepad32_pairing_is_active()) {
+        secs = bluepad32_pairing_remaining_seconds();
+        if (secs > 0) {
+            snprintf(pair_status, sizeof(pair_status), "Pair ON %lus", (unsigned long)secs);
+        } else {
+            snprintf(pair_status, sizeof(pair_status), "Pair ON");
+        }
+    } else {
+        snprintf(pair_status, sizeof(pair_status), "Pair OFF");
     }
-    else if (usb_enabled) {
-        sprintf(mode_buf, "USB");
-    }
-    else if (bt_enabled) {
-        sprintf(mode_buf, "BT");
-    }
-    else {
-        sprintf(mode_buf, "OFF");
-    }
-
-    // Show mode on bottom row with label
-    sprintf(mode_line, "Mode %s", mode_buf);
-    ssd1306_draw_string(&disp, 0, 55, 1, mode_line);
-    
-    // Show pairing status and right button action.
-    ssd1306_draw_string(&disp, 0, 46, 1, bluepad32_pairing_is_active() ? (char*)"Pair ON" : (char*)"Pair OFF");
+    ssd1306_draw_string(&disp, 0, 55, 1, pair_status);
     if (bt_enabled) {
         ssd1306_draw_string(&disp, 96, 55, 1, (char*)"PAIR");
     }
+    splash_pair_countdown_last_seconds = secs;
 #endif
     
     ssd1306_show(&disp);
@@ -450,6 +440,19 @@ void display_handle_buttons(void)
     }
 }
 
+void display_tick(void)
+{
+#if ENABLE_BLUEPAD32
+    if (current_screen != DISPLAY_SCREEN_SPLASH || bt_wipe_combo_active || !bluepad32_is_enabled()) {
+        return;
+    }
+    uint32_t secs = bluepad32_pairing_remaining_seconds();
+    if (secs != splash_pair_countdown_last_seconds) {
+        display_show_splash();
+    }
+#endif
+}
+
 void display_show_bt_names(void)
 {
     ssd1306_clear(&disp);
@@ -518,6 +521,7 @@ void display_get_counts(uint8_t *usb_kb, uint8_t *usb_mouse, uint8_t *usb_joy,
 void display_set_usb_counts(uint8_t kb, uint8_t mouse, uint8_t joy) {}
 void display_set_bt_counts(uint8_t kb, uint8_t mouse, uint8_t joy) {}
 void display_handle_buttons(void) {}
+void display_tick(void) {}
 void display_show_controller_detected(const char* controller_name, const char* controller_model, uint32_t duration_ms) {}
 #endif // HIDPICO_REVISION == 5
 
