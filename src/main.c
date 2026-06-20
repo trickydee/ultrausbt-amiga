@@ -84,7 +84,6 @@ int main(void)
     printf("Llamatron mode: Shift + Left Amiga + L\n");
     printf("========================================\n\n");
 
-    // say hello, trevor ("hello, trevor")
     dbgcons_init();
     
 #if HIDPICO_REVISION == 5

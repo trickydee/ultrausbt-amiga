@@ -14,6 +14,7 @@
 #include "tusb.h"
 #include "platform/amiga/joystick_port2.h"
 #include "display/display.h"
+#include "usb_device_map.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -176,6 +177,7 @@ void stadia_mount_cb(uint8_t dev_addr) {
     stadia_controller_t* ctrl = allocate_controller(dev_addr);
     if (ctrl) {
         printf("Stadia: Controller registered\n");
+        usb_map_register_gamepad(dev_addr, "Stadia");
     } else {
         printf("Stadia: Failed to allocate controller\n");
     }
@@ -183,6 +185,7 @@ void stadia_mount_cb(uint8_t dev_addr) {
 
 void stadia_unmount_cb(uint8_t dev_addr) {
     printf("Stadia: Controller unmounted (addr=%d)\n", dev_addr);
+    usb_map_unregister_gamepad(dev_addr);
     free_controller(dev_addr);
 
     amiga_joystick_port2_set_direction(AJ2_UP, false);

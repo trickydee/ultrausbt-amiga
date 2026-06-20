@@ -28,6 +28,7 @@
 #include "util/output.h"
 #include "util/debug_cons.h"
 #include "display/display.h"
+#include "usb_device_map.h"
 
 // USB controller support
 #include "usb_controllers/ps3_controller.h"
@@ -195,11 +196,12 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const *desc_re
     }
     
 #if HIDPICO_REVISION == 5
-    // Update device counts
     if (hid_protocol == HID_ITF_PROTOCOL_KEYBOARD) {
         usb_kb_count++;
+        usb_map_set_keyboard("USB Keyboard");
     } else if (hid_protocol == HID_ITF_PROTOCOL_MOUSE) {
         usb_mouse_count++;
+        usb_map_set_mouse("USB Mouse");
     } else if (hid_protocol == HID_ITF_PROTOCOL_NONE) {
         // Could be a gamepad/joystick (non-boot protocol)
         // Track first gamepad (only if not a vendor-specific controller)
@@ -207,6 +209,9 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const *desc_re
             first_gamepad_dev_addr = dev_addr;
             first_gamepad_instance = instance;
             usb_joy_count++;
+            if (!usb_map_gamepad_registered(dev_addr)) {
+                usb_map_register_gamepad(dev_addr, "USB Gamepad");
+            }
         } else if (is_vendor_controller) {
             // Vendor controllers count as joysticks
             usb_joy_count++;
@@ -272,13 +277,16 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance)
     // Update device counts
     if (hid_protocol == HID_ITF_PROTOCOL_KEYBOARD) {
         if (usb_kb_count > 0) usb_kb_count--;
+        usb_map_clear_keyboard();
     } else if (hid_protocol == HID_ITF_PROTOCOL_MOUSE) {
         if (usb_mouse_count > 0) usb_mouse_count--;
+        usb_map_clear_mouse();
     } else if (hid_protocol == HID_ITF_PROTOCOL_NONE) {
         if (is_vendor_controller || (dev_addr == first_gamepad_dev_addr && instance == first_gamepad_instance)) {
             if (usb_joy_count > 0) usb_joy_count--;
         }
     }
+    usb_map_unregister_gamepad(dev_addr);
     update_usb_device_counts();
 #endif
 }

@@ -14,6 +14,7 @@
 #include "tusb.h"
 #include "platform/amiga/joystick_port2.h"
 #include "display/display.h"
+#include "usb_device_map.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -274,11 +275,13 @@ void ps4_mount_cb(uint8_t dev_addr) {
     ps4_controller_t* ctrl = allocate_controller(dev_addr);
     if (ctrl) {
         printf("PS4: Controller registered!\n");
+        usb_map_register_gamepad(dev_addr, "PS4");
     }
 }
 
 void ps4_unmount_cb(uint8_t dev_addr) {
     printf("PS4: Controller unmounted at address %d\n", dev_addr);
+    usb_map_unregister_gamepad(dev_addr);
     free_controller(dev_addr);
     
     // Reset joystick port 2

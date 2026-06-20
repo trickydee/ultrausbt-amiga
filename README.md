@@ -37,7 +37,6 @@ Other USB HID gamepads may work via the generic gamepad path (directions + up to
 
 ## documentation
 
-* [installation](./doc/installation.md)
 * [hardware](./doc/hardware.md)
 * [errors in revisions (errata)](./doc/errata.md)
 
@@ -101,10 +100,6 @@ crazy talk:
 ## license
 
 on the fence at the moment, but the current license choice is Eclipse Public License 2.0 (EPL-2.0).
-
-## third party licenses
-
-* µgui: this code contains 'µgui' by achim döbler; the license for this can be read at in the [display readme](./src/display/README.md)
 
 ## whuh... who?
 

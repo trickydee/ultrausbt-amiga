@@ -14,6 +14,7 @@
 #include "tusb.h"
 #include "platform/amiga/joystick_port2.h"
 #include "display/display.h"
+#include "usb_device_map.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -240,6 +241,7 @@ void ps3_mount_cb(uint8_t dev_addr) {
     ps3_controller_t* ctrl = allocate_controller(dev_addr);
     if (ctrl) {
         printf("PS3: Controller registered!\n");
+        usb_map_register_gamepad(dev_addr, "PS3");
         
         // PS3 DualShock 3 requires special initialization
         // Send Feature Report 0xF4 to enable the controller
@@ -266,6 +268,7 @@ void ps3_mount_cb(uint8_t dev_addr) {
 
 void ps3_unmount_cb(uint8_t dev_addr) {
     printf("PS3: Controller unmounted at address %d\n", dev_addr);
+    usb_map_unregister_gamepad(dev_addr);
     free_controller(dev_addr);
     
     // Reset joystick port 2

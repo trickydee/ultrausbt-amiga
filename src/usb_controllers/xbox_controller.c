@@ -12,6 +12,7 @@
 #include "xbox_controller.h"
 #include "config.h"
 #include "display/display.h"
+#include "usb_device_map.h"
 #include "platform/amiga/joystick_port2.h"
 #include "xinput_host.h"
 #include <stdio.h>
@@ -98,6 +99,20 @@ void tuh_xinput_mount_cb(uint8_t dev_addr, uint8_t instance, const xinputh_inter
     }
     printf("Xbox controller mounted: %s (addr=%u, inst=%u)\n", type_str, (unsigned)dev_addr, (unsigned)instance);
 
+    const char* map_name = "Xbox";
+    switch (xinput_itf->type) {
+        case XBOX360_WIRED:
+        case XBOX360_WIRELESS:
+            map_name = "Xbox 360";
+            break;
+        case XBOXONE:
+            map_name = "Xbox One";
+            break;
+        default:
+            break;
+    }
+    usb_map_register_gamepad(dev_addr, map_name);
+
 #if HIDPICO_REVISION == 5
     display_show_controller_detected("Xbox", type_str, 3000);
 #endif
@@ -118,6 +133,7 @@ void tuh_xinput_umount_cb(uint8_t dev_addr, uint8_t instance)
 {
     (void)instance;
     printf("Xbox controller unmounted: addr=%u\n", (unsigned)dev_addr);
+    usb_map_unregister_gamepad(dev_addr);
     xbox_clear_amiga_joystick();
 }
 
@@ -182,8 +198,8 @@ bool xbox_is_hid_controller(uint16_t vid, uint16_t pid)
 
 void xbox_hid_mount_cb(uint8_t dev_addr)
 {
-    (void)dev_addr;
     printf("Xbox controller (HID) mounted\n");
+    usb_map_register_gamepad(dev_addr, "Xbox");
 #if HIDPICO_REVISION == 5
     display_show_controller_detected("Xbox", "HID", 3000);
 #endif
@@ -191,8 +207,8 @@ void xbox_hid_mount_cb(uint8_t dev_addr)
 
 void xbox_hid_umount_cb(uint8_t dev_addr)
 {
-    (void)dev_addr;
     printf("Xbox controller (HID) unmounted\n");
+    usb_map_unregister_gamepad(dev_addr);
     amiga_joystick_port2_set_direction(AJ2_UP, false);
     amiga_joystick_port2_set_direction(AJ2_DOWN, false);
     amiga_joystick_port2_set_direction(AJ2_LEFT, false);

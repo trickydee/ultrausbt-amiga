@@ -8,6 +8,7 @@
 #include "tusb.h"
 #include "platform/amiga/joystick_port2.h"
 #include "display/display.h"
+#include "usb_device_map.h"
 #include "pico/time.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -264,7 +265,19 @@ void switch_mount_cb(uint8_t dev_addr) {
     uint16_t vid, pid;
     tuh_vid_pid_get(dev_addr, &vid, &pid);
 
-    const char* name = "Switch";
+    const char* controller_name = "Switch";
+    if (vid == SWITCH_VENDOR_ID) {
+        if (pid == SWITCH_PRO_CONTROLLER) controller_name = "Pro Controller";
+        else if (pid == SWITCH_JOYCON_L) controller_name = "Joy-Con Left";
+        else if (pid == SWITCH_JOYCON_R) controller_name = "Joy-Con Right";
+        else if (pid == SWITCH_JOYCON_PAIR) controller_name = "Joy-Con Pair";
+        else if (pid == SWITCH_JOYCON_GRIP) controller_name = "Joy-Con Grip";
+        else if (pid == SWITCH_SNES_NSO) controller_name = "SNES NSO";
+    } else if (vid == POWERA_VENDOR_ID) {
+        if (pid == POWERA_FUSION_ARCADE || pid == POWERA_FUSION_ARCADE_V2) controller_name = "PowerA Arcade";
+        else controller_name = "PowerA Controller";
+    }
+
     const char* model = "Controller";
     if (vid == SWITCH_VENDOR_ID && pid == SWITCH_PRO_CONTROLLER) {
         model = "Pro Controller";
@@ -272,14 +285,15 @@ void switch_mount_cb(uint8_t dev_addr) {
         model = "PowerA";
     }
 
-    printf("Switch controller mount: %s %s (addr=%d)\n", name, model, dev_addr);
+    printf("Switch controller mount: %s (addr=%d)\n", controller_name, dev_addr);
 
 #if HIDPICO_REVISION == 5
-    display_show_controller_detected(name, model, 3000);
+    display_show_controller_detected("Switch", model, 3000);
 #endif
 
     switch_controller_t* ctrl = allocate_controller(dev_addr);
     if (ctrl) {
+        usb_map_register_gamepad(dev_addr, controller_name);
         if (vid == SWITCH_VENDOR_ID && pid == SWITCH_PRO_CONTROLLER) {
             pro_needs_init = true;
             pro_dev_addr = dev_addr;
@@ -292,6 +306,7 @@ void switch_mount_cb(uint8_t dev_addr) {
 }
 
 void switch_unmount_cb(uint8_t dev_addr) {
+    usb_map_unregister_gamepad(dev_addr);
     printf("Switch controller unmount (addr=%d)\n", dev_addr);
     if (dev_addr == pro_dev_addr) {
         pro_needs_init = false;

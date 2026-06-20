@@ -38,6 +38,7 @@ endif()
 add_executable(amigahid-pico
   main.c
   usb_hid.c
+  usb_device_map.c
   ${CMAKE_SOURCE_DIR}/ssd1306/ssd1306.c
 )
 
@@ -123,3 +124,14 @@ set_target_properties(amigahid-pico PROPERTIES
 )
 
 pico_add_extra_outputs(amigahid-pico)
+
+# Board-specific UF2 names (used by build-all.sh when copying to dist/)
+if(PICO_BOARD STREQUAL "pico2_w")
+    set_target_properties(amigahid-pico PROPERTIES OUTPUT_NAME "amigahid_pico2_w")
+elseif(PICO_BOARD STREQUAL "pico2")
+    set_target_properties(amigahid-pico PROPERTIES OUTPUT_NAME "amigahid_pico2")
+elseif(PICO_BOARD STREQUAL "pico_w")
+    set_target_properties(amigahid-pico PROPERTIES OUTPUT_NAME "amigahid_pico_w")
+else()
+    set_target_properties(amigahid-pico PROPERTIES OUTPUT_NAME "amigahid_pico")
+endif()

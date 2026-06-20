@@ -4,6 +4,7 @@
 
 #include "display/display.h"
 #include "config.h"
+#include "usb_device_map.h"
 #include "ssd1306.h"
 #include <hardware/i2c.h>
 #include <hardware/gpio.h>
@@ -221,9 +222,9 @@ void display_update_devices(void)
     if (current_screen == DISPLAY_SCREEN_DEVICES) {
         display_show_devices();
     }
-    // Also update BT names screen if active
-    if (current_screen == DISPLAY_SCREEN_BT_NAMES) {
-        display_show_bt_names();
+    // Also update Map Devices screen if active
+    if (current_screen == DISPLAY_SCREEN_MAP_DEVICES) {
+        display_show_map_devices();
     }
 }
 
@@ -315,8 +316,8 @@ void display_handle_buttons(void)
                 display_show_splash();
             } else if (current_screen == DISPLAY_SCREEN_DEVICES) {
                 display_show_devices();
-            } else if (current_screen == DISPLAY_SCREEN_BT_NAMES) {
-                display_show_bt_names();
+            } else if (current_screen == DISPLAY_SCREEN_MAP_DEVICES) {
+                display_show_map_devices();
             }
         }
     }
@@ -381,7 +382,7 @@ void display_handle_buttons(void)
         button_left_debounce = 0;
     }
     
-    // Handle MIDDLE button (cycle through screens: SPLASH -> DEVICES -> BT_NAMES -> SPLASH)
+    // Handle MIDDLE button (cycle through screens: SPLASH -> DEVICES -> MAP_DEVICES -> SPLASH)
     bool middle_state = gpio_get(GPIO_BUTTON_MIDDLE);
     if (!middle_state) {
         if (button_middle_debounce <= BUTTON_DEBOUNCE_COUNT) {
@@ -390,8 +391,8 @@ void display_handle_buttons(void)
                 if (current_screen == DISPLAY_SCREEN_SPLASH) {
                     display_show_devices();
                 } else if (current_screen == DISPLAY_SCREEN_DEVICES) {
-                    display_show_bt_names();
-                } else if (current_screen == DISPLAY_SCREEN_BT_NAMES) {
+                    display_show_map_devices();
+                } else if (current_screen == DISPLAY_SCREEN_MAP_DEVICES) {
                     display_show_splash();
                 }
             }
@@ -453,60 +454,45 @@ void display_tick(void)
 #endif
 }
 
-void display_show_bt_names(void)
+static void display_draw_map_line(int y, const char* label, const char* bt_name, const char* usb_name)
+{
+    char buf[64];
+    const char* name = bt_name;
+    if (!name) {
+        name = usb_name;
+    }
+    if (name) {
+        snprintf(buf, sizeof(buf), "%s:%.20s", label, name);
+    } else {
+        snprintf(buf, sizeof(buf), "%s: --", label);
+    }
+    ssd1306_draw_string(&disp, 0, y, 1, buf);
+}
+
+void display_show_map_devices(void)
 {
     ssd1306_clear(&disp);
-    
+    ssd1306_draw_string(&disp, 0, 0, 1, (char*)"Map Devices");
+
+    const char* bt_j2 = NULL;
+    const char* bt_j1 = NULL;
+    const char* bt_k1 = NULL;
+    const char* bt_m1 = NULL;
 #if ENABLE_BLUEPAD32
-    char buf[64];
-    const char* name;
-    
-    // Title at the top
-    ssd1306_draw_string(&disp, 0, 0, 1, (char*)"Bluetooth Devices");
-    
-    // Show joysticks (swapped: index 0 -> J2, index 1 -> J1)
-    // Index 0 is mapped to Joystick Port 2, so show as J2
-    name = bluepad32_get_device_name('J', 0);
-    if (name) {
-        // Truncate name to fit on screen (max ~20 chars)
-        snprintf(buf, sizeof(buf), "J2:%.20s", name);
-        ssd1306_draw_string(&disp, 0, 9, 1, buf);
-    } else {
-        ssd1306_draw_string(&disp, 0, 9, 1, (char*)"J2: --");
-    }
-    
-    // Index 1 is mapped to Joystick Port 1, so show as J1
-    name = bluepad32_get_device_name('J', 1);
-    if (name) {
-        snprintf(buf, sizeof(buf), "J1:%.20s", name);
-        ssd1306_draw_string(&disp, 0, 18, 1, buf);
-    } else {
-        ssd1306_draw_string(&disp, 0, 18, 1, (char*)"J1: --");
-    }
-    
-    // Show first keyboard
-    name = bluepad32_get_device_name('K', 0);
-    if (name) {
-        snprintf(buf, sizeof(buf), "K1:%.20s", name);
-        ssd1306_draw_string(&disp, 0, 27, 1, buf);
-    } else {
-        ssd1306_draw_string(&disp, 0, 27, 1, (char*)"K1: --");
-    }
-    
-    // Show first mouse
-    name = bluepad32_get_device_name('M', 0);
-    if (name) {
-        snprintf(buf, sizeof(buf), "M1:%.20s", name);
-        ssd1306_draw_string(&disp, 0, 36, 1, buf);
-    } else {
-        ssd1306_draw_string(&disp, 0, 36, 1, (char*)"M1: --");
-    }
-#else
-    ssd1306_draw_string(&disp, 0, 0, 1, (char*)"BT not enabled");
+    bt_j2 = bluepad32_get_device_name('J', 0);
+    bt_j1 = bluepad32_get_device_name('J', 1);
+    bt_k1 = bluepad32_get_device_name('K', 0);
+    bt_m1 = bluepad32_get_device_name('M', 0);
 #endif
-    
+
+    // J2 = first gamepad slot (port 2); J1 = second (port 1 when in joystick mode)
+    display_draw_map_line(9, "J2", bt_j2, usb_map_get_gamepad(0));
+    display_draw_map_line(18, "J1", bt_j1, usb_map_get_gamepad(1));
+    display_draw_map_line(27, "K1", bt_k1, usb_map_get_keyboard());
+    display_draw_map_line(36, "M1", bt_m1, usb_map_get_mouse());
+
     ssd1306_show(&disp);
-    current_screen = DISPLAY_SCREEN_BT_NAMES;
+    current_screen = DISPLAY_SCREEN_MAP_DEVICES;
 }
 
 #else
@@ -514,7 +500,7 @@ void display_show_bt_names(void)
 void display_init(void) {}
 void display_show_splash(void) {}
 void display_show_devices(void) {}
-void display_show_bt_names(void) {}
+void display_show_map_devices(void) {}
 void display_update_devices(void) {}
 void display_get_counts(uint8_t *usb_kb, uint8_t *usb_mouse, uint8_t *usb_joy,
                        uint8_t *bt_kb, uint8_t *bt_mouse, uint8_t *bt_joy) {}

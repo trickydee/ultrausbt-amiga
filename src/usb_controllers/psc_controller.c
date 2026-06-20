@@ -14,6 +14,7 @@
 #include "tusb.h"
 #include "platform/amiga/joystick_port2.h"
 #include "display/display.h"
+#include "usb_device_map.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -139,10 +140,13 @@ void psc_mount_cb(uint8_t dev_addr) {
 #endif
     if (!allocate_controller(dev_addr))
         printf("PSC: Failed to allocate controller\n");
+    else
+        usb_map_register_gamepad(dev_addr, "PSC");
 }
 
 void psc_unmount_cb(uint8_t dev_addr) {
     printf("PSC: Controller unmount (addr=%d)\n", dev_addr);
+    usb_map_unregister_gamepad(dev_addr);
     free_controller(dev_addr);
     amiga_joystick_port2_set_direction(AJ2_UP, false);
     amiga_joystick_port2_set_direction(AJ2_DOWN, false);
