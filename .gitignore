@@ -36,3 +36,6 @@ Makefile
 *.swp
 *.swo
 *~
+
+# Local docs and notes (not for commit)
+local/

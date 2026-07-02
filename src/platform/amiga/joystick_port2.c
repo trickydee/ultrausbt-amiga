@@ -15,6 +15,7 @@
 #include "joystick_port2.h"
 #include "config.h"
 #include "platform/common/gpio_util.h"
+#include "cd32_pad.h"
 #include "util/output.h"
 #include <hardware/gpio.h>
 
@@ -47,6 +48,13 @@ void amiga_joystick_port2_set_direction(enum amiga_joystick_port2_direction dir,
         case AJ2_LEFT:  dir2_left = active; break;
         case AJ2_RIGHT: dir2_right = active; break;
     }
+
+    if (cd32_port2_is_enabled()) {
+        uint8_t bits = (dir2_up ? 0x01 : 0) | (dir2_down ? 0x02 : 0) |
+                       (dir2_left ? 0x04 : 0) | (dir2_right ? 0x08 : 0);
+        cd32_port2_update_dpad(bits);
+        return;
+    }
     
     // Amiga joystick port 2 uses separate GPIO pins for each direction (active low):
     // Documented pinout (after swapping LEFT and DOWN back):
@@ -59,19 +67,19 @@ void amiga_joystick_port2_set_direction(enum amiga_joystick_port2_direction dir,
     // Optimized: Only update GPIO pins that have changed state
     // This reduces GPIO operations by ~75% in typical usage (only 1 direction changes at a time)
     if (dir2_up != prev_dir2_up) {
-        amiga_gpio_set_active_low(QM2_AMIGA_V, dir2_up);      // GPIO 19 = UP (JOY0_ATARI_UP)
+        amiga_gpio_set_active_low(QM2_AMIGA_V, dir2_up);      // GPIO 19 = UP
         prev_dir2_up = dir2_up;
     }
     if (dir2_down != prev_dir2_down) {
-        amiga_gpio_set_active_low(QM2_AMIGA_H, dir2_down);    // GPIO 26 = DOWN
+        amiga_gpio_set_active_low(QM2_AMIGA_H, dir2_down);    // GPIO 20 = DOWN
         prev_dir2_down = dir2_down;
     }
     if (dir2_left != prev_dir2_left) {
-        amiga_gpio_set_active_low(QM2_AMIGA_VQ, dir2_left);   // GPIO 22 = LEFT
+        amiga_gpio_set_active_low(QM2_AMIGA_VQ, dir2_left);   // GPIO 21 = LEFT
         prev_dir2_left = dir2_left;
     }
     if (dir2_right != prev_dir2_right) {
-        amiga_gpio_set_active_low(QM2_AMIGA_HQ, dir2_right);  // GPIO 21 = RIGHT
+        amiga_gpio_set_active_low(QM2_AMIGA_HQ, dir2_right);  // GPIO 22 = RIGHT
         prev_dir2_right = dir2_right;
     }
 }
@@ -81,6 +89,11 @@ static bool prev_button1 = false, prev_button2 = false, prev_button3 = false;
 
 void amiga_joystick_port2_set_button(enum amiga_joystick_port2_buttons button, bool pressed)
 {
+    if (cd32_port2_is_enabled()) {
+        cd32_port2_legacy_button(button, pressed);
+        return;
+    }
+
     // Optimized: Only update GPIO if button state has changed
     switch (button) {
         case AJ2_FIRE:

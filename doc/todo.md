@@ -1,6 +1,41 @@
 # TODO - Outstanding Work
 
+> **Active branch:** `feature/cd32` — CD32 gamepad support. Start: [`doc/CD32_BUILD_SPEC.md`](./CD32_BUILD_SPEC.md) + [`doc/future_work.md`](./future_work.md) § P1 CD32.
+
 This document tracks outstanding tasks and improvements for the amigahid-pico project.
+
+## UI alignment (feature/ui-alignment branch)
+
+### Done (v2.1.1)
+- [x] Map Devices screen with USB + BT names (`usb_device_map`, `display_show_map_devices`)
+- [x] Build-all.sh / dist/ layout aligned with Atari adapter
+- [x] README build section; removed `installation.md` and µgui note
+
+### Deferred
+- [ ] Atari-style **cycle gamepad bindings** on Map Devices (see Atari `docs/UI_UNIFICATION.md` Phase 2)
+- [ ] Cleanup review §5–§7 (debug_cons trim, doc consolidation, rev 2/4 removal) — user deferred
+
+## CD32 controller support (`feature/cd32`)
+
+> **Build spec:** [`doc/CD32_BUILD_SPEC.md`](./CD32_BUILD_SPEC.md)
+
+- [x] Phase 0: Port 2 GPIO ↔ DB-9 CD32 pins (PSCD32 / KTRL reference)
+- [x] Phase 1: `cd32_pad.c` + ISRs; `port2_gamepad.c`; BT + PS4/Xbox/Stadia routing
+- [x] Phase 2 (partial): OLED `Port2: CD32/STD`; **Shift + Left Amiga + C** toggle (USB + BT); Llamatron mutual exclusion
+- [ ] Phase 2 (remaining): `port2_gamepad_submit()` in PS3/PS5/Switch/PSC/HORI drivers; flash persist
+- [x] Phase 3 (partial): amiga-test-kit + *Rainbow Islands* (BT gamepads)
+- [ ] Phase 3 (remaining): full test matrix §8; regression pass
+- [ ] Phase 4 (deferred): Port 1 CD32
+
+## Bluetooth pairing (Atari v22.1.0 alignment)
+
+> **Start here:** [`doc/future_work.md`](./future_work.md) § P1 — Bluetooth pairing alignment.  
+> **Full technical context:** [`doc/BT_PAIRING_HANDOFF.md`](./BT_PAIRING_HANDOFF.md).
+
+- [ ] Port refcounted Core 1 pause + `__wfe()` from Atari `main.cpp` → `quad_mouse.c`
+- [ ] Fix `bluepad32_platform.c` (no `sleep_ms` in callbacks; no double-pause on connect; settle/resume delays)
+- [ ] Audit `mouse_config.c` flash sector vs BTstack TLV overlap
+- [ ] Hardware matrix: BT KB + mouse + gamepad pair on Pico 2 W
 
 ## License Compliance
 

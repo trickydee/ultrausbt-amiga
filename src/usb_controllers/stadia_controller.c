@@ -12,7 +12,7 @@
 #include "stadia_controller.h"
 #include "config.h"
 #include "tusb.h"
-#include "platform/amiga/joystick_port2.h"
+#include "platform/amiga/port2_gamepad.h"
 #include "display/display.h"
 #include "usb_device_map.h"
 #include <stdio.h>
@@ -147,24 +147,17 @@ void stadia_update_amiga_joystick(uint8_t dev_addr) {
         }
     }
 
-    bool up    = (direction & 0x01) != 0;
-    bool down  = (direction & 0x02) != 0;
-    bool left  = (direction & 0x04) != 0;
-    bool right = (direction & 0x08) != 0;
+    bool l_trig = (ctrl->buttons & STADIA_BTN_L1) != 0 || ctrl->trigger_left > 128;
+    bool r_trig = (ctrl->buttons & STADIA_BTN_R1) != 0 || ctrl->trigger_right > 128;
 
-    amiga_joystick_port2_set_direction(AJ2_UP, up);
-    amiga_joystick_port2_set_direction(AJ2_DOWN, down);
-    amiga_joystick_port2_set_direction(AJ2_LEFT, left);
-    amiga_joystick_port2_set_direction(AJ2_RIGHT, right);
-
-    bool fire = (ctrl->buttons & (STADIA_BTN_A | STADIA_BTN_B | STADIA_BTN_X | STADIA_BTN_Y | STADIA_BTN_R1 | STADIA_BTN_R2)) != 0
-                || ctrl->trigger_right > 128;
-    bool button2 = (ctrl->buttons & STADIA_BTN_B) != 0;
-    bool button3 = (ctrl->buttons & STADIA_BTN_X) != 0;
-
-    amiga_joystick_port2_set_button(AJ2_FIRE, fire);
-    amiga_joystick_port2_set_button(AJ2_BUTTON2, button2);
-    amiga_joystick_port2_set_button(AJ2_BUTTON3, button3);
+    port2_gamepad_submit(direction,
+                         (ctrl->buttons & STADIA_BTN_A) != 0,
+                         (ctrl->buttons & STADIA_BTN_B) != 0,
+                         (ctrl->buttons & STADIA_BTN_X) != 0,
+                         (ctrl->buttons & STADIA_BTN_Y) != 0,
+                         l_trig,
+                         r_trig,
+                         (ctrl->buttons & STADIA_BTN_START) != 0);
 }
 
 void stadia_mount_cb(uint8_t dev_addr) {
@@ -188,13 +181,7 @@ void stadia_unmount_cb(uint8_t dev_addr) {
     usb_map_unregister_gamepad(dev_addr);
     free_controller(dev_addr);
 
-    amiga_joystick_port2_set_direction(AJ2_UP, false);
-    amiga_joystick_port2_set_direction(AJ2_DOWN, false);
-    amiga_joystick_port2_set_direction(AJ2_LEFT, false);
-    amiga_joystick_port2_set_direction(AJ2_RIGHT, false);
-    amiga_joystick_port2_set_button(AJ2_FIRE, false);
-    amiga_joystick_port2_set_button(AJ2_BUTTON2, false);
-    amiga_joystick_port2_set_button(AJ2_BUTTON3, false);
+    port2_gamepad_clear();
 }
 
 uint8_t stadia_connected_count(void) {

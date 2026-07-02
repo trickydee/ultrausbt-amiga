@@ -20,6 +20,7 @@
 
 #if ENABLE_BLUEPAD32
 #include "platform/amiga/joystick_port1.h"  // For joystick port 1 mode toggle
+#include "platform/amiga/cd32_pad.h"
 #include "platform/amiga/quad_mouse.h"     // For mouse type toggle
 // Forward declarations for Llamatron mode functions
 extern bool usb_hid_get_llamatron_mode(void);
@@ -210,6 +211,10 @@ void display_show_devices(void)
         sprintf(buf, "Type:   %s", mouse_type == MOUSE_TYPE_ATARI ? "Atari" : "Amiga");
         ssd1306_draw_string(&disp, 0, 45, 1, buf);
     }
+#endif
+#if HIDPICO_REVISION == 5
+    sprintf(buf, "Port2:  %s", cd32_port2_is_enabled() ? "CD32" : "STD");
+    ssd1306_draw_string(&disp, 0, 55, 1, buf);
 #endif
     
     ssd1306_show(&disp);

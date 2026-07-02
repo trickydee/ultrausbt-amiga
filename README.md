@@ -27,6 +27,8 @@ USB gamepads are mapped to Amiga joystick port 2 (directions, fire, and second/t
 
 Other USB HID gamepads may work via the generic gamepad path (directions + up to 3 buttons). Bluetooth gamepads are supported on Pico W / Pico 2 W builds via Bluepad32.
 
+**CD32 gamepad mode (Rev 5, v2.1.2):** Toggle Port 2 to the Amiga CD32 seven-button protocol with **Shift + Left Amiga + C** (Left Command / Left Windows on PC/Mac keyboards). Maps modern face buttons and shoulders to CD32 Blue/Red/Yellow/Green/FF/Rew/Pause for CD32-enhanced Amiga titles. See [`doc/CD32_BUILD_SPEC.md`](./doc/CD32_BUILD_SPEC.md).
+
 ## **important note**
 
 * current kicad files are for r5 pcb, pin mappings are not yet in the source tree! i have not yet generated this board as a pcb, but it is mostly identical to r4. the keyboard and controller port 1 are correct at time of writing, and will be fixed for the second controller port when the next prototype arrives.
@@ -37,8 +39,18 @@ Other USB HID gamepads may work via the generic gamepad path (directions + up to
 
 ## documentation
 
+* [continue here (session handoff)](./doc/CONTINUE_HERE.md) — start here when resuming development
 * [hardware](./doc/hardware.md)
 * [errors in revisions (errata)](./doc/errata.md)
+
+## building
+
+Firmware is built with **`build-all.sh`** (see `doc/CONTINUE_HERE.md`). Output UF2s land in **`dist/`**.
+
+```bash
+./build-all.sh                              # default: Pico 2 W
+BUILD_BOARDS=pico,pico2_w ./build.sh        # Pico + Pico 2 W
+```
 
 ## history
 
@@ -55,6 +67,18 @@ the rp2040 made sense as a target because it is widely available, has sufficient
 i have not measured the latency, but the keyboard signals are sent out the moment they are received on the usb bus. the potential latency is likely fractionally longer than the amiga mcu but bear in mind the rp2040 is significantly faster than the standard amiga keyboard controller.
 
 ## release notes
+
+### CD32 gamepad mode (v2.1.2)
+- **Port 2 CD32 protocol:** Shift-register emulation on Rev 5 GPIOs (JOYMODE/CLOCK/DATA on pins 5/6/9) for seven-button CD32 games.
+- **Toggle:** **Shift + Left Amiga + C** from USB or Bluetooth keyboard; OLED Devices screen shows `Port2: CD32` or `Port2: STD`.
+- **Gamepad routing:** Unified `port2_gamepad_submit()` for USB (PS4, Xbox, Stadia, generic HID) and Bluetooth gamepad #1.
+- **Llamatron:** Mutually exclusive with CD32 mode.
+
+### Map Devices UI and build alignment (v2.1.1)
+- **Map Devices screen**: Renamed from Bluetooth Devices; shows J2/J1/K1/M1 with Bluetooth and USB device names.
+- **USB device map**: New `usb_device_map` module; driver-specific labels (PS5, Switch, Xbox, etc.) without generic overwrite.
+- **Build flow**: `build-all.sh` aligned with Atari adapter — builds under `build/build-<board>/`, artifacts in `dist/`.
+- **Docs**: Removed outdated `installation.md` and stale µgui README note; updated `.gitignore`.
 
 ### Pairing UX and startup window (v2.1.0)
 - **Bluetooth pairing control on splash**: Right button now toggles pairing ON/OFF directly from the splash screen.

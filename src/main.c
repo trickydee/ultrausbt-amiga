@@ -20,6 +20,9 @@
 #include "platform/amiga/quad_mouse.h"
 #include "platform/amiga/joystick_port1.h"
 #include "platform/amiga/joystick_port2.h"
+#if HIDPICO_REVISION == 5
+#include "platform/amiga/cd32_pad.h"
+#endif
 #include "platform/common/gpio_util.h"
 #include "util/debug_cons.h"
 #include "util/output.h"
@@ -82,6 +85,7 @@ int main(void)
     printf("========================================\n");
     printf("Port 1 toggle: Shift + Left Amiga + J\n");
     printf("Llamatron mode: Shift + Left Amiga + L\n");
+    printf("Port 2 CD32 mode: Shift + Left Amiga + C\n");
     printf("========================================\n\n");
 
     dbgcons_init();
@@ -121,6 +125,9 @@ int main(void)
 
     // initialize joystick port 2 (dedicated GPIO pins for Revision 5)
     amiga_joystick_port2_init();
+#if HIDPICO_REVISION == 5
+    cd32_port2_init();
+#endif
 
 #if ENABLE_BLUEPAD32
     // initialize bluepad32 for Bluetooth keyboard support (Pico 2 W only)

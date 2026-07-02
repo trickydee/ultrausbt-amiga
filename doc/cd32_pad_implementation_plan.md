@@ -1,5 +1,8 @@
 # CD32 Pad Protocol Implementation Plan
 
+> **Superseded for implementation:** Use **[`doc/CD32_BUILD_SPEC.md`](./CD32_BUILD_SPEC.md)** on branch `feature/cd32`.  
+> This file is kept for protocol background. The GPIO mapping below (Clock/Latch on GPIO 2/3) was **incorrect** for Rev 5 — CD32 Clock/Latch/Data are on **direction pins** (DB-9 pins 2–4 → GPIO 11–13 Port 1, GPIO 20–22 Port 2).
+
 ## Overview
 
 This document outlines the plan for implementing CD32 pad protocol support on joystick port 1 as an alternative to the standard Amiga joystick protocol. The CD32 protocol uses serial communication (clock/data/latch) instead of parallel GPIO, which could solve voltage threshold issues with buttons 2 and 3.

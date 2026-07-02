@@ -13,6 +13,7 @@
 #include "config.h"
 #include "tusb.h"
 #include "platform/amiga/joystick_port2.h"
+#include "platform/amiga/port2_gamepad.h"
 #include "display/display.h"
 #include "usb_device_map.h"
 #include <stdio.h>
@@ -228,24 +229,27 @@ void ps4_update_amiga_joystick(uint8_t dev_addr) {
     bool down = (direction & 0x02) != 0;
     bool left = (direction & 0x04) != 0;
     bool right = (direction & 0x08) != 0;
-    
-    amiga_joystick_port2_set_direction(AJ2_UP, up);
-    amiga_joystick_port2_set_direction(AJ2_DOWN, down);
-    amiga_joystick_port2_set_direction(AJ2_LEFT, left);
-    amiga_joystick_port2_set_direction(AJ2_RIGHT, right);
-    
-    // Map buttons
-    // Cross button = Fire
-    // Circle button = Button 2
-    // Square button = Button 3
-    // R2 trigger (>50%) = also Fire
+    uint8_t dir_bits = (up ? 0x01 : 0) | (down ? 0x02 : 0) | (left ? 0x04 : 0) | (right ? 0x08 : 0);
+
     bool fire = input->cross || (input->r2_trigger > 128);
     bool button2 = input->circle;
     bool button3 = input->square;
-    
-    amiga_joystick_port2_set_button(AJ2_FIRE, fire);
-    amiga_joystick_port2_set_button(AJ2_BUTTON2, button2);
-    amiga_joystick_port2_set_button(AJ2_BUTTON3, button3);
+    bool l_trig = input->l2_trigger > 128;
+    bool r_trig = input->r2_trigger > 128;
+    bool start = input->options;
+
+    (void)fire;
+    (void)button2;
+    (void)button3;
+
+    port2_gamepad_submit(dir_bits,
+                         input->cross || (input->r2_trigger > 128),
+                         input->circle,
+                         input->square,
+                         input->triangle,
+                         l_trig,
+                         r_trig,
+                         start);
 }
 
 void ps4_mount_cb(uint8_t dev_addr) {
@@ -285,13 +289,7 @@ void ps4_unmount_cb(uint8_t dev_addr) {
     free_controller(dev_addr);
     
     // Reset joystick port 2
-    amiga_joystick_port2_set_direction(AJ2_UP, false);
-    amiga_joystick_port2_set_direction(AJ2_DOWN, false);
-    amiga_joystick_port2_set_direction(AJ2_LEFT, false);
-    amiga_joystick_port2_set_direction(AJ2_RIGHT, false);
-    amiga_joystick_port2_set_button(AJ2_FIRE, false);
-    amiga_joystick_port2_set_button(AJ2_BUTTON2, false);
-    amiga_joystick_port2_set_button(AJ2_BUTTON3, false);
+    port2_gamepad_clear();
 }
 
 uint8_t ps4_connected_count(void) {

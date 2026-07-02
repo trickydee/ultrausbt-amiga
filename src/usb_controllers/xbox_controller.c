@@ -14,6 +14,7 @@
 #include "display/display.h"
 #include "usb_device_map.h"
 #include "platform/amiga/joystick_port2.h"
+#include "platform/amiga/port2_gamepad.h"
 #include "xinput_host.h"
 #include <stdio.h>
 
@@ -56,30 +57,22 @@ static void xbox_update_amiga_joystick(uint8_t dev_addr, uint8_t instance,
         if (pad->sThumbLY < -XBOX_DEADZONE) direction |= 0x02;
     }
 
-    amiga_joystick_port2_set_direction(AJ2_UP,    (direction & 0x01) != 0);
-    amiga_joystick_port2_set_direction(AJ2_DOWN,  (direction & 0x02) != 0);
-    amiga_joystick_port2_set_direction(AJ2_LEFT,  (direction & 0x04) != 0);
-    amiga_joystick_port2_set_direction(AJ2_RIGHT, (direction & 0x08) != 0);
-
-    /* Buttons: A = fire, B = button2, X/Y = button3; right trigger can also fire */
     bool fire    = (pad->wButtons & XINPUT_GAMEPAD_A) != 0 || pad->bRightTrigger > 128;
     bool button2 = (pad->wButtons & XINPUT_GAMEPAD_B) != 0;
-    bool button3 = (pad->wButtons & (XINPUT_GAMEPAD_X | XINPUT_GAMEPAD_Y)) != 0;
 
-    amiga_joystick_port2_set_button(AJ2_FIRE, fire);
-    amiga_joystick_port2_set_button(AJ2_BUTTON2, button2);
-    amiga_joystick_port2_set_button(AJ2_BUTTON3, button3);
+    port2_gamepad_submit(direction,
+                         fire,
+                         button2,
+                         (pad->wButtons & XINPUT_GAMEPAD_X) != 0,
+                         (pad->wButtons & XINPUT_GAMEPAD_Y) != 0,
+                         pad->bLeftTrigger > 128,
+                         pad->bRightTrigger > 128,
+                         (pad->wButtons & XINPUT_GAMEPAD_START) != 0);
 }
 
 static void xbox_clear_amiga_joystick(void)
 {
-    amiga_joystick_port2_set_direction(AJ2_UP, false);
-    amiga_joystick_port2_set_direction(AJ2_DOWN, false);
-    amiga_joystick_port2_set_direction(AJ2_LEFT, false);
-    amiga_joystick_port2_set_direction(AJ2_RIGHT, false);
-    amiga_joystick_port2_set_button(AJ2_FIRE, false);
-    amiga_joystick_port2_set_button(AJ2_BUTTON2, false);
-    amiga_joystick_port2_set_button(AJ2_BUTTON3, false);
+    port2_gamepad_clear();
 }
 
 //--------------------------------------------------------------------
