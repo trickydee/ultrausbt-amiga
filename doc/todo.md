@@ -22,10 +22,9 @@ This document tracks outstanding tasks and improvements for the amigahid-pico pr
 - [x] Phase 0: Port 2 GPIO ↔ DB-9 CD32 pins (PSCD32 / KTRL reference)
 - [x] Phase 1: `cd32_pad.c` + ISRs; `port2_gamepad.c`; BT + PS4/Xbox/Stadia routing
 - [x] Phase 2 (partial): OLED `Port2: CD32/STD`; **Shift + Left Amiga + C** toggle (USB + BT); Llamatron mutual exclusion
-- [ ] Phase 2 (remaining): `port2_gamepad_submit()` in PS3/PS5/Switch/PSC/HORI drivers; flash persist
-- [x] Phase 3 (partial): amiga-test-kit + *Rainbow Islands* (BT gamepads)
-- [ ] Phase 3 (remaining): full test matrix §8; regression pass
-- [ ] Phase 4 (deferred): Port 1 CD32
+- [x] Phase 2 (partial): flash persist for Port 1 mode + Port 2 CD32
+- [x] Phase 4 (partial): Port 1 CD32 + OLED 4-state cycle; BT pad #2
+- [ ] Phase 4 (remaining): USB pad → Port 1 CD32 routing
 
 ## Bluetooth pairing (Atari v22.1.0 alignment)
 

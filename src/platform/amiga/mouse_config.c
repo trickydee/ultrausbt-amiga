@@ -1,120 +1,126 @@
 /**
- * this file is part of amigahid-pico, (c) 2021 just nine <nine@aphlor.org>
- * please locate the full source at https://github.com/borb/amigahid-pico
- *
- * released under the terms of the Eclipse Public License 2.0 (EPL-2.0).
- * please find the complete license text at https://spdx.org/licenses/EPL-2.0
- *
- * Mouse configuration persistence using flash storage.
+ * Mouse and port configuration persistence using flash storage.
  */
 
 #include "mouse_config.h"
-#include "quad_mouse.h"
 #include "pico/flash.h"
 #include "pico/stdlib.h"
 #include "hardware/flash.h"
-#include "hardware/sync.h"  // For save_and_disable_interrupts()
-#include <stdio.h>          // For printf
+#include "hardware/sync.h"
+#include <stdio.h>
 #include <string.h>
 
-// Flash storage configuration
-// CRITICAL: Use the LAST 4KB sector of flash so config never overwrites firmware.
-// Pico W / Pico 2 W firmware can be ~1.2–1.3MB; storing at 0x40000 (256KB) was
-// inside the firmware region and caused hangs/corruption when saving mouse type.
-// Last sector of 2MB flash: 0x200000 - 0x1000 = 0x1FF000
 #define CONFIG_FLASH_OFFSET (PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE)
-#define CONFIG_MAGIC 0x4D4F5553  // "MOUS" in ASCII
+#define CONFIG_MAGIC_LEGACY 0x4D4F5553  /* "MOUS" */
+#define CONFIG_MAGIC        0x414D4947  /* "AMIG" */
+#define CONFIG_VERSION      2
 
-// Configuration data structure
 typedef struct {
-    uint32_t magic;           // Validation magic number (0x4D4F5553 = "MOUS")
-    mouse_type_t mouse_type;  // Current mouse type (0 = Amiga, 1 = Atari)
-    uint32_t reserved[14];    // Reserved for future settings (64 bytes total)
-} mouse_config_t;
+    uint32_t magic;
+    uint32_t version;
+    mouse_type_t mouse_type;
+    uint8_t port1_mode;
+    uint8_t port2_cd32;
+    uint8_t pad[2];
+    uint32_t reserved[12];
+} port_config_flash_t;
 
-// Static buffer for flash operations (must be aligned to 256 bytes)
 static uint8_t __attribute__((aligned(256))) flash_buffer[FLASH_SECTOR_SIZE];
 
-/**
- * Load mouse configuration from flash storage.
- * Returns the saved mouse type, or MOUSE_TYPE_AMIGA if no valid config found.
- */
-mouse_type_t mouse_config_load(void)
-{
-    // Flash is memory-mapped, so we can read directly
-    const mouse_config_t *config = (const mouse_config_t *)(XIP_BASE + CONFIG_FLASH_OFFSET);
-    
-    // Validate magic number
-    if (config->magic == CONFIG_MAGIC) {
-        // Validate mouse type value
-        if (config->mouse_type == MOUSE_TYPE_AMIGA || config->mouse_type == MOUSE_TYPE_ATARI) {
-            printf("[CONFIG] Loaded mouse type: %s\n", 
-                   config->mouse_type == MOUSE_TYPE_ATARI ? "Atari" : "Amiga");
-            return config->mouse_type;
-        }
-    }
-    
-    // No valid config found - return default
-    printf("[CONFIG] No valid config found, using default (Amiga)\n");
-    return MOUSE_TYPE_AMIGA;
+static bool port1_mode_valid(uint8_t mode) {
+    return mode <= (uint8_t)PORT1_MODE_CD32;
 }
 
-/**
- * Save mouse configuration to flash storage.
- * Returns true on success, false on failure.
- * 
- * NOTE: This function uses flash_safe_execute to coordinate with Core 1
- * to prevent conflicts with flash_safe_execute coordination.
- */
-// Flash operation helper - must be called from flash_safe_execute context
-static void mouse_config_flash_write(void* param)
-{
-    mouse_type_t mouse_type = (mouse_type_t)(uintptr_t)param;
-    mouse_config_t *config = (mouse_config_t *)flash_buffer;
-    
-    printf("[CONFIG] Preparing flash buffer...\n");
-    // Prepare configuration data
-    memset(flash_buffer, 0xFF, FLASH_SECTOR_SIZE);  // Erase pattern (all 1s)
+static void port_config_flash_write(void* param) {
+    const port_config_data_t* src = (const port_config_data_t*)param;
+    port_config_flash_t* config = (port_config_flash_t*)flash_buffer;
+
+    memset(flash_buffer, 0xFF, FLASH_SECTOR_SIZE);
     config->magic = CONFIG_MAGIC;
-    config->mouse_type = mouse_type;
-    // Reserved fields remain 0xFF (erased state)
-    
-    printf("[CONFIG] Erasing flash sector at 0x%x...\n", CONFIG_FLASH_OFFSET);
-    // Erase flash sector and write new data
-    // Disable interrupts during flash operations
+    config->version = CONFIG_VERSION;
+    config->mouse_type = src->mouse_type;
+    config->port1_mode = (uint8_t)src->port1_mode;
+    config->port2_cd32 = src->port2_cd32 ? 1 : 0;
+
     uint32_t ints = save_and_disable_interrupts();
     flash_range_erase(CONFIG_FLASH_OFFSET, FLASH_SECTOR_SIZE);
     restore_interrupts(ints);
-    
-    printf("[CONFIG] Programming flash...\n");
+
     ints = save_and_disable_interrupts();
     flash_range_program(CONFIG_FLASH_OFFSET, flash_buffer, FLASH_PAGE_SIZE);
     restore_interrupts(ints);
 }
 
-bool mouse_config_save(mouse_type_t mouse_type)
-{
-    printf("[CONFIG] Starting save: mouse_type=%d (%s)\n", 
-           mouse_type, mouse_type == MOUSE_TYPE_ATARI ? "Atari" : "Amiga");
-    
-    // CRITICAL: Use flash_safe_execute to coordinate with Core 1
-    // Core 1 uses flash_safe_execute_core_init() for Bluetooth flash operations
-    // Using flash_safe_execute() ensures proper coordination and prevents deadlocks
-    printf("[CONFIG] Executing flash write with Core 1 coordination...\n");
-    
-    // Use a longer timeout (5 seconds) to allow Core 1 to finish any ongoing flash operations
-    // This is especially important during Bluetooth pairing when Core 1 may be in flash_safe_execute
-    int result = flash_safe_execute(mouse_config_flash_write, (void*)(uintptr_t)mouse_type, 5000);
-    
-    if (result != 0) {
-        printf("[CONFIG] ERROR: Flash write failed with code %d (timeout or error)\n", result);
-        printf("[CONFIG] This may indicate Core 1 is stuck in a flash operation\n");
+void port_config_load(port_config_data_t* out) {
+    if (out == NULL) {
+        return;
+    }
+
+    out->mouse_type = MOUSE_TYPE_AMIGA;
+    out->port1_mode = PORT1_MODE_MOUSE;
+    out->port2_cd32 = false;
+
+    const port_config_flash_t* flash = (const port_config_flash_t*)(XIP_BASE + CONFIG_FLASH_OFFSET);
+
+    if (flash->magic == CONFIG_MAGIC && flash->version >= CONFIG_VERSION) {
+        if (flash->mouse_type == MOUSE_TYPE_AMIGA || flash->mouse_type == MOUSE_TYPE_ATARI) {
+            out->mouse_type = flash->mouse_type;
+        }
+        if (port1_mode_valid(flash->port1_mode)) {
+            out->port1_mode = (port1_mode_t)flash->port1_mode;
+        }
+        out->port2_cd32 = flash->port2_cd32 != 0;
+        printf("[CONFIG] Loaded v%d: mouse=%s port1=%u port2_cd32=%d\n",
+               flash->version,
+               out->mouse_type == MOUSE_TYPE_ATARI ? "Atari" : "Amiga",
+               (unsigned)out->port1_mode,
+               out->port2_cd32 ? 1 : 0);
+        return;
+    }
+
+    if (flash->magic == CONFIG_MAGIC_LEGACY) {
+        typedef struct {
+            uint32_t magic;
+            mouse_type_t mouse_type;
+        } port_config_legacy_t;
+        const port_config_legacy_t* legacy = (const port_config_legacy_t*)flash;
+        if (legacy->mouse_type == MOUSE_TYPE_AMIGA || legacy->mouse_type == MOUSE_TYPE_ATARI) {
+            out->mouse_type = legacy->mouse_type;
+        }
+        printf("[CONFIG] Migrated legacy MOUS config (mouse type only)\n");
+        return;
+    }
+
+    printf("[CONFIG] No valid config found, using defaults\n");
+}
+
+bool port_config_save(const port_config_data_t* config) {
+    if (config == NULL) {
         return false;
     }
-    
-    printf("[CONFIG] Flash write complete\n");
-    printf("[CONFIG] Saved mouse type: %s\n", 
-           mouse_type == MOUSE_TYPE_ATARI ? "Atari" : "Amiga");
+
+    printf("[CONFIG] Saving: mouse=%s port1=%u port2_cd32=%d\n",
+           config->mouse_type == MOUSE_TYPE_ATARI ? "Atari" : "Amiga",
+           (unsigned)config->port1_mode,
+           config->port2_cd32 ? 1 : 0);
+
+    int result = flash_safe_execute(port_config_flash_write, (void*)config, 5000);
+    if (result != 0) {
+        printf("[CONFIG] ERROR: flash save failed (%d)\n", result);
+        return false;
+    }
     return true;
 }
 
+mouse_type_t mouse_config_load(void) {
+    port_config_data_t config;
+    port_config_load(&config);
+    return config.mouse_type;
+}
+
+bool mouse_config_save(mouse_type_t mouse_type) {
+    port_config_data_t config;
+    port_config_load(&config);
+    config.mouse_type = mouse_type;
+    return port_config_save(&config);
+}

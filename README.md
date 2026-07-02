@@ -68,6 +68,12 @@ i have not measured the latency, but the keyboard signals are sent out the momen
 
 ## release notes
 
+### Port 1 CD32, mode persistence, OLED cycle (v2.2.0)
+- **Port 1 CD32:** Seven-button protocol on Port 1 (BT gamepad #2); Core 1 mouse paused while active.
+- **OLED left button:** Cycles Port 1 **MOUSE → JOY → LLAMA → CD32 → MOUSE** on splash and Devices screens.
+- **Flash persistence:** Port 1 mode and Port 2 CD32 setting saved across reboots (`port_config` sector).
+- **Port mode manager:** `port_mode.c` centralizes mutual exclusion (CD32 vs Llamatron, Port 1 vs Port 2 CD32).
+
 ### CD32 gamepad mode (v2.1.2)
 - **Port 2 CD32 protocol:** Shift-register emulation on Rev 5 GPIOs (JOYMODE/CLOCK/DATA on pins 5/6/9) for seven-button CD32 games.
 - **Toggle:** **Shift + Left Amiga + C** from USB or Bluetooth keyboard; OLED Devices screen shows `Port2: CD32` or `Port2: STD`.

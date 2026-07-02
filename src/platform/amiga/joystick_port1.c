@@ -20,6 +20,7 @@
 #include "joystick_port1.h"
 #include "config.h"
 #include "platform/common/gpio_util.h"
+#include "cd32_pad.h"
 #include <hardware/gpio.h>
 #include "hardware/sync.h"  // For memory barriers (__sync_synchronize)
 
@@ -58,6 +59,15 @@ void amiga_joystick_port1_set_direction(enum amiga_joystick_port1_direction dir,
         case AJ1_LEFT:  dir_left = active; break;
         case AJ1_RIGHT: dir_right = active; break;
     }
+
+#if HIDPICO_REVISION == 5
+    if (cd32_port1_is_enabled()) {
+        uint8_t bits = (dir_up ? 0x01 : 0) | (dir_down ? 0x02 : 0) |
+                       (dir_left ? 0x04 : 0) | (dir_right ? 0x08 : 0);
+        cd32_port1_update_dpad(bits);
+        return;
+    }
+#endif
     
     // Amiga joystick port 1: Use separate pins for each direction (same approach as port 2)
     // H pin (GPIO 11) = DOWN direction (LOW = active)
@@ -94,6 +104,12 @@ void amiga_joystick_port1_set_direction(enum amiga_joystick_port1_direction dir,
 
 void amiga_joystick_port1_set_button(enum amiga_joystick_port1_buttons button, bool pressed)
 {
+#if HIDPICO_REVISION == 5
+    if (cd32_port1_is_enabled()) {
+        cd32_port1_legacy_button(button, pressed);
+        return;
+    }
+#endif
     switch (button) {
         case AJ1_FIRE:
             amiga_gpio_set_active_low(QM1_AMIGA_B1, pressed);

@@ -22,6 +22,7 @@
 #include "platform/amiga/joystick_port2.h"
 #if HIDPICO_REVISION == 5
 #include "platform/amiga/cd32_pad.h"
+#include "platform/amiga/port_mode.h"
 #endif
 #include "platform/common/gpio_util.h"
 #include "util/debug_cons.h"
@@ -126,7 +127,10 @@ int main(void)
     // initialize joystick port 2 (dedicated GPIO pins for Revision 5)
     amiga_joystick_port2_init();
 #if HIDPICO_REVISION == 5
+    cd32_port1_init();
     cd32_port2_init();
+    port_mode_init();
+    display_show_splash();
 #endif
 
 #if ENABLE_BLUEPAD32

@@ -19,12 +19,12 @@
 #endif
 
 #if ENABLE_BLUEPAD32
-#include "platform/amiga/joystick_port1.h"  // For joystick port 1 mode toggle
+#include "platform/amiga/joystick_port1.h"
 #include "platform/amiga/cd32_pad.h"
-#include "platform/amiga/quad_mouse.h"     // For mouse type toggle
+#include "platform/amiga/port_mode.h"
+#include "platform/amiga/quad_mouse.h"
 // Forward declarations for Llamatron mode functions
 extern bool usb_hid_get_llamatron_mode(void);
-extern void usb_hid_toggle_llamatron_mode(void);
 #endif
 
 // Software version is defined in config.h (included above)
@@ -110,21 +110,20 @@ void display_show_splash(void)
     
     // Show Port 1 mode as title (AMIGA, ATARI, JOYSTICK, or LLAMA, centered, scale 2x)
 #if ENABLE_BLUEPAD32
-    bool is_joy_mode = amiga_joystick_port1_is_joystick_mode();
-    bool llamatron_enabled = usb_hid_get_llamatron_mode();
+    port1_mode_t port1_mode = port_mode_get_port1();
     const char* title;
     int x_pos;
-    
-    if (is_joy_mode && llamatron_enabled) {
-        // Llamatron mode - shortened to "LLAMA" (5 chars at 2x scale)
+
+    if (port1_mode == PORT1_MODE_LLAMA) {
         title = "LLAMA";
         x_pos = 25;
-    } else if (is_joy_mode) {
-        // Joystick mode - move left to fit (8 chars at 2x scale)
+    } else if (port1_mode == PORT1_MODE_CD32) {
+        title = "CD32";
+        x_pos = 30;
+    } else if (port1_mode == PORT1_MODE_JOY) {
         title = "JOYSTICK";
         x_pos = 5;
     } else {
-        // Mouse mode - show mouse type (5 chars at 2x scale, centered)
         mouse_type_t mouse_type = amiga_quad_mouse_get_type();
         title = (mouse_type == MOUSE_TYPE_ATARI) ? "ATARI" : "AMIGA";
         x_pos = 25;
@@ -191,29 +190,16 @@ void display_show_devices(void)
     ssd1306_draw_string(&disp, 0, 27, 1, buf);
     
 #if ENABLE_BLUEPAD32
-    // Show Port 1 mode status and mouse type on bottom lines
-    bool is_joy_mode = amiga_joystick_port1_is_joystick_mode();
-    bool llamatron_enabled = usb_hid_get_llamatron_mode();
-    
-    if (is_joy_mode && llamatron_enabled) {
-        // Llamatron mode (LTRON)
-        sprintf(buf, "Port1:  LTRON");
-        ssd1306_draw_string(&disp, 0, 36, 1, buf);
-    } else if (is_joy_mode) {
-        // Joystick mode
-        sprintf(buf, "Port1:  JOY");
-        ssd1306_draw_string(&disp, 0, 36, 1, buf);
-    } else {
-        // Mouse mode - show mouse type
+    sprintf(buf, "Port1:  %s", port_mode_port1_label());
+    ssd1306_draw_string(&disp, 0, 36, 1, buf);
+    if (port_mode_get_port1() == PORT1_MODE_MOUSE) {
         mouse_type_t mouse_type = amiga_quad_mouse_get_type();
-        sprintf(buf, "Port1:  MOUSE");
-        ssd1306_draw_string(&disp, 0, 36, 1, buf);
         sprintf(buf, "Type:   %s", mouse_type == MOUSE_TYPE_ATARI ? "Atari" : "Amiga");
         ssd1306_draw_string(&disp, 0, 45, 1, buf);
     }
 #endif
 #if HIDPICO_REVISION == 5
-    sprintf(buf, "Port2:  %s", cd32_port2_is_enabled() ? "CD32" : "STD");
+    sprintf(buf, "Port2:  %s", port_mode_get_port2_cd32() ? "CD32" : "STD");
     ssd1306_draw_string(&disp, 0, 55, 1, buf);
 #endif
     
@@ -333,51 +319,12 @@ void display_handle_buttons(void)
             if (++button_left_debounce == BUTTON_DEBOUNCE_COUNT) {
                 if (current_screen == DISPLAY_SCREEN_SPLASH) {
 #if ENABLE_BLUEPAD32
-                    // On splash screen: Cycle through Port 1 modes
-                    // MOUSE -> JOY -> LTRON -> MOUSE (3-state cycle)
-                    bool is_joy_mode = amiga_joystick_port1_is_joystick_mode();
-                    bool llamatron_enabled = usb_hid_get_llamatron_mode();
-                    
-                    if (!is_joy_mode) {
-                        // Currently in MOUSE mode: switch to JOY mode
-                        amiga_joystick_port1_toggle_mode();
-                        printf("Port 1 mode: JOYSTICK\n");
-                    } else if (is_joy_mode && !llamatron_enabled) {
-                        // Currently in JOY mode, Llamatron OFF: enable Llamatron (LTRON mode)
-                        usb_hid_toggle_llamatron_mode();
-                        printf("Port 1 mode: LLAMA\n");
-                    } else if (is_joy_mode && llamatron_enabled) {
-                        // Currently in LTRON mode: disable Llamatron and switch back to MOUSE mode
-                        usb_hid_toggle_llamatron_mode();
-                        amiga_joystick_port1_toggle_mode();  // Switch back to MOUSE mode
-                        printf("Port 1 mode: MOUSE\n");
-                    }
-                    
-                    // Refresh splash screen to show new mode
+                    port_mode_cycle_port1();
                     display_show_splash();
 #endif
                 } else if (current_screen == DISPLAY_SCREEN_DEVICES) {
 #if ENABLE_BLUEPAD32
-                    // On devices screen: Cycle through Port 1 modes
-                    // MOUSE -> JOY -> LTRON -> MOUSE (3-state cycle)
-                    bool is_joy_mode = amiga_joystick_port1_is_joystick_mode();
-                    bool llamatron_enabled = usb_hid_get_llamatron_mode();
-                    
-                    if (!is_joy_mode) {
-                        // Currently in MOUSE mode: switch to JOY mode
-                        amiga_joystick_port1_toggle_mode();
-                        printf("Port 1 mode: JOYSTICK\n");
-                    } else if (is_joy_mode && !llamatron_enabled) {
-                        // Currently in JOY mode, Llamatron OFF: enable Llamatron (LTRON mode)
-                        usb_hid_toggle_llamatron_mode();
-                        printf("Port 1 mode: LTRON\n");
-                    } else if (is_joy_mode && llamatron_enabled) {
-                        // Currently in LTRON mode: disable Llamatron and switch back to MOUSE mode
-                        usb_hid_toggle_llamatron_mode();
-                        amiga_joystick_port1_toggle_mode();  // Switch back to MOUSE mode
-                        printf("Port 1 mode: MOUSE\n");
-                    }
-                    // Refresh devices screen
+                    port_mode_cycle_port1();
                     display_show_devices();
 #endif
                 }

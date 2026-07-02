@@ -1,7 +1,7 @@
 # CD32 controller support — build specification
 
 **Branch:** `feature/cd32`  
-**Status:** Implemented (v2.1.2) — validated with amiga-test-kit and CD32-enhanced titles (e.g. *Rainbow Islands*)  
+**Status:** Implemented (v2.2.0) — Port 1 + Port 2 CD32, OLED 4-state cycle, flash persistence  
 **Hardware target:** Rev 5 (`HIDPICO_REVISION == 5`) — Pico 2 W + ultramegausb board  
 **Prior research:** [`doc/cd32_pad_implementation_plan.md`](./cd32_pad_implementation_plan.md) (2024 draft — superseded; kept for protocol background)  
 **Protocol reference:** [PSCD32 Development Diary, 9 Aug 2019](https://www.mrdictionary.net/PSCD32/diary/2019_08_09.htm) (Mathew Carr) — analysis of Gerd Kautzmann’s CD32 pad schematic; **authoritative DB-9 pin roles** below.
@@ -283,7 +283,7 @@ When CD32 active, Map Devices row **J2** could show `CD32` suffix — optional v
 - [x] Route PS4, Xbox, Stadia, generic HID, and BT gamepad #0 through `port2_gamepad_submit()`.
 - [x] OLED Devices footer: `Port2: CD32` / `Port2: STD`.
 - [x] Toggle: **Shift + Left Amiga + C** (USB + BT keyboards).
-- [ ] Flash persistence for CD32 flag.
+- [x] Flash persistence for CD32 flag and Port 1 mode (`port_config` in flash).
 - [x] Disable Llamatron when CD32 on (and vice versa).
 - [ ] Remaining USB drivers (PS3, PS5, Switch, PSC, HORI) — still on legacy 3-button path when CD32 off; need `port2_gamepad_submit()` when CD32 on.
 
@@ -294,11 +294,13 @@ When CD32 active, Map Devices row **J2** could show `CD32` suffix — optional v
 - [ ] Full matrix in §8.
 - [ ] Regression: standard joystick mode, mouse, keyboard, BT pairing unchanged.
 
-### Phase 4 — Port 1 CD32 (optional, deferred)
+### Phase 4 — Port 1 CD32
 
-- [ ] Pause Core 1 quadrature when Port 1 CD32 enabled.
-- [ ] Same ISR logic on GPIO 10–13.
-- [ ] Resolve conflict with mouse/BT second pad.
+- [x] `cd32_pad.c` parameterized for Port 1 (GPIO 10–14, 2, 3) and Port 2.
+- [x] Core 1 paused when Port 1 CD32 active; mouse buttons blocked on serial GPIOs.
+- [x] BT gamepad #2 → `port1_gamepad_submit()` when Port 1 CD32.
+- [x] OLED left button: **MOUSE → JOY → LLAMA → CD32 → MOUSE** (splash + Devices screen).
+- [ ] USB gamepad routing to Port 1 CD32 (USB pads still Port 2 only).
 
 ---
 
@@ -310,7 +312,7 @@ When CD32 active, Map Devices row **J2** could show `CD32` suffix — optional v
 | 2 | CD32 on, USB pad | CD32 title | All 7 buttons + D-pad |
 | 3 | CD32 on, BT pad #1 | Same | **Pass** (Stadia, PS5) |
 | 4 | CD32 on | Toggle off mid-game | Returns to 3-button joy |
-| 5 | CD32 on | Reboot | Mode restored from flash — **not yet** (no persist) |
+| 5 | CD32 on | Reboot | Mode restored from flash — **Pass** (Port 1 mode + Port 2 CD32) |
 | 6 | CD32 on + Llamatron attempt | Toggle Llamatron | Llamatron blocked or CD32 disabled with message — **Pass** |
 | 7 | CD32 on | USB keyboard + mouse still work | No regression |
 | 8 | CD32 on | Pair new BT gamepad | Pairing OK (after BT v22.1.0 port if needed) |

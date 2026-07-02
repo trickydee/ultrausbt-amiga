@@ -12,6 +12,7 @@
 #include "quad_mouse.h"
 #include "platform/common/gpio_util.h"
 #include "platform/amiga/joystick_port1.h"  // For checking joystick mode
+#include "platform/amiga/cd32_pad.h"
 #include "util/output.h"
 
 #include <stdint.h>
@@ -101,6 +102,11 @@ void amiga_quad_mouse_init()
 
 void amiga_quad_mouse_button(enum amiga_quad_mouse_buttons button, bool pressed)
 {
+#if HIDPICO_REVISION == 5
+    if (cd32_port1_is_enabled()) {
+        return;
+    }
+#endif
     // Set GPIO state immediately - don't wait for state changes
     // This ensures buttons respond instantly, not just on state transitions
     switch (button) {
@@ -352,8 +358,13 @@ void amiga_quad_mouse_motion()
                     // lut_b: {0, 0, 1, 1} - Signal B (90° shifted)
                     __sync_synchronize();
                     bool joy_mode = amiga_joystick_port1_is_joystick_mode();
+#if HIDPICO_REVISION == 5
+                    bool port1_cd32 = cd32_port1_is_enabled();
+#else
+                    bool port1_cd32 = false;
+#endif
                     __sync_synchronize();
-                    if (!joy_mode) {
+                    if (!joy_mode && !port1_cd32) {
                         uint32_t gpio_hq = get_gpio_hq();
                         uint8_t quad_state = xph & 0x03;
                         // Quadrature lookup tables
@@ -381,8 +392,13 @@ void amiga_quad_mouse_motion()
                     
                     __sync_synchronize();
                     bool joy_mode = amiga_joystick_port1_is_joystick_mode();
+#if HIDPICO_REVISION == 5
+                    bool port1_cd32 = cd32_port1_is_enabled();
+#else
+                    bool port1_cd32 = false;
+#endif
                     __sync_synchronize();
-                    if (!joy_mode) {
+                    if (!joy_mode && !port1_cd32) {
                         uint32_t gpio_v = get_gpio_v();
                         uint8_t quad_state = yph & 0x03;
                         // Quadrature lookup tables
