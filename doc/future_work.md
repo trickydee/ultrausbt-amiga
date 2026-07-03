@@ -9,13 +9,24 @@
 
 ## P1 — CD32 controller support (`feature/cd32`)
 
-**Status:** Port 2 CD32 implemented and tested (v2.1.2) — amiga-test-kit + *Rainbow Islands* on BT Stadia/PS5. Flash persist and remaining USB drivers still open.
+**Status:** v2.2.2 — dual Port 1 + Port 2 CD32; **known instability** (ghost adjacent buttons, BT slot routing on disconnect). See § CD32 known issues below.
 
 **Goal:** Map USB/BT gamepads to the Amiga **CD32 serial pad protocol** (7 buttons + D-pad), not only standard 3-button joystick.
 
 **Build spec (authoritative):** [`doc/CD32_BUILD_SPEC.md`](./CD32_BUILD_SPEC.md)
 
 **Prior draft (background only):** [`doc/cd32_pad_implementation_plan.md`](./cd32_pad_implementation_plan.md) — GPIO mapping there is **superseded** by the build spec (Clock/Latch are direction pins 2–4, not GPIO 2/3).
+
+### Known issues / next fixes (v2.2.2)
+
+1. **CD32 shift-register timing** — Occasional ghost presses on adjacent buttons (e.g. B also triggers A, Y also triggers G). Likely DATA not stable before CLOCK sample, JOYMODE/dumb-mode window (`cd32_service()` deferral), or dual-port IRQ latency. Fixes to explore:
+   - Present next bit on CLOCK **falling** edge (or earlier setup before rise)
+   - Minimal dumb-mode GPIO updates immediately on JOYMODE rise in ISR
+   - Atomic `buttons` → `buttons_shadow` copy at latch
+
+2. **BT gamepad slot routing on disconnect** — Slots are assigned by **connection order** (`bt_gamepads[0]` → Port 2, `[1]` → Port 1), not by port intent. Powering off the first-paired pad leaves the survivor in slot 1 while routing only reads slot 0 for Port 2 and requires `count > 1` for Port 1 → **no pad input** until re-pair. Reconnect may land in slot 0 (Port 2) regardless of desired port. Fixes to explore:
+   - Compact slots when a pad disconnects (promote slot 1 → 0)
+   - Stable assignment by Bluetooth address or user “bind to port” UI
 
 ### Implementation order
 

@@ -159,6 +159,10 @@ int main(void)
         // amiga keyboard service routine
         amiga_service();
 
+#if HIDPICO_REVISION == 5
+        cd32_service();
+#endif
+
 #if ENABLE_BLUEPAD32
         // poll bluepad32 for Bluetooth events (only if enabled)
         if (bluepad32_is_enabled()) {

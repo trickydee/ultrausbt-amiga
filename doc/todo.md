@@ -23,7 +23,10 @@ This document tracks outstanding tasks and improvements for the amigahid-pico pr
 - [x] Phase 1: `cd32_pad.c` + ISRs; `port2_gamepad.c`; BT + PS4/Xbox/Stadia routing
 - [x] Phase 2 (partial): OLED `Port2: CD32/STD`; **Shift + Left Amiga + C** toggle (USB + BT); Llamatron mutual exclusion
 - [x] Phase 2 (partial): flash persist for Port 1 mode + Port 2 CD32
-- [x] Phase 4 (partial): Port 1 CD32 + OLED 4-state cycle; BT pad #2
+- [x] Phase 4 (partial): Port 1 CD32 + OLED 4-state cycle; BT pad #2; dual simultaneous CD32 (v2.2.1)
+- [x] Phase 4 (partial): ISR starvation fix + `cd32_service()` deferral (v2.2.2)
+- [ ] **CD32 shift-register timing** — ghost adjacent buttons (B+A, Y+G); see [`doc/future_work.md`](./future_work.md)
+- [ ] **BT gamepad slot routing** — disconnect/reconnect order breaks Port 1/2 mapping; see [`doc/future_work.md`](./future_work.md)
 - [ ] Phase 4 (remaining): USB pad → Port 1 CD32 routing
 
 ## Bluetooth pairing (Atari v22.1.0 alignment)

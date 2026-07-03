@@ -1,7 +1,7 @@
 # CD32 controller support — build specification
 
 **Branch:** `feature/cd32`  
-**Status:** Implemented (v2.2.0) — Port 1 + Port 2 CD32, OLED 4-state cycle, flash persistence  
+**Status:** Implemented (v2.2.2) — dual Port 1 + Port 2 CD32; **known instability** (see §9 risks + `doc/future_work.md`)  
 **Hardware target:** Rev 5 (`HIDPICO_REVISION == 5`) — Pico 2 W + ultramegausb board  
 **Prior research:** [`doc/cd32_pad_implementation_plan.md`](./cd32_pad_implementation_plan.md) (2024 draft — superseded; kept for protocol background)  
 **Protocol reference:** [PSCD32 Development Diary, 9 Aug 2019](https://www.mrdictionary.net/PSCD32/diary/2019_08_09.htm) (Mathew Carr) — analysis of Gerd Kautzmann’s CD32 pad schematic; **authoritative DB-9 pin roles** below.
@@ -167,7 +167,7 @@ Single default layout for v1 (Xbox-style / Bluepad32 names):
 | USB gamepad (first connected) | ✅ Map through CD32 layer |
 | BT gamepad #1 | ✅ Map through CD32 layer |
 | BT gamepad #2 | Standard Port 1 only (unchanged) |
-| Llamatron | **Disabled** while Port 2 CD32 active (mutually exclusive) |
+| Llamatron | **Disabled** while either port CD32 active (mutually exclusive) |
 
 ---
 
@@ -296,9 +296,9 @@ When CD32 active, Map Devices row **J2** could show `CD32` suffix — optional v
 
 ### Phase 4 — Port 1 CD32
 
-- [x] `cd32_pad.c` parameterized for Port 1 (GPIO 10–14, 2, 3) and Port 2.
+- [x] `cd32_pad.c` — **independent per-port shift state** (Port 1 + Port 2 can run CD32 simultaneously).
 - [x] Core 1 paused when Port 1 CD32 active; mouse buttons blocked on serial GPIOs.
-- [x] BT gamepad #2 → `port1_gamepad_submit()` when Port 1 CD32.
+- [x] BT gamepad #2 → `port1_gamepad_submit()` when Port 1 CD32; BT gamepad #1 → Port 2 when Port 2 CD32 (dual-pad setup).
 - [x] OLED left button: **MOUSE → JOY → LLAMA → CD32 → MOUSE** (splash + Devices screen).
 - [ ] USB gamepad routing to Port 1 CD32 (USB pads still Port 2 only).
 
@@ -317,6 +317,7 @@ When CD32 active, Map Devices row **J2** could show `CD32` suffix — optional v
 | 7 | CD32 on | USB keyboard + mouse still work | No regression |
 | 8 | CD32 on | Pair new BT gamepad | Pairing OK (after BT v22.1.0 port if needed) |
 | 9 | Standard joy Port 1 | Mouse + Port 1 unchanged while Port 2 CD32 | No cross-talk |
+| 10 | Port 1 CD32 + Port 2 CD32 | Two BT pads (#1 → P2, #2 → P1) | Both shift registers independent; mouse unavailable on P1 |
 
 ---
 
@@ -331,6 +332,8 @@ When CD32 active, Map Devices row **J2** could show `CD32` suffix — optional v
 | Flash persist overlaps BT TLV | Use Atari `NVSettings` sector math before adding flags |
 | USB driver duplication | Single `cd32_apply_gamepad(port, buttons, axes)` called from all drivers |
 | Games expecting Port 1 CD32 | Document Port 2 default; Phase 4 for Port 1 |
+| Shift-register timing (v2.2.2) | Ghost adjacent buttons; fix DATA/CLOCK edge timing — see `doc/future_work.md` |
+| BT slot routing on disconnect | First-free-slot assignment; survivor pad unrouted — see `doc/future_work.md` |
 
 ---
 

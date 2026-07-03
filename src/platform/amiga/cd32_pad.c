@@ -1,5 +1,5 @@
 /**
- * Amiga CD32 gamepad protocol — Port 1 and Port 2 (Rev 5).
+ * Amiga CD32 gamepad protocol — independent Port 1 and Port 2 (Rev 5).
  */
 
 #include "cd32_pad.h"
@@ -16,6 +16,7 @@
 #if HIDPICO_REVISION == 5
 
 #define CD32_SHIFT_BITS 9
+#define CD32_PORT_COUNT 2
 
 typedef struct {
     uint8_t up;
@@ -27,6 +28,16 @@ typedef struct {
     uint8_t data;
 } cd32_gpio_map_t;
 
+typedef struct {
+    cd32_gpio_map_t pin;
+    bool enabled;
+    volatile bool joymode_high;
+    volatile bool joymode_changed;
+    volatile uint8_t shift_index;
+    cd32_buttons_t buttons;
+    cd32_buttons_t buttons_shadow;
+} cd32_port_state_t;
+
 static const cd32_gpio_map_t CD32_GPIO_PORT1 = {
     QM1_AMIGA_V, QM1_AMIGA_H, QM1_AMIGA_VQ, QM1_AMIGA_HQ,
     QM1_AMIGA_B3, QM1_AMIGA_B1, QM1_AMIGA_B2,
@@ -37,57 +48,67 @@ static const cd32_gpio_map_t CD32_GPIO_PORT2 = {
     QM2_AMIGA_B3, QM2_AMIGA_B1, QM2_AMIGA_B2,
 };
 
-static cd32_gpio_map_t g_pin;
-static uint8_t g_active_port;
-static bool g_cd32_enabled;
-static volatile bool g_joymode_high = true;
-static volatile uint8_t g_shift_index;
+static cd32_port_state_t g_port[CD32_PORT_COUNT];
+static bool g_irq_callback_installed;
 
-static cd32_buttons_t g_buttons;
-static cd32_buttons_t g_buttons_shadow;
-
-static void cd32_update_dumb_outputs(void);
-
-static inline void cd32_data_out(bool line_low) {
-    gpio_set_function(g_pin.data, GPIO_FUNC_SIO);
-    gpio_set_pulls(g_pin.data, false, false);
-    gpio_set_dir(g_pin.data, GPIO_OUT);
-    gpio_put(g_pin.data, line_low ? 0 : 1);
+static cd32_port_state_t* cd32_state_for_port(uint8_t port) {
+    if (port < 1 || port > CD32_PORT_COUNT) {
+        return NULL;
+    }
+    return &g_port[port - 1];
 }
 
-static inline void cd32_clock_release(void) {
-    gpio_set_function(g_pin.clock, GPIO_FUNC_SIO);
-    gpio_set_dir(g_pin.clock, GPIO_IN);
-    gpio_set_pulls(g_pin.clock, true, false);
-    amiga_gpio_clear_cache(g_pin.clock);
+static cd32_port_state_t* cd32_state_for_gpio(uint gpio) {
+    for (int i = 0; i < CD32_PORT_COUNT; i++) {
+        if (!g_port[i].enabled) {
+            continue;
+        }
+        if (gpio == g_port[i].pin.joymode || gpio == g_port[i].pin.clock) {
+            return &g_port[i];
+        }
+    }
+    return NULL;
 }
 
-static inline void cd32_clock_drive_red(bool pressed) {
+static inline void cd32_data_configure(cd32_port_state_t* ps) {
+    gpio_set_function(ps->pin.data, GPIO_FUNC_SIO);
+    gpio_set_pulls(ps->pin.data, false, false);
+    gpio_set_dir(ps->pin.data, GPIO_OUT);
+}
+
+static inline void cd32_data_put(cd32_port_state_t* ps, bool line_low) {
+    gpio_put(ps->pin.data, line_low ? 0 : 1);
+}
+
+static inline void cd32_clock_release(cd32_port_state_t* ps) {
+    gpio_set_function(ps->pin.clock, GPIO_FUNC_SIO);
+    gpio_set_dir(ps->pin.clock, GPIO_IN);
+    gpio_set_pulls(ps->pin.clock, true, false);
+    amiga_gpio_clear_cache(ps->pin.clock);
+}
+
+static inline void cd32_clock_drive_red(cd32_port_state_t* ps, bool pressed) {
     if (pressed) {
-        gpio_set_function(g_pin.clock, GPIO_FUNC_SIO);
-        gpio_set_pulls(g_pin.clock, false, false);
-        gpio_set_dir(g_pin.clock, GPIO_OUT);
-        gpio_put(g_pin.clock, 0);
+        gpio_set_function(ps->pin.clock, GPIO_FUNC_SIO);
+        gpio_set_pulls(ps->pin.clock, false, false);
+        gpio_set_dir(ps->pin.clock, GPIO_OUT);
+        gpio_put(ps->pin.clock, 0);
     } else {
-        cd32_clock_release();
+        cd32_clock_release(ps);
     }
 }
 
-static void cd32_drive_data_line(bool line_low) {
-    cd32_data_out(line_low);
-}
-
-static bool cd32_shift_bit_is_low(int index) {
+static bool cd32_shift_bit_is_low(const cd32_port_state_t* ps, int index) {
     if (index < 7) {
         bool pressed = false;
         switch (index) {
-            case 0: pressed = g_buttons_shadow.blue; break;
-            case 1: pressed = g_buttons_shadow.red; break;
-            case 2: pressed = g_buttons_shadow.yellow; break;
-            case 3: pressed = g_buttons_shadow.green; break;
-            case 4: pressed = g_buttons_shadow.ff; break;
-            case 5: pressed = g_buttons_shadow.rew; break;
-            case 6: pressed = g_buttons_shadow.pause; break;
+            case 0: pressed = ps->buttons_shadow.blue; break;
+            case 1: pressed = ps->buttons_shadow.red; break;
+            case 2: pressed = ps->buttons_shadow.yellow; break;
+            case 3: pressed = ps->buttons_shadow.green; break;
+            case 4: pressed = ps->buttons_shadow.ff; break;
+            case 5: pressed = ps->buttons_shadow.rew; break;
+            case 6: pressed = ps->buttons_shadow.pause; break;
             default: break;
         }
         return pressed;
@@ -98,97 +119,108 @@ static bool cd32_shift_bit_is_low(int index) {
     return true;
 }
 
-static void cd32_present_shift_bit(int index) {
-    cd32_drive_data_line(cd32_shift_bit_is_low(index));
+static void cd32_present_shift_bit(cd32_port_state_t* ps, int index) {
+    cd32_data_put(ps, cd32_shift_bit_is_low(ps, index));
 }
 
-static void cd32_configure_clock_for_joymode(void) {
-    if (g_joymode_high) {
-        cd32_update_dumb_outputs();
+static void cd32_update_dumb_outputs(cd32_port_state_t* ps) {
+    if (!ps->enabled || !ps->joymode_high) {
+        return;
+    }
+    cd32_clock_drive_red(ps, ps->buttons_shadow.red);
+    cd32_data_put(ps, ps->buttons_shadow.blue);
+}
+
+static void cd32_configure_clock_for_joymode(cd32_port_state_t* ps) {
+    if (ps->joymode_high) {
+        gpio_set_irq_enabled(ps->pin.clock, GPIO_IRQ_EDGE_RISE, false);
+        cd32_update_dumb_outputs(ps);
     } else {
-        cd32_clock_release();
+        cd32_clock_release(ps);
+        gpio_set_irq_enabled(ps->pin.clock, GPIO_IRQ_EDGE_RISE, true);
     }
 }
 
-static void cd32_update_dumb_outputs(void) {
-    if (!g_cd32_enabled || !g_joymode_high) {
-        return;
-    }
-    cd32_clock_drive_red(g_buttons_shadow.red);
-    cd32_data_out(g_buttons_shadow.blue);
+static void cd32_on_latch_falling(cd32_port_state_t* ps) {
+    ps->buttons_shadow = ps->buttons;
+    ps->shift_index = 0;
+    cd32_present_shift_bit(ps, 0);
 }
 
-static void cd32_on_latch_falling(void) {
-    uint32_t save = save_and_disable_interrupts();
-    g_buttons_shadow = g_buttons;
-    g_shift_index = 0;
-    cd32_present_shift_bit(0);
-    restore_interrupts(save);
-}
-
-static void cd32_on_clock_rising(void) {
-    if (g_joymode_high) {
-        return;
+static void cd32_on_clock_rising(cd32_port_state_t* ps) {
+    if (ps->shift_index < (CD32_SHIFT_BITS - 1)) {
+        ps->shift_index++;
     }
-    uint32_t save = save_and_disable_interrupts();
-    if (g_shift_index < (CD32_SHIFT_BITS - 1)) {
-        g_shift_index++;
-    }
-    cd32_present_shift_bit(g_shift_index);
-    restore_interrupts(save);
+    cd32_present_shift_bit(ps, ps->shift_index);
 }
 
 static void cd32_gpio_irq(uint gpio, uint32_t events) {
-    if (gpio == g_pin.joymode) {
-        g_joymode_high = gpio_get(g_pin.joymode);
-        cd32_configure_clock_for_joymode();
-        if ((events & GPIO_IRQ_EDGE_FALL) && !g_joymode_high) {
-            cd32_on_latch_falling();
+    gpio_acknowledge_irq(gpio, events);
+
+    cd32_port_state_t* ps = cd32_state_for_gpio(gpio);
+    if (ps == NULL) {
+        return;
+    }
+
+    if (gpio == ps->pin.joymode) {
+        ps->joymode_high = gpio_get(ps->pin.joymode);
+        if ((events & GPIO_IRQ_EDGE_FALL) && !ps->joymode_high) {
+            cd32_clock_release(ps);
+            gpio_set_irq_enabled(ps->pin.clock, GPIO_IRQ_EDGE_RISE, true);
+            cd32_on_latch_falling(ps);
+        } else if (ps->joymode_high) {
+            gpio_set_irq_enabled(ps->pin.clock, GPIO_IRQ_EDGE_RISE, false);
+            ps->joymode_changed = true;
         }
         return;
     }
-    if (gpio == g_pin.clock && (events & GPIO_IRQ_EDGE_RISE) && !g_joymode_high) {
-        cd32_on_clock_rising();
+
+    if (gpio == ps->pin.clock && (events & GPIO_IRQ_EDGE_RISE) && !ps->joymode_high) {
+        cd32_on_clock_rising(ps);
     }
 }
 
-static void cd32_teardown_gpios(void) {
-    gpio_set_irq_enabled(g_pin.joymode, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, false);
-    gpio_set_irq_enabled(g_pin.clock, GPIO_IRQ_EDGE_RISE, false);
+static void cd32_teardown_port_gpios(cd32_port_state_t* ps) {
+    gpio_set_irq_enabled(ps->pin.joymode, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, false);
+    gpio_set_irq_enabled(ps->pin.clock, GPIO_IRQ_EDGE_RISE, false);
 }
 
-static void cd32_setup_gpios(void) {
-    amiga_gpio_init_active_low(g_pin.up, false);
-    amiga_gpio_init_active_low(g_pin.down, false);
-    amiga_gpio_init_active_low(g_pin.left, false);
-    amiga_gpio_init_active_low(g_pin.right, false);
+static void cd32_setup_port_gpios(cd32_port_state_t* ps) {
+    amiga_gpio_init_active_low(ps->pin.up, false);
+    amiga_gpio_init_active_low(ps->pin.down, false);
+    amiga_gpio_init_active_low(ps->pin.left, false);
+    amiga_gpio_init_active_low(ps->pin.right, false);
 
-    gpio_set_function(g_pin.joymode, GPIO_FUNC_SIO);
-    gpio_set_dir(g_pin.joymode, GPIO_IN);
-    gpio_set_pulls(g_pin.joymode, true, false);
+    gpio_set_function(ps->pin.joymode, GPIO_FUNC_SIO);
+    gpio_set_dir(ps->pin.joymode, GPIO_IN);
+    gpio_set_pulls(ps->pin.joymode, true, false);
 
-    gpio_set_function(g_pin.clock, GPIO_FUNC_SIO);
-    cd32_clock_release();
+    cd32_data_configure(ps);
+    cd32_data_put(ps, false);
+    cd32_clock_release(ps);
 
-    cd32_data_out(false);
+    ps->joymode_high = gpio_get(ps->pin.joymode);
+    ps->joymode_changed = false;
+    ps->shift_index = 0;
+    memset(&ps->buttons, 0, sizeof(ps->buttons));
+    ps->buttons_shadow = ps->buttons;
 
-    g_joymode_high = gpio_get(g_pin.joymode);
-    g_shift_index = 0;
-    memset(&g_buttons, 0, sizeof(g_buttons));
-    g_buttons_shadow = g_buttons;
+    if (!g_irq_callback_installed) {
+        gpio_set_irq_callback(&cd32_gpio_irq);
+        g_irq_callback_installed = true;
+    }
 
-    gpio_set_irq_callback(&cd32_gpio_irq);
-    gpio_set_irq_enabled(g_pin.joymode, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true);
-    gpio_set_irq_enabled(g_pin.clock, GPIO_IRQ_EDGE_RISE, true);
+    gpio_set_irq_enabled(ps->pin.joymode, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true);
+    gpio_set_irq_enabled(ps->pin.clock, GPIO_IRQ_EDGE_RISE, false);
 
-    cd32_configure_clock_for_joymode();
+    cd32_configure_clock_for_joymode(ps);
 }
 
-static void cd32_apply_dpad(uint8_t direction_bits) {
-    amiga_gpio_set_active_low(g_pin.up, (direction_bits & 0x01) != 0);
-    amiga_gpio_set_active_low(g_pin.down, (direction_bits & 0x02) != 0);
-    amiga_gpio_set_active_low(g_pin.left, (direction_bits & 0x04) != 0);
-    amiga_gpio_set_active_low(g_pin.right, (direction_bits & 0x08) != 0);
+static void cd32_apply_dpad(cd32_port_state_t* ps, uint8_t direction_bits) {
+    amiga_gpio_set_active_low(ps->pin.up, (direction_bits & 0x01) != 0);
+    amiga_gpio_set_active_low(ps->pin.down, (direction_bits & 0x02) != 0);
+    amiga_gpio_set_active_low(ps->pin.left, (direction_bits & 0x04) != 0);
+    amiga_gpio_set_active_low(ps->pin.right, (direction_bits & 0x08) != 0);
 }
 
 static void cd32_restore_port_gpios(uint8_t port) {
@@ -201,65 +233,98 @@ static void cd32_restore_port_gpios(uint8_t port) {
 }
 
 static void cd32_set_port_enabled(uint8_t port, bool enabled) {
-    if (enabled && g_cd32_enabled && g_active_port == port) {
-        return;
-    }
-    if (!enabled && (!g_cd32_enabled || g_active_port != port)) {
+    cd32_port_state_t* ps = cd32_state_for_port(port);
+    if (ps == NULL) {
         return;
     }
 
-    if (g_cd32_enabled) {
-        g_cd32_enabled = false;
-        cd32_teardown_gpios();
-        cd32_restore_port_gpios(g_active_port);
-        g_active_port = 0;
+    if (enabled == ps->enabled) {
+        return;
     }
 
     if (!enabled) {
+        ps->enabled = false;
+        cd32_teardown_port_gpios(ps);
+        cd32_restore_port_gpios(port);
         printf("[CD32] Port %u standard joystick mode\n", port);
         return;
     }
 
-    if (port == 1) {
-        g_pin = CD32_GPIO_PORT1;
-    } else {
-        g_pin = CD32_GPIO_PORT2;
-    }
-
-    cd32_setup_gpios();
-    g_active_port = port;
-    g_cd32_enabled = true;
+    ps->pin = (port == 1) ? CD32_GPIO_PORT1 : CD32_GPIO_PORT2;
+    ps->enabled = true;
+    cd32_setup_port_gpios(ps);
     printf("[CD32] Port %u CD32 mode enabled\n", port);
 }
 
-static void cd32_update(const cd32_buttons_t* buttons, uint8_t direction_bits) {
-    if (!g_cd32_enabled || buttons == NULL) {
+static void cd32_update(cd32_port_state_t* ps, const cd32_buttons_t* buttons, uint8_t direction_bits) {
+    if (!ps->enabled || buttons == NULL) {
         return;
     }
+
     uint32_t save = save_and_disable_interrupts();
-    g_buttons = *buttons;
+    ps->buttons = *buttons;
     restore_interrupts(save);
 
-    cd32_apply_dpad(direction_bits);
+    cd32_apply_dpad(ps, direction_bits);
 
-    if (g_joymode_high) {
-        g_buttons_shadow = g_buttons;
-        cd32_update_dumb_outputs();
+    if (ps->joymode_high) {
+        ps->buttons_shadow = ps->buttons;
+        cd32_update_dumb_outputs(ps);
     }
 }
 
-static void cd32_update_dpad(uint8_t direction_bits) {
-    if (!g_cd32_enabled) {
+static void cd32_update_dpad(cd32_port_state_t* ps, uint8_t direction_bits) {
+    if (!ps->enabled) {
         return;
     }
-    cd32_apply_dpad(direction_bits);
+    cd32_apply_dpad(ps, direction_bits);
 }
 
-void cd32_port1_init(void) { g_active_port = 0; g_cd32_enabled = false; }
-void cd32_port2_init(void) { g_active_port = 0; g_cd32_enabled = false; }
+static void cd32_legacy_button(cd32_port_state_t* ps, uint8_t which, bool pressed) {
+    if (!ps->enabled) {
+        return;
+    }
 
-bool cd32_port1_is_enabled(void) { return g_cd32_enabled && g_active_port == 1; }
-bool cd32_port2_is_enabled(void) { return g_cd32_enabled && g_active_port == 2; }
+    uint32_t save = save_and_disable_interrupts();
+    switch (which) {
+        case 0: ps->buttons.red = pressed; break;
+        case 1: ps->buttons.blue = pressed; break;
+        case 2: ps->buttons.yellow = pressed; break;
+        default: break;
+    }
+    restore_interrupts(save);
+
+    if (ps->joymode_high) {
+        ps->buttons_shadow = ps->buttons;
+        cd32_update_dumb_outputs(ps);
+    }
+}
+
+void cd32_service(void) {
+    for (int i = 0; i < CD32_PORT_COUNT; i++) {
+        cd32_port_state_t* ps = &g_port[i];
+        if (!ps->enabled || !ps->joymode_changed) {
+            continue;
+        }
+        ps->joymode_changed = false;
+        cd32_configure_clock_for_joymode(ps);
+    }
+}
+
+void cd32_port1_init(void) {
+    memset(g_port, 0, sizeof(g_port));
+    g_irq_callback_installed = false;
+}
+
+void cd32_port2_init(void) {}
+
+bool cd32_port1_is_enabled(void) {
+    return g_port[0].enabled;
+}
+
+bool cd32_port2_is_enabled(void) {
+    return g_port[1].enabled;
+}
 
 void cd32_port1_set_enabled(bool enabled) { cd32_set_port_enabled(1, enabled); }
 void cd32_port2_set_enabled(bool enabled) { cd32_set_port_enabled(2, enabled); }
@@ -268,54 +333,44 @@ void cd32_port1_toggle(void) { cd32_port1_set_enabled(!cd32_port1_is_enabled());
 void cd32_port2_toggle(void) { cd32_port2_set_enabled(!cd32_port2_is_enabled()); }
 
 void cd32_port1_update(const cd32_buttons_t* buttons, uint8_t direction_bits) {
-    if (!cd32_port1_is_enabled()) return;
-    cd32_update(buttons, direction_bits);
+    cd32_update(&g_port[0], buttons, direction_bits);
 }
 
 void cd32_port2_update(const cd32_buttons_t* buttons, uint8_t direction_bits) {
-    if (!cd32_port2_is_enabled()) return;
-    cd32_update(buttons, direction_bits);
+    cd32_update(&g_port[1], buttons, direction_bits);
 }
 
 void cd32_port1_update_dpad(uint8_t direction_bits) {
-    if (!cd32_port1_is_enabled()) return;
-    cd32_update_dpad(direction_bits);
+    cd32_update_dpad(&g_port[0], direction_bits);
 }
 
 void cd32_port2_update_dpad(uint8_t direction_bits) {
-    if (!cd32_port2_is_enabled()) return;
-    cd32_update_dpad(direction_bits);
+    cd32_update_dpad(&g_port[1], direction_bits);
 }
 
 void cd32_port1_legacy_button(enum amiga_joystick_port1_buttons button, bool pressed) {
-    if (!cd32_port1_is_enabled()) return;
-    uint32_t save = save_and_disable_interrupts();
+    uint8_t which = 255;
     switch (button) {
-        case AJ1_FIRE:    g_buttons.red = pressed; break;
-        case AJ1_BUTTON2: g_buttons.blue = pressed; break;
-        case AJ1_BUTTON3: g_buttons.yellow = pressed; break;
+        case AJ1_FIRE: which = 0; break;
+        case AJ1_BUTTON2: which = 1; break;
+        case AJ1_BUTTON3: which = 2; break;
         default: break;
     }
-    restore_interrupts(save);
-    if (g_joymode_high) {
-        g_buttons_shadow = g_buttons;
-        cd32_update_dumb_outputs();
+    if (which != 255) {
+        cd32_legacy_button(&g_port[0], which, pressed);
     }
 }
 
 void cd32_port2_legacy_button(enum amiga_joystick_port2_buttons button, bool pressed) {
-    if (!cd32_port2_is_enabled()) return;
-    uint32_t save = save_and_disable_interrupts();
+    uint8_t which = 255;
     switch (button) {
-        case AJ2_FIRE:    g_buttons.red = pressed; break;
-        case AJ2_BUTTON2: g_buttons.blue = pressed; break;
-        case AJ2_BUTTON3: g_buttons.yellow = pressed; break;
+        case AJ2_FIRE: which = 0; break;
+        case AJ2_BUTTON2: which = 1; break;
+        case AJ2_BUTTON3: which = 2; break;
         default: break;
     }
-    restore_interrupts(save);
-    if (g_joymode_high) {
-        g_buttons_shadow = g_buttons;
-        cd32_update_dumb_outputs();
+    if (which != 255) {
+        cd32_legacy_button(&g_port[1], which, pressed);
     }
 }
 
@@ -323,6 +378,7 @@ void cd32_port2_legacy_button(enum amiga_joystick_port2_buttons button, bool pre
 
 void cd32_port1_init(void) {}
 void cd32_port2_init(void) {}
+void cd32_service(void) {}
 bool cd32_port1_is_enabled(void) { return false; }
 bool cd32_port2_is_enabled(void) { return false; }
 void cd32_port1_set_enabled(bool enabled) { (void)enabled; }

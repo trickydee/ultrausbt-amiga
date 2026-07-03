@@ -32,12 +32,7 @@ static void port_mode_apply(void) {
     bool want_port1_cd32 = (g_port1_mode == PORT1_MODE_CD32);
     bool want_port2_cd32 = g_port2_cd32;
 
-    if (want_port1_cd32) {
-        want_port2_cd32 = false;
-        want_llama = false;
-    }
-    if (want_port2_cd32) {
-        want_port1_cd32 = false;
+    if (want_port1_cd32 || want_port2_cd32) {
         want_llama = false;
     }
 
@@ -89,7 +84,7 @@ void port_mode_cycle_port1(void) {
     switch (g_port1_mode) {
         case PORT1_MODE_MOUSE: g_port1_mode = PORT1_MODE_JOY; break;
         case PORT1_MODE_JOY: g_port1_mode = PORT1_MODE_LLAMA; break;
-        case PORT1_MODE_LLAMA: g_port1_mode = PORT1_MODE_CD32; g_port2_cd32 = false; break;
+        case PORT1_MODE_LLAMA: g_port1_mode = PORT1_MODE_CD32; break;
         case PORT1_MODE_CD32:
         default: g_port1_mode = PORT1_MODE_MOUSE; break;
     }

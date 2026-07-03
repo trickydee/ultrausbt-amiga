@@ -21,6 +21,9 @@ typedef struct {
     bool pause;
 } cd32_buttons_t;
 
+/** Apply deferred JOYMODE transitions (call from main loop). */
+void cd32_service(void);
+
 void cd32_port1_init(void);
 bool cd32_port1_is_enabled(void);
 void cd32_port1_set_enabled(bool enabled);

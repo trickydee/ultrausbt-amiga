@@ -2,22 +2,39 @@
 
 **Last updated:** June 2026  
 **Branch:** `feature/cd32`  
-**Firmware:** v2.2.0  
+**Firmware:** v2.2.2  
 
 ---
 
-## Latest (v2.2.0)
+## Latest (v2.2.2)
 
-- **Port 1 CD32** — `cd32_pad.c` supports Port 1 and Port 2 (one active at a time).
+- **Fix:** CD32 GPIO IRQ handlers were too heavy (reconfiguring pins inside ISR) — starved main loop → OLED frozen, keyboard queue full (`unable to enqueue KeyDown`), no Amiga output.
+- **Fix:** GPIO watchdog disabled while CD32 active (was resetting clock pins driven as OUTPUT).
+- ISR now only toggles DATA via `gpio_put`; JOYMODE transitions deferred to `cd32_service()` in main loop.
+
+## v2.2.1
+
+- **Dual CD32** — Port 1 and Port 2 CD32 can run **simultaneously** (independent shift-register state per port).
+- **Typical setup:** OLED cycle Port 1 to CD32; **Shift + Left Amiga + C** for Port 2 CD32; BT pad #1 → Port 2, BT pad #2 → Port 1.
+- **Port 1 mouse** unavailable while Port 1 CD32 active (Core 1 paused — expected).
+
+## v2.2.0
+
+- **Port 1 CD32** — `cd32_pad.c` supports Port 1 and Port 2.
 - **OLED left button** — Port 1 cycle: **MOUSE → JOY → LLAMA → CD32 → MOUSE** (splash + Devices).
 - **Flash persistence** — `port_config` saves Port 1 mode + Port 2 CD32 across reboots.
-- **`port_mode.c`** — Central mode apply, mutual exclusion, keyboard chord integration.
+- **`port_mode.c`** — Central mode apply; Llamatron disabled when either CD32 port active.
 - **BT Port 1 CD32** — Second gamepad via `port1_gamepad_submit()`.
 
 ### Still open
+- **CD32 timing:** ghost adjacent buttons (B+A, Y+G) — shift-register DATA/CLOCK presentation (`doc/future_work.md`).
+- **BT slot routing:** pad disconnect leaves survivor unrouted; reconnect order changes port (`doc/future_work.md`).
 - USB gamepads → Port 1 CD32 (USB still routes to Port 2 only).
 - `port2_gamepad_submit()` in PS3/PS5/Switch/PSC/HORI USB drivers.
 - Full regression matrix in [`doc/CD32_BUILD_SPEC.md`](./CD32_BUILD_SPEC.md) §8.
+
+### Known instability (v2.2.2)
+Dual CD32 is usable but not fully stable: occasional ghost button pairs on shift-register ports; BT pad routing breaks if one of two paired pads disconnects until re-pair in correct order.
 
 ---
 

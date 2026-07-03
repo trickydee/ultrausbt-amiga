@@ -13,6 +13,9 @@
 #include "gpio_util.h"
 #include "config.h"
 #include "util/output.h"
+#if HIDPICO_REVISION == 5
+#include "platform/amiga/cd32_pad.h"
+#endif
 #include <hardware/gpio.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -172,6 +175,10 @@ void amiga_gpio_reset_all_to_input(void)
 bool amiga_gpio_watchdog_check(void)
 {
 #if HIDPICO_REVISION == 5
+    if (cd32_port1_is_enabled() || cd32_port2_is_enabled()) {
+        return false;
+    }
+
     // Lightweight watchdog: Check a sample of GPIOs to detect stuck states
     // We check a few representative GPIOs rather than all to minimize performance impact
     // 

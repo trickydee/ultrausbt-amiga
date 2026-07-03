@@ -68,17 +68,29 @@ i have not measured the latency, but the keyboard signals are sent out the momen
 
 ## release notes
 
+### Dual CD32 pads + stability fixes (v2.2.2)
+- **Dual CD32:** Independent per-port shift registers (Port 1 + Port 2 simultaneously).
+- **Fix:** Lightweight CD32 ISRs + `cd32_service()` — restores OLED/UI and Amiga output (v2.2.1 regression).
+- **Fix:** GPIO watchdog skipped while CD32 active.
+- **Known instability:** Occasional ghost adjacent buttons (B+A, Y+G); BT pad routing breaks when one of two pads disconnects. See `doc/future_work.md`.
+
+### Dual CD32 pads (v2.2.1)
+- **Simultaneous Port 1 + Port 2 CD32:** Independent shift-register drivers — two real CD32-style pads at once.
+- **Setup:** OLED left button → Port 1 CD32; **Shift + Left Amiga + C** → Port 2 CD32; pair two BT gamepads.
+- **Routing:** BT pad #1 → Port 2, BT pad #2 → Port 1; USB pad still Port 2 only.
+- **Mouse:** Unavailable on Port 1 while Port 1 CD32 active.
+
 ### Port 1 CD32, mode persistence, OLED cycle (v2.2.0)
 - **Port 1 CD32:** Seven-button protocol on Port 1 (BT gamepad #2); Core 1 mouse paused while active.
 - **OLED left button:** Cycles Port 1 **MOUSE → JOY → LLAMA → CD32 → MOUSE** on splash and Devices screens.
 - **Flash persistence:** Port 1 mode and Port 2 CD32 setting saved across reboots (`port_config` sector).
-- **Port mode manager:** `port_mode.c` centralizes mutual exclusion (CD32 vs Llamatron, Port 1 vs Port 2 CD32).
+- **Port mode manager:** `port_mode.c` centralizes mode apply (CD32 vs Llamatron).
 
 ### CD32 gamepad mode (v2.1.2)
 - **Port 2 CD32 protocol:** Shift-register emulation on Rev 5 GPIOs (JOYMODE/CLOCK/DATA on pins 5/6/9) for seven-button CD32 games.
 - **Toggle:** **Shift + Left Amiga + C** from USB or Bluetooth keyboard; OLED Devices screen shows `Port2: CD32` or `Port2: STD`.
 - **Gamepad routing:** Unified `port2_gamepad_submit()` for USB (PS4, Xbox, Stadia, generic HID) and Bluetooth gamepad #1.
-- **Llamatron:** Mutually exclusive with CD32 mode.
+- **Llamatron:** Mutually exclusive with CD32 mode on either port.
 
 ### Map Devices UI and build alignment (v2.1.1)
 - **Map Devices screen**: Renamed from Bluetooth Devices; shows J2/J1/K1/M1 with Bluetooth and USB device names.
