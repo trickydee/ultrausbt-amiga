@@ -148,15 +148,17 @@ static void cd32_on_latch_falling(cd32_port_state_t* ps) {
     restore_interrupts(save);
 }
 
-static void cd32_on_clock_rising(cd32_port_state_t* ps) {
+static void cd32_on_clock_falling(cd32_port_state_t* ps) {
     if (ps->joymode_high) {
         return;
     }
+    /* Amiga samples DATA on CLOCK rise; prepare the next bit after each fall so
+     * the line is stable before the following rise (reduces adjacent-button ghosts). */
     uint32_t save = save_and_disable_interrupts();
     if (ps->shift_index < (CD32_SHIFT_BITS - 1)) {
         ps->shift_index++;
+        cd32_present_shift_bit(ps, ps->shift_index);
     }
-    cd32_present_shift_bit(ps, ps->shift_index);
     restore_interrupts(save);
 }
 
@@ -177,14 +179,16 @@ static void cd32_gpio_irq(uint gpio, uint32_t events) {
         return;
     }
 
-    if (gpio == ps->pin.clock && (events & GPIO_IRQ_EDGE_RISE) && !ps->joymode_high) {
-        cd32_on_clock_rising(ps);
+    if (gpio == ps->pin.clock && !ps->joymode_high) {
+        if (events & GPIO_IRQ_EDGE_FALL) {
+            cd32_on_clock_falling(ps);
+        }
     }
 }
 
 static void cd32_teardown_port_gpios(cd32_port_state_t* ps) {
     gpio_set_irq_enabled(ps->pin.joymode, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, false);
-    gpio_set_irq_enabled(ps->pin.clock, GPIO_IRQ_EDGE_RISE, false);
+    gpio_set_irq_enabled(ps->pin.clock, GPIO_IRQ_EDGE_FALL, false);
 }
 
 static void cd32_setup_port_gpios(cd32_port_state_t* ps) {
@@ -212,7 +216,7 @@ static void cd32_setup_port_gpios(cd32_port_state_t* ps) {
     }
 
     gpio_set_irq_enabled(ps->pin.joymode, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true);
-    gpio_set_irq_enabled(ps->pin.clock, GPIO_IRQ_EDGE_RISE, true);
+    gpio_set_irq_enabled(ps->pin.clock, GPIO_IRQ_EDGE_FALL, true);
 
     cd32_configure_clock_for_joymode(ps);
 }

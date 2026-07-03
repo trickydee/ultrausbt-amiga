@@ -95,6 +95,19 @@ bool amiga_caps_lock()
 
 void amiga_hid_send(uint8_t hidcode, bool up)
 {
+#if KEYBOARD_HID_DEBUG
+    if (!up) {
+        ahprintf("[kbd] HID 0x%02x -> Amiga 0x%02x\n", hidcode, mapHidToAmiga[hidcode]);
+    }
+#endif
+
+#if KEY_REMAP_HID_TO_HELP != 0
+    if (hidcode == KEY_REMAP_HID_TO_HELP) {
+        amiga_send(AMIGA_KPAST, up);
+        return;
+    }
+#endif
+
     if (mapHidToAmiga[hidcode] == AMIGA_UNKNOWN) {
         // ahprintf("[akb] cowardly refusing to send $ff to the amiga\n");
         return;

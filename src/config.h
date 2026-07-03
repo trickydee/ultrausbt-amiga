@@ -22,7 +22,19 @@
 #  define SOFTWARE_VERSION_MINOR 2
 #endif
 #ifndef SOFTWARE_VERSION_PATCH
-#  define SOFTWARE_VERSION_PATCH 5
+#  define SOFTWARE_VERSION_PATCH 10
+#endif
+
+// Remap one HID scancode to Amiga numpad * (AMIGA_KPAST / 0x5d — PrtScn on Amiga layout).
+// Set HID code to 0 to disable. Logitech MX "| / ~ #" key → HID 0x32 (UART verified).
+#ifndef KEY_REMAP_HID_TO_HELP
+#  define KEY_REMAP_HID_TO_HELP  0x32
+#endif
+
+// Log HID scancodes on UART when keys are pressed (set 1 to discover remaps).
+// Output: `[kbd] HID 0xNN -> Amiga 0xNN` per key down. See doc/device_troubleshooting.md.
+#ifndef KEYBOARD_HID_DEBUG
+#  define KEYBOARD_HID_DEBUG  0
 #endif
 
 #ifndef HIDPICO_REVISION

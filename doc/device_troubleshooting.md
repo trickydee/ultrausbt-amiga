@@ -7,6 +7,7 @@ This document covers troubleshooting fixes for various device compatibility issu
 1. [DS5 DualSense Pairing Fix for Pico 2 W](#ds5-dualsense-pairing-fix-for-pico-2-w)
 2. [Stadia Controller Bluetooth Pairing Issues](#stadia-controller-bluetooth-pairing-issues)
 3. [Joystick Port 1 LEFT/RIGHT Movement Fix](#joystick-port-1-leftright-movement-fix)
+4. [Keyboard HID debug and custom key remaps](#keyboard-hid-debug-and-custom-key-remaps)
 
 ---
 
@@ -706,6 +707,38 @@ For future adapter designs, consider:
 - Different level shifter design for buttons 2/3
 - Buffer/driver ICs for increased drive strength
 - Separate level shifter channels for buttons 2/3 with different characteristics
+
+---
+
+## Keyboard HID debug and custom key remaps
+
+Use this when a USB/Bluetooth key does not map to the Amiga key you expect (e.g. remapping a Logitech key to numpad `*` / Print Screen).
+
+### Enable UART keystroke logging
+
+In `src/config.h`:
+
+```c
+#define KEYBOARD_HID_DEBUG  1
+```
+
+Rebuild and flash. Connect a serial monitor to the Pico UART (115200 8N1). Each key **press** logs:
+
+```text
+[kbd] HID 0x32 -> Amiga 0x35
+```
+
+The second value is the **default** table lookup; remapped keys still send the remap target (see below).
+
+Set back to `0` for normal use (default in release builds).
+
+### Custom remap (one HID code → Amiga numpad *)
+
+```c
+#define KEY_REMAP_HID_TO_HELP  0x32   // HID code from debug log; 0 = disable
+```
+
+Sends **`AMIGA_KPAST` (`0x5d`)** — Amiga numpad `*` / Print Screen — when that HID code is pressed. Implemented in `amiga_hid_send()` in `keyboard_serial_io.c`. Applies to USB and Bluetooth keyboards.
 
 ---
 

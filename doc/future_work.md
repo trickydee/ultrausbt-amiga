@@ -19,8 +19,7 @@
 
 ### Known issues / next fixes (v2.2.2)
 
-1. **CD32 shift-register timing** — Occasional ghost presses on adjacent buttons (e.g. B also triggers A, Y also triggers G). Likely DATA not stable before CLOCK sample, JOYMODE/dumb-mode window (`cd32_service()` deferral), or dual-port IRQ latency. Fixes to explore:
-   - Present next bit on CLOCK **falling** edge (or earlier setup before rise)
+1. **CD32 shift-register timing** — Occasional ghost presses on adjacent buttons (e.g. B also triggers A, Y also triggers G; jump may fire rainbow). **v2.2.10:** advance shift on CLOCK **fall** so DATA is stable before Amiga samples on rise (`cd32_pad.c`). If still flaky:
    - Minimal dumb-mode GPIO updates immediately on JOYMODE rise in ISR
    - Atomic `buttons` → `buttons_shadow` copy at latch
 
