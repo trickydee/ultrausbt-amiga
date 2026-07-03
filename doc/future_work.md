@@ -28,6 +28,13 @@
    - Compact slots when a pad disconnects (promote slot 1 → 0)
    - Stable assignment by Bluetooth address or user “bind to port” UI
 
+3. **UART / serial log corruption** — Debug output can become garbled mid-line (e.g. `Mouse: Unsupported page: 0xff43…` interleaved with random bytes). Reboot usually clears it; worse when CD32 IRQ load is high or multiple BT devices are active. Likely **non-re-entrant concurrent `printf`/`logi()`** from different contexts (main loop, Bluepad32 BT callbacks, USB stack) writing stdout/UART without serialization. The `0xff43` lines come from Bluepad32 `uni_hid_parser_mouse.c` logging vendor HID pages on every report — high spam rate makes collisions more visible. Fixes to explore:
+   - **Serialized logging** — ring buffer drained only from main loop; no direct `printf` from callbacks/ISRs
+   - **Mutex or critical section** around all UART output (main + `logi`)
+   - **Suppress or rate-limit** Bluepad32 mouse “Unsupported page” logs (especially vendor page `0xff43`)
+   - **Compile-time log levels** — production build with BT/file logging off or `CONFIG_BLUEPAD32_*` verbosity reduced
+   - Audit: ensure Core 1 never logs; keep `ahprintf` gated (already behind `DEBUG_MESSAGES`)
+
 ### Implementation order
 
 1. **Phase 0** — Verify DB-9 ↔ GPIO 19–22 (Port 2) against KTRL_CD32; pick test games.

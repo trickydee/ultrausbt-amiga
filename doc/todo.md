@@ -27,6 +27,7 @@ This document tracks outstanding tasks and improvements for the amigahid-pico pr
 - [x] Phase 4 (partial): ISR starvation fix + `cd32_service()` deferral (v2.2.2)
 - [ ] **CD32 shift-register timing** — ghost adjacent buttons (B+A, Y+G); see [`doc/future_work.md`](./future_work.md)
 - [ ] **BT gamepad slot routing** — disconnect/reconnect order breaks Port 1/2 mapping; see [`doc/future_work.md`](./future_work.md)
+- [ ] **UART log corruption** — garbled serial under load; serialize logging / suppress Bluepad32 mouse vendor-page spam; see [`doc/future_work.md`](./future_work.md)
 - [ ] Phase 4 (remaining): USB pad → Port 1 CD32 routing
 
 ## Bluetooth pairing (Atari v22.1.0 alignment)

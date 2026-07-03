@@ -1,5 +1,7 @@
 /**
  * Amiga CD32 gamepad protocol — independent Port 1 and Port 2 (Rev 5).
+ *
+ * IRQ timing matches v2.1.2 (97a2c87) per port; dual-port state only.
  */
 
 #include "cd32_pad.h"
@@ -32,7 +34,6 @@ typedef struct {
     cd32_gpio_map_t pin;
     bool enabled;
     volatile bool joymode_high;
-    volatile bool joymode_changed;
     volatile uint8_t shift_index;
     cd32_buttons_t buttons;
     cd32_buttons_t buttons_shadow;
@@ -133,25 +134,30 @@ static void cd32_update_dumb_outputs(cd32_port_state_t* ps) {
 
 static void cd32_configure_clock_for_joymode(cd32_port_state_t* ps) {
     if (ps->joymode_high) {
-        gpio_set_irq_enabled(ps->pin.clock, GPIO_IRQ_EDGE_RISE, false);
         cd32_update_dumb_outputs(ps);
     } else {
         cd32_clock_release(ps);
-        gpio_set_irq_enabled(ps->pin.clock, GPIO_IRQ_EDGE_RISE, true);
     }
 }
 
 static void cd32_on_latch_falling(cd32_port_state_t* ps) {
+    uint32_t save = save_and_disable_interrupts();
     ps->buttons_shadow = ps->buttons;
     ps->shift_index = 0;
     cd32_present_shift_bit(ps, 0);
+    restore_interrupts(save);
 }
 
 static void cd32_on_clock_rising(cd32_port_state_t* ps) {
+    if (ps->joymode_high) {
+        return;
+    }
+    uint32_t save = save_and_disable_interrupts();
     if (ps->shift_index < (CD32_SHIFT_BITS - 1)) {
         ps->shift_index++;
     }
     cd32_present_shift_bit(ps, ps->shift_index);
+    restore_interrupts(save);
 }
 
 static void cd32_gpio_irq(uint gpio, uint32_t events) {
@@ -164,13 +170,9 @@ static void cd32_gpio_irq(uint gpio, uint32_t events) {
 
     if (gpio == ps->pin.joymode) {
         ps->joymode_high = gpio_get(ps->pin.joymode);
+        cd32_configure_clock_for_joymode(ps);
         if ((events & GPIO_IRQ_EDGE_FALL) && !ps->joymode_high) {
-            cd32_clock_release(ps);
-            gpio_set_irq_enabled(ps->pin.clock, GPIO_IRQ_EDGE_RISE, true);
             cd32_on_latch_falling(ps);
-        } else if (ps->joymode_high) {
-            gpio_set_irq_enabled(ps->pin.clock, GPIO_IRQ_EDGE_RISE, false);
-            ps->joymode_changed = true;
         }
         return;
     }
@@ -200,7 +202,6 @@ static void cd32_setup_port_gpios(cd32_port_state_t* ps) {
     cd32_clock_release(ps);
 
     ps->joymode_high = gpio_get(ps->pin.joymode);
-    ps->joymode_changed = false;
     ps->shift_index = 0;
     memset(&ps->buttons, 0, sizeof(ps->buttons));
     ps->buttons_shadow = ps->buttons;
@@ -211,7 +212,7 @@ static void cd32_setup_port_gpios(cd32_port_state_t* ps) {
     }
 
     gpio_set_irq_enabled(ps->pin.joymode, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true);
-    gpio_set_irq_enabled(ps->pin.clock, GPIO_IRQ_EDGE_RISE, false);
+    gpio_set_irq_enabled(ps->pin.clock, GPIO_IRQ_EDGE_RISE, true);
 
     cd32_configure_clock_for_joymode(ps);
 }
@@ -301,14 +302,6 @@ static void cd32_legacy_button(cd32_port_state_t* ps, uint8_t which, bool presse
 }
 
 void cd32_service(void) {
-    for (int i = 0; i < CD32_PORT_COUNT; i++) {
-        cd32_port_state_t* ps = &g_port[i];
-        if (!ps->enabled || !ps->joymode_changed) {
-            continue;
-        }
-        ps->joymode_changed = false;
-        cd32_configure_clock_for_joymode(ps);
-    }
 }
 
 void cd32_port1_init(void) {

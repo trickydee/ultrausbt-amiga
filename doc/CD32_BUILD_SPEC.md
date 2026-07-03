@@ -104,7 +104,7 @@ Same recommendation as the 2024 plan:
 | Event | Action |
 |-------|--------|
 | JOYMODE (pin 5) **falling edge** | Latch gamepad state into shift register; present **Blue** on DATA (pin 9); reset bit index |
-| CLOCK (pin 6) **rising edge** (JOYMODE low) | Advance shift; drive next bit on DATA |
+| CLOCK (pin 6) **rising edge** (JOYMODE low) | Advance shift; drive next bit on DATA (v2.1.2 timing, always-on IRQ) |
 | JOYMODE **high** | Dumb mode: optionally drive Red on pin 6, Blue on pin 9 as switches; no clock ISR |
 
 No separate “Latch pin” — latch is **JOYMODE falling edge**.
@@ -334,6 +334,7 @@ When CD32 active, Map Devices row **J2** could show `CD32` suffix — optional v
 | Games expecting Port 1 CD32 | Document Port 2 default; Phase 4 for Port 1 |
 | Shift-register timing (v2.2.2) | Ghost adjacent buttons; fix DATA/CLOCK edge timing — see `doc/future_work.md` |
 | BT slot routing on disconnect | First-free-slot assignment; survivor pad unrouted — see `doc/future_work.md` |
+| UART log corruption (v2.2.2) | Concurrent printf/logi under CD32+BT load; Bluepad32 mouse 0xff43 spam — see `doc/future_work.md` |
 
 ---
 
