@@ -3,6 +3,7 @@
  */
 
 #include "mouse_config.h"
+#include "config.h"
 #include "pico/flash.h"
 #include "pico/stdlib.h"
 #include "hardware/flash.h"
@@ -10,7 +11,23 @@
 #include <stdio.h>
 #include <string.h>
 
-#define CONFIG_FLASH_OFFSET (PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE)
+#ifndef PICO_FLASH_BANK_TOTAL_SIZE
+#define PICO_FLASH_BANK_TOTAL_SIZE (FLASH_SECTOR_SIZE * 2u)
+#endif
+
+#define CONFIG_FLASH_OFFSET_LEGACY (PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE)
+
+static uint32_t port_config_flash_offset(void)
+{
+#if PICO_RP2350 && PICO_RP2350_A2_SUPPORTED
+    const uint32_t bt_bank =
+        PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE - PICO_FLASH_BANK_TOTAL_SIZE;
+#else
+    const uint32_t bt_bank = PICO_FLASH_SIZE_BYTES - PICO_FLASH_BANK_TOTAL_SIZE;
+#endif
+    return bt_bank - FLASH_SECTOR_SIZE;
+}
+
 #define CONFIG_MAGIC_LEGACY 0x4D4F5553  /* "MOUS" */
 #define CONFIG_MAGIC        0x414D4947  /* "AMIG" */
 #define CONFIG_VERSION      2
@@ -26,6 +43,9 @@ typedef struct {
 } port_config_flash_t;
 
 static uint8_t __attribute__((aligned(256))) flash_buffer[FLASH_SECTOR_SIZE];
+static uint32_t g_config_flash_offset;
+static bool g_port_config_pending;
+static port_config_data_t g_port_config_pending_data;
 
 static bool port1_mode_valid(uint8_t mode) {
     return mode <= (uint8_t)PORT1_MODE_CD32;
@@ -43,58 +63,15 @@ static void port_config_flash_write(void* param) {
     config->port2_cd32 = src->port2_cd32 ? 1 : 0;
 
     uint32_t ints = save_and_disable_interrupts();
-    flash_range_erase(CONFIG_FLASH_OFFSET, FLASH_SECTOR_SIZE);
+    flash_range_erase(g_config_flash_offset, FLASH_SECTOR_SIZE);
     restore_interrupts(ints);
 
     ints = save_and_disable_interrupts();
-    flash_range_program(CONFIG_FLASH_OFFSET, flash_buffer, FLASH_PAGE_SIZE);
+    flash_range_program(g_config_flash_offset, flash_buffer, FLASH_PAGE_SIZE);
     restore_interrupts(ints);
 }
 
-void port_config_load(port_config_data_t* out) {
-    if (out == NULL) {
-        return;
-    }
-
-    out->mouse_type = MOUSE_TYPE_AMIGA;
-    out->port1_mode = PORT1_MODE_MOUSE;
-    out->port2_cd32 = false;
-
-    const port_config_flash_t* flash = (const port_config_flash_t*)(XIP_BASE + CONFIG_FLASH_OFFSET);
-
-    if (flash->magic == CONFIG_MAGIC && flash->version >= CONFIG_VERSION) {
-        if (flash->mouse_type == MOUSE_TYPE_AMIGA || flash->mouse_type == MOUSE_TYPE_ATARI) {
-            out->mouse_type = flash->mouse_type;
-        }
-        if (port1_mode_valid(flash->port1_mode)) {
-            out->port1_mode = (port1_mode_t)flash->port1_mode;
-        }
-        out->port2_cd32 = flash->port2_cd32 != 0;
-        printf("[CONFIG] Loaded v%d: mouse=%s port1=%u port2_cd32=%d\n",
-               flash->version,
-               out->mouse_type == MOUSE_TYPE_ATARI ? "Atari" : "Amiga",
-               (unsigned)out->port1_mode,
-               out->port2_cd32 ? 1 : 0);
-        return;
-    }
-
-    if (flash->magic == CONFIG_MAGIC_LEGACY) {
-        typedef struct {
-            uint32_t magic;
-            mouse_type_t mouse_type;
-        } port_config_legacy_t;
-        const port_config_legacy_t* legacy = (const port_config_legacy_t*)flash;
-        if (legacy->mouse_type == MOUSE_TYPE_AMIGA || legacy->mouse_type == MOUSE_TYPE_ATARI) {
-            out->mouse_type = legacy->mouse_type;
-        }
-        printf("[CONFIG] Migrated legacy MOUS config (mouse type only)\n");
-        return;
-    }
-
-    printf("[CONFIG] No valid config found, using defaults\n");
-}
-
-bool port_config_save(const port_config_data_t* config) {
+static bool port_config_save_now(const port_config_data_t* config) {
     if (config == NULL) {
         return false;
     }
@@ -110,6 +87,91 @@ bool port_config_save(const port_config_data_t* config) {
         return false;
     }
     return true;
+}
+
+void port_config_load(port_config_data_t* out) {
+    if (out == NULL) {
+        return;
+    }
+
+    g_config_flash_offset = port_config_flash_offset();
+
+    out->mouse_type = MOUSE_TYPE_AMIGA;
+    out->port1_mode = PORT1_MODE_MOUSE;
+    out->port2_cd32 = false;
+
+    const port_config_flash_t* flash =
+        (const port_config_flash_t*)(XIP_BASE + g_config_flash_offset);
+
+    if (flash->magic == CONFIG_MAGIC && flash->version >= CONFIG_VERSION) {
+        if (flash->mouse_type == MOUSE_TYPE_AMIGA || flash->mouse_type == MOUSE_TYPE_ATARI) {
+            out->mouse_type = flash->mouse_type;
+        }
+        if (port1_mode_valid(flash->port1_mode)) {
+            out->port1_mode = (port1_mode_t)flash->port1_mode;
+        }
+        out->port2_cd32 = flash->port2_cd32 != 0;
+        printf("[CONFIG] Loaded v%lu: mouse=%s port1=%u port2_cd32=%d\n",
+               (unsigned long)flash->version,
+               out->mouse_type == MOUSE_TYPE_ATARI ? "Atari" : "Amiga",
+               (unsigned)out->port1_mode,
+               out->port2_cd32 ? 1 : 0);
+        return;
+    }
+
+    const port_config_flash_t* legacy_sector =
+        (const port_config_flash_t*)(XIP_BASE + CONFIG_FLASH_OFFSET_LEGACY);
+    if (legacy_sector->magic == CONFIG_MAGIC && legacy_sector->version >= CONFIG_VERSION) {
+        if (legacy_sector->mouse_type == MOUSE_TYPE_AMIGA || legacy_sector->mouse_type == MOUSE_TYPE_ATARI) {
+            out->mouse_type = legacy_sector->mouse_type;
+        }
+        if (port1_mode_valid(legacy_sector->port1_mode)) {
+            out->port1_mode = (port1_mode_t)legacy_sector->port1_mode;
+        }
+        out->port2_cd32 = legacy_sector->port2_cd32 != 0;
+        printf("[CONFIG] Migrating config from legacy flash sector\n");
+        port_config_save_now(out);
+        return;
+    }
+
+    if (legacy_sector->magic == CONFIG_MAGIC_LEGACY) {
+        typedef struct {
+            uint32_t magic;
+            mouse_type_t mouse_type;
+        } port_config_legacy_t;
+        const port_config_legacy_t* legacy_cfg = (const port_config_legacy_t*)legacy_sector;
+        if (legacy_cfg->mouse_type == MOUSE_TYPE_AMIGA || legacy_cfg->mouse_type == MOUSE_TYPE_ATARI) {
+            out->mouse_type = legacy_cfg->mouse_type;
+        }
+        printf("[CONFIG] Migrated legacy MOUS config (mouse type only)\n");
+        return;
+    }
+
+    printf("[CONFIG] No valid config found, using defaults\n");
+}
+
+bool port_config_save(const port_config_data_t* config) {
+    if (config == NULL) {
+        return false;
+    }
+
+    if (core1_get_bt_pause_depth() > 0) {
+        g_port_config_pending_data = *config;
+        g_port_config_pending = true;
+        printf("[CONFIG] Deferred save during BT enumeration\n");
+        return true;
+    }
+
+    g_port_config_pending = false;
+    return port_config_save_now(config);
+}
+
+void port_config_flush_pending(void) {
+    if (!g_port_config_pending || core1_get_bt_pause_depth() > 0) {
+        return;
+    }
+    g_port_config_pending = false;
+    port_config_save_now(&g_port_config_pending_data);
 }
 
 mouse_type_t mouse_config_load(void) {

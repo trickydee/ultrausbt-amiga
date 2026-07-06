@@ -13,9 +13,7 @@
 #include "platform/common/gpio_util.h"
 #include "platform/amiga/joystick_port1.h"  // For checking joystick mode
 #include "platform/amiga/cd32_pad.h"
-#include "util/output.h"
-
-#include <stdint.h>
+#include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>  // For abs()
 
@@ -30,11 +28,44 @@
 volatile int8_t x = 0, y = 0;
 volatile bool motion_flag = false;
 
-// Core 1 pause flag - set to true to pause mouse processing (e.g., during Bluetooth enumeration)
+// Core 1 pause: BT enumeration (refcount) + Port 1 CD32 (single flag)
 volatile bool g_core1_paused = false;
+static volatile uint32_t g_bt_pause_depth = 0;
+static volatile bool g_cd32_pause = false;
+
+enum {
+    CORE1_PHASE_LOOP_TOP = 0,
+    CORE1_PHASE_PAUSED = 1,
+    CORE1_PHASE_MOTION = 2,
+};
+static volatile uint32_t g_core1_phase = CORE1_PHASE_LOOP_TOP;
+static volatile uint32_t g_core1_pause_spins = 0;
 
 // Core 1 heartbeat counter - increments every loop to detect if Core 1 is running
 volatile uint32_t g_core1_heartbeat = 0;
+
+static absolute_time_t g_bt_pause_watchdog_start;
+static bool g_bt_pause_watchdog_active = false;
+
+static void core1_recompute_paused(void)
+{
+    g_core1_paused = (g_bt_pause_depth > 0) || g_cd32_pause;
+}
+
+static void core1_bt_pause_watchdog_arm(void)
+{
+    if (g_bt_pause_depth == 1) {
+        g_bt_pause_watchdog_start = get_absolute_time();
+        g_bt_pause_watchdog_active = true;
+    }
+}
+
+static void core1_bt_pause_watchdog_disarm(void)
+{
+    if (g_bt_pause_depth == 0) {
+        g_bt_pause_watchdog_active = false;
+    }
+}
 
 // Mouse type: Amiga (default) or Atari (swapped pins 1 and 4)
 // Will be loaded from flash on init, default to Amiga if not found
@@ -235,19 +266,21 @@ void amiga_quad_mouse_motion()
      */
 
     while (1) {
-        // Increment heartbeat counter FIRST to show Core 1 is always running
         g_core1_heartbeat++;
-        
-        // Check if Core 1 is paused (e.g., during Bluetooth enumeration)
+        g_core1_phase = CORE1_PHASE_LOOP_TOP;
+
         __sync_synchronize();
         bool paused = g_core1_paused;
         __sync_synchronize();
-        
+
         if (paused) {
-            busy_wait_us(5000);
+            g_core1_phase = CORE1_PHASE_PAUSED;
+            g_core1_pause_spins++;
+            __wfe();
             continue;
         }
-        
+
+        g_core1_phase = CORE1_PHASE_MOTION;
         absolute_time_t current_time = get_absolute_time();
         
         // Get update period based on mouse type
@@ -417,26 +450,89 @@ void amiga_quad_mouse_motion()
     }
 }
 
-// Core 1 pause/resume functions for Bluetooth enumeration coordination
+// Port 1 CD32 — pause quadrature GPIO updates on Core 1
 void amiga_quad_mouse_pause_core1(void)
 {
-    // Use atomic store with memory barrier to ensure Core 1 sees the change
     __sync_synchronize();
-    g_core1_paused = true;
+    g_cd32_pause = true;
+    core1_recompute_paused();
     __sync_synchronize();
-    // Force a memory write barrier to ensure the write is visible to Core 1
     __dmb();
 }
 
 void amiga_quad_mouse_resume_core1(void)
 {
-    // Use atomic store with memory barrier to ensure Core 1 sees the change
     __sync_synchronize();
-    g_core1_paused = false;
+    g_cd32_pause = false;
+    core1_recompute_paused();
     __sync_synchronize();
-    // Force a memory write barrier to ensure the write is visible to Core 1
     __dmb();
-    // Add a small delay to ensure Core 1 has time to see the change
-    // This is especially important if Core 1 is in a tight loop
-    busy_wait_us(50);  // 50us delay (reduced from 100us for faster resume)
+}
+
+void core1_pause_for_bt_enumeration(void)
+{
+    uint32_t depth = ++g_bt_pause_depth;
+    __dmb();
+    core1_recompute_paused();
+    __dmb();
+    core1_bt_pause_watchdog_arm();
+    (void)depth;
+}
+
+void core1_wait_for_pause_active(uint32_t timeout_ms)
+{
+    uint32_t limit = timeout_ms * 100u;
+    for (uint32_t i = 0; i < limit; i++) {
+        if (g_core1_pause_spins > 0 || g_core1_phase == CORE1_PHASE_PAUSED) {
+            return;
+        }
+        busy_wait_us(10);
+    }
+}
+
+void core1_resume_after_bt_enumeration(void)
+{
+    if (g_bt_pause_depth == 0) {
+        return;
+    }
+    --g_bt_pause_depth;
+    __dmb();
+    core1_recompute_paused();
+    __dmb();
+    core1_bt_pause_watchdog_disarm();
+    busy_wait_us(50);
+}
+
+uint32_t core1_get_bt_pause_depth(void)
+{
+    return g_bt_pause_depth;
+}
+
+void core1_force_release_bt_pause(void)
+{
+    if (g_bt_pause_depth == 0) {
+        return;
+    }
+    g_bt_pause_depth = 0;
+    __dmb();
+    core1_recompute_paused();
+    __dmb();
+    core1_bt_pause_watchdog_disarm();
+}
+
+bool core1_bt_pause_watchdog_tick(void)
+{
+    if (!g_bt_pause_watchdog_active || g_bt_pause_depth == 0) {
+        return false;
+    }
+
+    int64_t elapsed_us = absolute_time_diff_us(g_bt_pause_watchdog_start, get_absolute_time());
+    if (elapsed_us < (int64_t)BT_CORE1_PAUSE_WATCHDOG_MS * 1000) {
+        return false;
+    }
+
+    printf("[BT] Core 1 BT pause watchdog: forcing resume (depth was %lu)\n",
+           (unsigned long)g_bt_pause_depth);
+    core1_force_release_bt_pause();
+    return true;
 }

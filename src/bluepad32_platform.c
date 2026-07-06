@@ -14,12 +14,34 @@
 #include <pico/time.h>
 #include <uni.h>
 #include <bt/uni_bt.h>
-#include <string.h>
 
+#include "config.h"
 #include "sdkconfig.h"
-#include "controller/uni_controller_type.h"  // For controller type enums (Xbox, Stadia, etc.)
-#include "platform/amiga/quad_mouse.h"  // For Core 1 pause/resume functions
+#include "platform/amiga/quad_mouse.h"
 #include "display/display.h"
+#include "hardware/sync.h"
+
+// busy_wait_us is safe inside BT callbacks; sleep_ms/__wfe are not (timer/IRQ may stall).
+static void bt_callback_busy_wait_ms(uint32_t ms)
+{
+    busy_wait_us(ms * 1000u);
+}
+
+static bool might_be_bt_gamepad(uint16_t cod, const char* name)
+{
+    return (cod == 0x0508) ||
+           (name != NULL && (strstr(name, "Stadia") != NULL ||
+                             strstr(name, "Xbox") != NULL ||
+                             strstr(name, "XBOX") != NULL));
+}
+
+static void bt_resume_core1_if_paused(void)
+{
+    if (core1_get_bt_pause_depth() > 0) {
+        bt_callback_busy_wait_ms(BT_GAMEPAD_CORE1_RESUME_DELAY_MS);
+        core1_resume_after_bt_enumeration();
+    }
+}
 
 // Sanity check
 #ifndef CONFIG_BLUEPAD32_PLATFORM_CUSTOM
@@ -192,16 +214,13 @@ static void my_platform_init(int argc, const char** argv) {
 static void my_platform_on_init_complete(void) {
     logi("bluepad32_platform: on_init_complete()\n");
 
-    // Wait a bit for HCI to be ready
     logi("Waiting for HCI to be ready...\n");
-    sleep_ms(2000);  // Give HCI 2 seconds to initialize
+    bt_callback_busy_wait_ms(2000);
 
-    // Pairing is ON for 60 seconds at boot, then auto-locks OFF.
     bluepad32_pairing_start();
     g_pairing_boot_window_active = true;
     g_pairing_boot_deadline = make_timeout_time_ms(PAIRING_BOOT_WINDOW_MS);
 
-    // Turn off LED once init is done
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
 }
 
@@ -209,75 +228,39 @@ static uni_error_t my_platform_on_device_discovered(bd_addr_t addr, const char* 
     char addr_str[18];
     snprintf(addr_str, sizeof(addr_str), "%02X:%02X:%02X:%02X:%02X:%02X",
              addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
-    
+
     logi("BT Device discovered: addr=%s, name='%s', COD=0x%04X, RSSI=%d\n",
          addr_str, name ? name : "(null)", cod, rssi);
-    
-    // Store device name by address for later matching
+
+    if (might_be_bt_gamepad(cod, name)) {
+        logi("[DIAG] Pausing Core 1 for gamepad discovery (COD=0x%04X, name='%s')\n",
+             cod, name ? name : "(null)");
+        core1_pause_for_bt_enumeration();
+        core1_wait_for_pause_active(20);
+        bt_callback_busy_wait_ms(BT_GAMEPAD_DISCOVERY_SETTLE_MS);
+    }
+
     if (name && name[0] != '\0') {
         store_pending_name_by_addr(addr, name);
     }
-    
-    // Pause Core 1 immediately when a gamepad is discovered to prevent freeze during GATT service discovery
-    // COD 0x0508 = Gamepad/Joystick class
-    bool might_be_gamepad = (cod == 0x0508) ||  // Gamepad COD
-                            (name != NULL && (strstr(name, "Stadia") != NULL || 
-                                              strstr(name, "Xbox") != NULL ||
-                                              strstr(name, "XBOX") != NULL ||
-                                              strstr(name, "gamepad") != NULL ||
-                                              strstr(name, "Gamepad") != NULL ||
-                                              strstr(name, "GAMEPAD") != NULL));
-    
-    if (might_be_gamepad) {
-        logi("[DIAG] Pausing Core 1 for gamepad device discovery (COD=0x%04X, name='%s')\n", 
-             cod, name ? name : "(null)");
-        amiga_quad_mouse_pause_core1();
-    }
-    
-    // Accept all HID devices (keyboards, mice, gamepads)
+
     logi("  -> Accepting device (will attempt connection)\n");
     return UNI_ERROR_SUCCESS;
 }
 
 static void my_platform_on_device_connected(uni_hid_device_t* d) {
     logi("bluepad32_platform: device connected: %p\n", d);
-    
-    // Check if this is an Xbox or Stadia gamepad and ensure Core 1 is paused
-    // Use controller type for Xbox (if available), vendor ID for Stadia
-    bool is_xbox = false;
-    bool is_stadia = false;
-    
-    // Check controller type for Xbox (bluepad32 identifies this automatically)
-    if (uni_hid_device_has_controller_type(d)) {
-        uni_controller_type_t ctrl_type = d->controller_type;
-        is_xbox = (ctrl_type == k_eControllerType_XBoxOneController) ||
-                  (ctrl_type == k_eControllerType_XBox360Controller);
-    }
-    
-    // For Stadia, check vendor ID (Stadia is mapped to AndroidController, so we need VID/PID)
-    // Note: In on_device_connected, product_id may not be available yet
-    uint16_t vendor_id = uni_hid_device_get_vendor_id(d);
-    is_stadia = (vendor_id == 0x18D1);  // Google (Stadia)
-    
-    bool is_xbox_stadia = is_xbox || is_stadia;
-    
-    // Ensure Core 1 is paused (may have been paused earlier during discovery)
-    // The freeze happens during GATT service discovery which occurs here
-    if (is_xbox_stadia) {
-        logi("[DIAG] Ensuring Core 1 is paused for Xbox/Stadia device connection\n");
-        amiga_quad_mouse_pause_core1();
-    }
-    
-    // Device type will be determined in on_device_ready()
-    // Device name will be retrieved from d->name or matched by address
+    // Discovery already pauses Core 1 for gamepads — do not pause again here.
 }
 
 static void my_platform_on_device_disconnected(uni_hid_device_t* d) {
     logi("bluepad32_platform: device disconnected: %p\n", d);
-    
-    // Ensure Core 1 is resumed if device disconnects during enumeration
-    // (safety check in case resume wasn't called)
-    amiga_quad_mouse_resume_core1();
+
+    if (core1_get_bt_pause_depth() > 0) {
+        logi("[DIAG] disconnect during enumeration (depth=%lu), resuming Core 1\n",
+             (unsigned long)core1_get_bt_pause_depth());
+        core1_resume_after_bt_enumeration();
+    }
     
     // Clear keyboard storage if it was a keyboard
     bt_keyboard_storage_t* kb_storage = get_keyboard_storage(d);
@@ -354,11 +337,6 @@ static uni_error_t my_platform_on_device_ready(uni_hid_device_t* d) {
             }
         }
         logi("bluepad32_platform: keyboard ready\n");
-        
-#if HIDPICO_REVISION == 5
-        // Update display with new Bluetooth device counts
-        update_bt_device_counts();
-#endif
     } else if (uni_hid_device_is_mouse(d)) {
         // Mouse - mark as connected
         bt_mouse_storage_t* storage = get_mouse_storage(d);
@@ -374,38 +352,11 @@ static uni_error_t my_platform_on_device_ready(uni_hid_device_t* d) {
             }
         }
         logi("bluepad32_platform: mouse ready\n");
-        
-#if HIDPICO_REVISION == 5
-        // Update display with new Bluetooth device counts
-        update_bt_device_counts();
-#endif
     } else if (uni_hid_device_is_gamepad(d)) {
-        // Check if this is an Xbox or Stadia gamepad (known to cause Core 1 freeze)
-        // These controllers need special handling during enumeration
-        // IMPORTANT: Check vendor/product ID BEFORE allocating storage (matches Atari code ordering)
-        bool is_xbox = false;
-        bool is_stadia = false;
-        
-        // Use controller type for Xbox (bluepad32 identifies this automatically)
-        if (uni_hid_device_has_controller_type(d)) {
-            uni_controller_type_t ctrl_type = d->controller_type;
-            is_xbox = (ctrl_type == k_eControllerType_XBoxOneController) ||
-                      (ctrl_type == k_eControllerType_XBox360Controller);
-        }
-        
-        // For Stadia, check vendor/product ID (Stadia is mapped to AndroidController)
-        uint16_t vendor_id = uni_hid_device_get_vendor_id(d);
-        uint16_t product_id = uni_hid_device_get_product_id(d);
-        is_stadia = (vendor_id == 0x18D1 && product_id == 0x9400);  // Google (Stadia)
-        
-        bool is_xbox_stadia = is_xbox || is_stadia;
-        
-        // Gamepad - mark as connected (first one mapped to joystick port 2)
         bt_gamepad_storage_t* storage = get_gamepad_storage(d);
         if (storage) {
             storage->connected = true;
             storage->updated = false;
-            // Store device name
             if (device_name && device_name[0] != '\0') {
                 snprintf(storage->name, sizeof(storage->name), "%.*s", (int)(sizeof(storage->name) - 1), device_name);
                 clear_pending_name_by_addr(addr);
@@ -416,49 +367,23 @@ static uni_error_t my_platform_on_device_ready(uni_hid_device_t* d) {
         } else {
             logi("bluepad32_platform: gamepad ready but no storage slot available (MAX_BT_GAMEPADS=%d)\n", MAX_BT_GAMEPADS);
         }
-        
-        // Resume Core 1 after a short delay to ensure enumeration completes
-        // Note: Core 1 should already be paused from device_discovered/device_connected
-        // IMPORTANT: Do NOT update display during Stadia/Xbox enumeration - defer to main loop
-        // Display updates can interfere with flash access coordination during enumeration
-        if (is_xbox_stadia) {
-            // For Stadia/Xbox, use a delay to ensure GATT service discovery completes
-            // Stadia controllers are particularly sensitive to timing during enumeration
-            // Skip display update during enumeration - main loop will update it later
-            logi("[DIAG] Xbox/Stadia detected - waiting 50ms before resuming Core 1 (already paused from discovery)...\n");
-            sleep_ms(50);  // 50ms delay - reduced from 100ms for faster resume
-            logi("[DIAG] Resuming Core 1 after Xbox/Stadia enumeration\n");
-            amiga_quad_mouse_resume_core1();
-            
-            // Check Core 1 heartbeat to verify it's actually running
-            // Declare extern for heartbeat counter from quad_mouse.c
-            extern volatile uint32_t g_core1_heartbeat;
-            uint32_t heartbeat_before = g_core1_heartbeat;
-            
-            // Wait a bit and check if Core 1 is actually running
-            sleep_ms(50);
-            uint32_t heartbeat_after = g_core1_heartbeat;
-            if (heartbeat_after > heartbeat_before) {
-                logi("[DIAG] Core 1 resume confirmed - heartbeat increased from %lu to %lu\n", heartbeat_before, heartbeat_after);
-            } else {
-                logi("[DIAG] WARNING: Core 1 may not be resuming - heartbeat unchanged (%lu)\n", heartbeat_before);
-            }
-            // Display update deferred - will be updated in main loop via periodic checks
-        } else {
-            // For other gamepads, use shorter delay
-            logi("[DIAG] Waiting 10ms before resuming Core 1 after gamepad enumeration...\n");
-            sleep_ms(10);
-            amiga_quad_mouse_resume_core1();
-            logi("[DIAG] Core 1 resume completed for other gamepad\n");
-#if HIDPICO_REVISION == 5
-            // Update display after resuming Core 1 for non-Stadia gamepads
-            update_bt_device_counts();
-#endif
-        }
     } else {
         logi("bluepad32_platform: device type not supported\n");
     }
-    
+
+#if HIDPICO_REVISION == 5
+    update_bt_device_counts();
+#endif
+
+    if (core1_get_bt_pause_depth() > 0) {
+        logi("[DIAG] Waiting %dms before resuming Core 1 after device ready (depth=%lu)\n",
+             BT_GAMEPAD_CORE1_RESUME_DELAY_MS,
+             (unsigned long)core1_get_bt_pause_depth());
+        bt_resume_core1_if_paused();
+        logi("[DIAG] Core 1 BT pause depth after ready: %lu\n",
+             (unsigned long)core1_get_bt_pause_depth());
+    }
+
     return UNI_ERROR_SUCCESS;
 }
 
@@ -695,6 +620,7 @@ static void update_bt_device_counts(void)
 
 // Delete all stored Bluetooth pairing keys
 void bluepad32_delete_pairing_keys(void) {
+    core1_force_release_bt_pause();
     uni_bt_del_keys_unsafe();
 }
 

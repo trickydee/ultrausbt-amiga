@@ -21,5 +21,6 @@ bool mouse_config_save(mouse_type_t mouse_type);
 
 void port_config_load(port_config_data_t* out);
 bool port_config_save(const port_config_data_t* config);
+void port_config_flush_pending(void);
 
 #endif

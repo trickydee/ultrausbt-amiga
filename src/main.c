@@ -23,6 +23,7 @@
 #if HIDPICO_REVISION == 5
 #include "platform/amiga/cd32_pad.h"
 #include "platform/amiga/port_mode.h"
+#include "platform/amiga/mouse_config.h"
 #endif
 #include "platform/common/gpio_util.h"
 #include "util/debug_cons.h"
@@ -164,13 +165,12 @@ int main(void)
 #endif
 
 #if ENABLE_BLUEPAD32
-        // poll bluepad32 for Bluetooth events (only if enabled)
         if (bluepad32_is_enabled()) {
             bluepad32_poll();
             bluepad32_pairing_tick();
-            
-            // Optimized: batch process all Bluetooth devices with early returns
-            // Only processes devices that are actually connected, reducing overhead
+            core1_bt_pause_watchdog_tick();
+            port_config_flush_pending();
+
             process_bluepad32_devices();
         }
 #endif

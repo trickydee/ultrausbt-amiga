@@ -22,7 +22,19 @@
 #  define SOFTWARE_VERSION_MINOR 2
 #endif
 #ifndef SOFTWARE_VERSION_PATCH
-#  define SOFTWARE_VERSION_PATCH 10
+#  define SOFTWARE_VERSION_PATCH 11
+#endif
+
+// Bluetooth gamepad pairing — Core 1 pause timing (Atari v22.1.0 / ultramegausb family)
+#ifndef BT_GAMEPAD_DISCOVERY_SETTLE_MS
+#  define BT_GAMEPAD_DISCOVERY_SETTLE_MS 30
+#endif
+#ifndef BT_GAMEPAD_CORE1_RESUME_DELAY_MS
+#  define BT_GAMEPAD_CORE1_RESUME_DELAY_MS 100
+#endif
+// Force-release BT Core 1 pause if enumeration aborts without disconnect callback
+#ifndef BT_CORE1_PAUSE_WATCHDOG_MS
+#  define BT_CORE1_PAUSE_WATCHDOG_MS 45000
 #endif
 
 // Remap one HID scancode to Amiga numpad * (AMIGA_KPAST / 0x5d — PrtScn on Amiga layout).

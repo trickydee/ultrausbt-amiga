@@ -32,9 +32,17 @@ void amiga_quad_mouse_set_type(mouse_type_t type);
 mouse_type_t amiga_quad_mouse_get_type(void);
 void amiga_quad_mouse_toggle_type(void);
 
-// Core 1 pause/resume functions for Bluetooth enumeration coordination
-// Pause Core 1 to avoid flash access conflicts during GATT service discovery
+// Port 1 CD32 mode — pauses quadrature GPIO on Core 1 (independent of BT pause depth)
 void amiga_quad_mouse_pause_core1(void);
 void amiga_quad_mouse_resume_core1(void);
+
+// Bluetooth gamepad enumeration — refcounted pause (Atari v22.1.0)
+void core1_pause_for_bt_enumeration(void);
+void core1_resume_after_bt_enumeration(void);
+void core1_wait_for_pause_active(uint32_t timeout_ms);
+uint32_t core1_get_bt_pause_depth(void);
+void core1_force_release_bt_pause(void);
+// Returns true if watchdog forced a release
+bool core1_bt_pause_watchdog_tick(void);
 
 #endif
