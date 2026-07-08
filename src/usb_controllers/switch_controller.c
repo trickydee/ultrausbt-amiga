@@ -287,7 +287,7 @@ void switch_mount_cb(uint8_t dev_addr) {
 
     printf("Switch controller mount: %s (addr=%d)\n", controller_name, dev_addr);
 
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
     display_show_controller_detected("Switch", model, 3000);
 #endif
 

@@ -20,7 +20,7 @@
 #include "platform/amiga/quad_mouse.h"
 #include "platform/amiga/joystick_port1.h"
 #include "platform/amiga/joystick_port2.h"
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
 #include "platform/amiga/cd32_pad.h"
 #include "platform/amiga/port_mode.h"
 #include "platform/amiga/mouse_config.h"
@@ -52,7 +52,7 @@ int main(void)
     // tinyusb board init; led, uart, button, usb
     board_init();
 
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
     // CRITICAL: Initialize all Amiga GPIOs to INPUT (safe state) BEFORE connecting to Amiga
     // This prevents 5V back-feeding damage when Amiga is powered but Pico is not
     // We do this immediately after board_init() to ensure clean GPIO state before:
@@ -70,7 +70,7 @@ int main(void)
     // GPIOs will only be set to OUTPUT when actively driving signals LOW
     // NOTE: This initializes all Amiga joystick/mouse GPIOs:
     //   Port 1: GPIOs 10-14 (directions + fire), GPIOs 2-3 (buttons 2-3)
-    //   Port 2: GPIOs 19-22 (directions), GPIOs 26-28 (fire + buttons 2-3)
+    //   Port 2: GPIOs 19-22 (directions); fire/B2/B3 per HIDPICO_REVISION (Rev 5: 26-28, Rev 6: 7/0/1)
     // It does NOT affect CYW43 SPI pins or other system GPIOs
     amiga_gpio_reset_all_to_input();
 #endif
@@ -92,7 +92,7 @@ int main(void)
 
     dbgcons_init();
     
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
     // Print GPIO reset confirmation (after dbgcons_init so it's visible after screen clear)
     printf("[GPIO] State cleared and reset to INPUT (before other init)\n");
     
@@ -116,7 +116,7 @@ int main(void)
     // start amiga mouse emulation
     amiga_quad_mouse_init();
 
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
     // Refresh splash screen after mouse type is loaded from flash
     // This ensures the correct title (AMIGA/ATARI) is displayed
     display_show_splash();
@@ -125,9 +125,9 @@ int main(void)
     // initialize joystick port 1 (shares GPIO pins with mouse)
     amiga_joystick_port1_init();
 
-    // initialize joystick port 2 (dedicated GPIO pins for Revision 5)
+    // initialize joystick port 2 (dedicated GPIO pins for Revision 5/6)
     amiga_joystick_port2_init();
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
     cd32_port1_init();
     cd32_port2_init();
     port_mode_init();
@@ -138,14 +138,14 @@ int main(void)
     // initialize bluepad32 for Bluetooth keyboard support (Pico 2 W only)
     bluepad32_init();
     
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
     // Refresh splash screen after Bluetooth is initialized
     // This ensures the correct mode (USB+BT) is displayed
     display_show_splash();
 #endif
 #endif
 
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
     // Watchdog: Check GPIO state periodically (every 5 seconds)
     // This is lightweight - only checks a sample of GPIOs to detect stuck states
     absolute_time_t last_watchdog_check = get_absolute_time();
@@ -160,7 +160,7 @@ int main(void)
         // amiga keyboard service routine
         amiga_service();
 
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
         cd32_service();
 #endif
 
@@ -175,7 +175,7 @@ int main(void)
         }
 #endif
 
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
         // Lightweight watchdog: Check GPIO state periodically (not every loop iteration)
         // This minimizes performance impact while still detecting stuck GPIO states
         absolute_time_t now = get_absolute_time();

@@ -15,7 +15,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
 
 #define CD32_SHIFT_BITS 9
 #define CD32_PORT_COUNT 2

@@ -106,7 +106,7 @@ void tuh_xinput_mount_cb(uint8_t dev_addr, uint8_t instance, const xinputh_inter
     }
     usb_map_register_gamepad(dev_addr, map_name);
 
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
     display_show_controller_detected("Xbox", type_str, 3000);
 #endif
 
@@ -193,7 +193,7 @@ void xbox_hid_mount_cb(uint8_t dev_addr)
 {
     printf("Xbox controller (HID) mounted\n");
     usb_map_register_gamepad(dev_addr, "Xbox");
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
     display_show_controller_detected("Xbox", "HID", 3000);
 #endif
 }

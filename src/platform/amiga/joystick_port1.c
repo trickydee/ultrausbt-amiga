@@ -60,7 +60,7 @@ void amiga_joystick_port1_set_direction(enum amiga_joystick_port1_direction dir,
         case AJ1_RIGHT: dir_right = active; break;
     }
 
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
     if (cd32_port1_is_enabled()) {
         uint8_t bits = (dir_up ? 0x01 : 0) | (dir_down ? 0x02 : 0) |
                        (dir_left ? 0x04 : 0) | (dir_right ? 0x08 : 0);
@@ -104,7 +104,7 @@ void amiga_joystick_port1_set_direction(enum amiga_joystick_port1_direction dir,
 
 void amiga_joystick_port1_set_button(enum amiga_joystick_port1_buttons button, bool pressed)
 {
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
     if (cd32_port1_is_enabled()) {
         cd32_port1_legacy_button(button, pressed);
         return;

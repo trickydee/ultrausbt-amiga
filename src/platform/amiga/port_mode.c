@@ -10,7 +10,7 @@
 #include "config.h"
 #include <stdio.h>
 
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
 
 extern bool usb_hid_get_llamatron_mode(void);
 extern void usb_hid_set_llamatron_mode(bool enabled);

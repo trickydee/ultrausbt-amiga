@@ -163,7 +163,7 @@ void stadia_update_amiga_joystick(uint8_t dev_addr) {
 void stadia_mount_cb(uint8_t dev_addr) {
     printf("Stadia: Google Stadia controller detected (addr=%d)\n", dev_addr);
 
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
     display_show_controller_detected("Stadia", "Google Controller", 3000);
 #endif
 

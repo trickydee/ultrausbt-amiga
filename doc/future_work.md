@@ -147,7 +147,7 @@
 
 | Item | Notes |
 |------|-------|
-| Port 2 fire on GPIO 26 | Not 5V-tolerant on RP2350; consider PCB remap |
+| Port 2 fire on GPIO 26 | Not 5V-tolerant on RP2350; **Rev 6** moves fire/B2/B3 to GPIO 7/0/1 — see `doc/gpio_rev6_adc_avoidance.md` |
 | Atari mouse support merge | See `doc/todo.md` — may overlap with existing `quad_mouse` type toggle |
 | Submodule / SDK bump | Re-test BT pairing matrix after any pico-sdk or bluepad32 update |
 

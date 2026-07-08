@@ -129,7 +129,7 @@ static void handle_event_gamepad(uint8_t dev_addr, uint8_t instance, uint8_t con
 static uint8_t first_gamepad_dev_addr = 0;
 static uint8_t first_gamepad_instance = 0;
 
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
 // USB device counts for display
 static uint8_t usb_kb_count = 0;
 static uint8_t usb_mouse_count = 0;
@@ -205,7 +205,7 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const *desc_re
         // ahprintf("[PLUG] warning! report request failed; delayed initialisation?\n");
     }
     
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
     if (hid_protocol == HID_ITF_PROTOCOL_KEYBOARD) {
         usb_kb_count++;
         usb_map_set_keyboard("USB Keyboard");
@@ -283,7 +283,7 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance)
         }
     }
     
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
     // Update device counts
     if (hid_protocol == HID_ITF_PROTOCOL_KEYBOARD) {
         if (usb_kb_count > 0) usb_kb_count--;
@@ -301,7 +301,7 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance)
 #endif
 }
 
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
 // Update display with current USB device counts
 static void update_usb_device_counts(void)
 {
@@ -705,7 +705,7 @@ static void handle_event_keyboard(uint8_t dev_addr, uint8_t instance, hid_keyboa
         ahprintf("[LLAMATRON] *** Port 1 mode: %s ***\n", port_mode_port1_label());
     }
 
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
     if (cd32_combo_active && !last_cd32_combo_pressed) {
         port_mode_toggle_port2_cd32();
         ahprintf("[CD32] *** Port 2 CD32: %s ***\n",
@@ -927,7 +927,7 @@ void process_bluepad32_keyboard(void)
                 ahprintf("[LLAMATRON-BT] *** Port 1 mode: %s ***\n", port_mode_port1_label());
             }
 
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
             if (cd32_combo_active && !bt_last_cd32_combo_pressed) {
                 port_mode_toggle_port2_cd32();
                 ahprintf("[CD32-BT] *** Port 2 CD32: %s ***\n",
@@ -938,7 +938,7 @@ void process_bluepad32_keyboard(void)
             
             bt_last_combo_pressed = combo_active;
             bt_last_llamatron_combo_pressed = llamatron_combo_active;
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
             bt_last_cd32_combo_pressed = cd32_combo_active;
 #endif
         }

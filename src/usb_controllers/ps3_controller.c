@@ -233,7 +233,7 @@ void ps3_mount_cb(uint8_t dev_addr) {
     printf("═══════════════════════════════════════════════════════\n");
     printf("\n");
     
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
     // Show on OLED - match Atari IKBD style
     display_show_controller_detected("PS3", "DualShock 3", 3000);
 #endif

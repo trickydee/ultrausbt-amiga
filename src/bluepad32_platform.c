@@ -198,7 +198,7 @@ static bt_gamepad_storage_t* get_gamepad_storage(uni_hid_device_t* d) {
     return NULL;
 }
 
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
 // Forward declaration
 static void update_bt_device_counts(void);
 #endif
@@ -295,7 +295,7 @@ static void my_platform_on_device_disconnected(uni_hid_device_t* d) {
         logi("bluepad32_platform: gamepad disconnected\n");
     }
     
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
     // Update display with new Bluetooth device counts
     update_bt_device_counts();
 #endif
@@ -371,7 +371,7 @@ static uni_error_t my_platform_on_device_ready(uni_hid_device_t* d) {
         logi("bluepad32_platform: device type not supported\n");
     }
 
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
     update_bt_device_counts();
 #endif
 
@@ -585,7 +585,7 @@ int bluepad32_get_gamepad_count(void) {
     return count;
 }
 
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
 // Count Bluetooth devices and update display
 static void update_bt_device_counts(void)
 {

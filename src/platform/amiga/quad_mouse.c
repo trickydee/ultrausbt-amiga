@@ -133,7 +133,7 @@ void amiga_quad_mouse_init()
 
 void amiga_quad_mouse_button(enum amiga_quad_mouse_buttons button, bool pressed)
 {
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
     if (cd32_port1_is_enabled()) {
         return;
     }
@@ -391,7 +391,7 @@ void amiga_quad_mouse_motion()
                     // lut_b: {0, 0, 1, 1} - Signal B (90° shifted)
                     __sync_synchronize();
                     bool joy_mode = amiga_joystick_port1_is_joystick_mode();
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
                     bool port1_cd32 = cd32_port1_is_enabled();
 #else
                     bool port1_cd32 = false;
@@ -425,7 +425,7 @@ void amiga_quad_mouse_motion()
                     
                     __sync_synchronize();
                     bool joy_mode = amiga_joystick_port1_is_joystick_mode();
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
                     bool port1_cd32 = cd32_port1_is_enabled();
 #else
                     bool port1_cd32 = false;

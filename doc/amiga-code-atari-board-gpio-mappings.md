@@ -1,6 +1,9 @@
-# Amiga Code GPIO Mappings for Atari Board (Revision 5)
+# Amiga Code GPIO Mappings for Atari Board (Revision 5 / 6)
 
-This document details all GPIO pin mappings for the Amiga firmware when running on the Atari board hardware (Revision 5).
+This document details GPIO pin mappings for the Amiga firmware on Atari-board hardware.
+
+- **Revision 5** (`HIDPICO_REVISION=5`): level shifters; Port 2 fire/B2/B3 on GPIO 26/27/28 (ADC).
+- **Revision 6** (`HIDPICO_REVISION=6`): direct 5V on Pico 2; Port 2 fire/B2/B3 on GPIO **7/0/1**. See [`gpio_rev6_adc_avoidance.md`](./gpio_rev6_adc_avoidance.md).
 
 **IMPORTANT:** All pin designations are GPIO PIN NUMBERS, NOT PHYSICAL PIN NUMBERS.
 

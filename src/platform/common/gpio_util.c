@@ -13,7 +13,7 @@
 #include "gpio_util.h"
 #include "config.h"
 #include "util/output.h"
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
 #include "platform/amiga/cd32_pad.h"
 #endif
 #include <hardware/gpio.h>
@@ -138,7 +138,7 @@ void amiga_gpio_clear_all_cache(void)
 
 void amiga_gpio_reset_all_to_input(void)
 {
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
     // Clear all GPIO direction cache first
     amiga_gpio_clear_all_cache();
     
@@ -157,14 +157,14 @@ void amiga_gpio_reset_all_to_input(void)
     amiga_gpio_init_active_low(QM1_AMIGA_B2, false);  // GPIO 2 - Button 2 not pressed (remapped)
     amiga_gpio_init_active_low(QM1_AMIGA_B3, false);  // GPIO 3 - Button 3 not pressed (remapped)
     
-    // Port 2 GPIOs (GPIOs 19-22, 26-28)
-    amiga_gpio_init_active_low(QM2_AMIGA_H, false);   // GPIO 20 - No horizontal direction
-    amiga_gpio_init_active_low(QM2_AMIGA_V, false);   // GPIO 19 - No vertical direction
-    amiga_gpio_init_active_low(QM2_AMIGA_HQ, false);  // GPIO 22 - No horizontal quadrature
-    amiga_gpio_init_active_low(QM2_AMIGA_VQ, false);  // GPIO 21 - No vertical quadrature
-    amiga_gpio_init_active_low(QM2_AMIGA_B1, false);  // GPIO 26 - Fire button not pressed (ADC0 - sensitive!)
-    amiga_gpio_init_active_low(QM2_AMIGA_B2, false);  // GPIO 7 - Button 2 not pressed (remapped, non-ADC)
-    amiga_gpio_init_active_low(QM2_AMIGA_B3, false);  // GPIO 28 - Button 3 not pressed (remapped, ADC2)
+    // Port 2 GPIOs (directions + fire/B2/B3 per config.h — Rev 6: 7/0/1, Rev 5: 26/27/28)
+    amiga_gpio_init_active_low(QM2_AMIGA_H, false);
+    amiga_gpio_init_active_low(QM2_AMIGA_V, false);
+    amiga_gpio_init_active_low(QM2_AMIGA_HQ, false);
+    amiga_gpio_init_active_low(QM2_AMIGA_VQ, false);
+    amiga_gpio_init_active_low(QM2_AMIGA_B1, false);
+    amiga_gpio_init_active_low(QM2_AMIGA_B2, false);
+    amiga_gpio_init_active_low(QM2_AMIGA_B3, false);
     
     // All GPIOs are now in INPUT mode with pull-up enabled (safe state)
     // They will be set to OUTPUT only when actively driving a signal LOW
@@ -174,7 +174,7 @@ void amiga_gpio_reset_all_to_input(void)
 
 bool amiga_gpio_watchdog_check(void)
 {
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
     if (cd32_port1_is_enabled() || cd32_port2_is_enabled()) {
         return false;
     }
@@ -196,9 +196,9 @@ bool amiga_gpio_watchdog_check(void)
         // QM1_AMIGA_B2,  // Port 1 Button 2 (GPIO 2) - EXCLUDED from watchdog
         // QM1_AMIGA_B3,  // Port 1 Button 3 (GPIO 3) - EXCLUDED from watchdog
         QM2_AMIGA_V,   // Port 2 UP direction
-        QM2_AMIGA_B1,  // Port 2 Fire button (GPIO 26 - ADC0)
-        // QM2_AMIGA_B2,  // Port 2 Button 2 (GPIO 7) - EXCLUDED from watchdog
-        // QM2_AMIGA_B3,  // Port 2 Button 3 (GPIO 28) - EXCLUDED from watchdog
+        QM2_AMIGA_B1,  // Port 2 Fire
+        // QM2_AMIGA_B2,  // Port 2 Button 2 - EXCLUDED from watchdog
+        // QM2_AMIGA_B3,  // Port 2 Button 3 - EXCLUDED from watchdog
     };
     const int sample_count = sizeof(sample_gpios) / sizeof(sample_gpios[0]);
     

@@ -22,7 +22,7 @@
 #  define SOFTWARE_VERSION_MINOR 2
 #endif
 #ifndef SOFTWARE_VERSION_PATCH
-#  define SOFTWARE_VERSION_PATCH 11
+#  define SOFTWARE_VERSION_PATCH 12
 #endif
 
 // Bluetooth gamepad pairing — Core 1 pause timing (Atari v22.1.0 / ultramegausb family)
@@ -62,7 +62,11 @@
 // button is pressed, ensure this is set to 1 and that your level shifter has
 // proper pull-ups on the 5V side (or rely on Amiga's internal pull-ups)
 #ifndef ENABLE_LEVEL_SHIFTER
-#  define ENABLE_LEVEL_SHIFTER 1  // Default to enabled for hardware protection
+#  if HIDPICO_REVISION == 6
+#    define ENABLE_LEVEL_SHIFTER 0  // Rev 6: direct 5V on RP2350 GPIO 0-25
+#  else
+#    define ENABLE_LEVEL_SHIFTER 1  // Rev 5 and earlier: level shifters on joystick GPIOs
+#  endif
 #endif
 
 // the pico has an onboard led on gp25; use this as a default indicator
@@ -164,8 +168,64 @@
 #  define GPIO_BUTTON_LEFT   18             // Left button (Port 1 mode; with right: hold 5s clears BT keys)
 #  define GPIO_BUTTON_MIDDLE 17             // Center button (toggle screens)
 #  define GPIO_BUTTON_RIGHT  16             // Right button (toggle BT pairing on splash)
+#elif HIDPICO_REVISION == 6
+// Rev 6: same as Rev 5 (Atari-board layout) but Port 2 fire/B2/B3 moved off ADC pins
+// (GPIO 26-28) for direct Amiga 5V on RP2350 (Pico 2) without level shifters.
+// See doc/gpio_rev6_adc_avoidance.md for PCB routing.
+#  define I2C_PORT      i2c0
+#  define I2C_PIN_SDA   8
+#  define I2C_PIN_SCL   9
+#  define I2C_IRQN      23
+
+#  define KBD_AMIGA_RST 4
+#  define KBD_AMIGA_DAT 5
+#  define KBD_AMIGA_CLK 6
+
+#  define JOY1_ATARI_UP    10
+#  define JOY1_ATARI_DOWN  11
+#  define JOY1_ATARI_LEFT  12
+#  define JOY1_ATARI_RIGHT 13
+#  define JOY1_ATARI_FIRE  14
+
+#  define QM1_AMIGA_V    JOY1_ATARI_UP
+#  define QM1_AMIGA_H    JOY1_ATARI_DOWN
+#  define QM1_AMIGA_VQ   JOY1_ATARI_LEFT
+#  define QM1_AMIGA_HQ   JOY1_ATARI_RIGHT
+#  define QM1_AMIGA_B1   JOY1_ATARI_FIRE
+#  define QM1_AMIGA_B2   2                 // 5V-tolerant (unchanged from Rev 5)
+#  define QM1_AMIGA_B3   3                 // 5V-tolerant (unchanged from Rev 5)
+
+#  define JOY0_ATARI_UP    19
+#  define JOY0_ATARI_DOWN  20
+#  define JOY0_ATARI_LEFT  21
+#  define JOY0_ATARI_RIGHT 22
+#  define JOY0_ATARI_FIRE  7                 // Was GPIO 26 (ADC0) on Rev 5
+
+#  define QM2_AMIGA_V    JOY0_ATARI_UP
+#  define QM2_AMIGA_H    JOY0_ATARI_DOWN
+#  define QM2_AMIGA_VQ   JOY0_ATARI_LEFT
+#  define QM2_AMIGA_HQ   JOY0_ATARI_RIGHT
+#  define QM2_AMIGA_B1   JOY0_ATARI_FIRE      // Fire — GPIO 7 (5V-tolerant)
+#  define QM2_AMIGA_B2   0                    // Was GPIO 27 (ADC1); CD32 DATA
+#  define QM2_AMIGA_B3   1                    // Was GPIO 28 (ADC2); CD32 JOYMODE
+
+#  define SSD1306_SDA    I2C_PIN_SDA
+#  define SSD1306_SCL    I2C_PIN_SCL
+#  define SSD1306_I2C    I2C_PORT
+#  define SSD1306_ADDR   0x3c
+#  define SSD1306_WIDTH  128
+#  define SSD1306_HEIGHT 64
+
+#  define GPIO_BUTTON_LEFT   18
+#  define GPIO_BUTTON_MIDDLE 17
+#  define GPIO_BUTTON_RIGHT  16
 #else
-#  error "HIDPICO_REVISION must be 2, 4, or 5. Current value is not recognized."
+#  error "HIDPICO_REVISION must be 2, 4, 5, or 6. Current value is not recognized."
+#endif
+
+// Rev 5 and Rev 6 share ultramegausb Atari-board firmware (OLED, CD32, dual-port).
+#if HIDPICO_REVISION == 5 || HIDPICO_REVISION == 6
+#  define HIDPICO_REV_ATARI_BOARD 1
 #endif
 
 #endif // _CONFIG_H

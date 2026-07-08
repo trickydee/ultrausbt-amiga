@@ -194,7 +194,7 @@ void ps5_update_amiga_joystick(uint8_t dev_addr) {
 void ps5_mount_cb(uint8_t dev_addr) {
     printf("PS5: DualSense controller detected (addr=%d)\n", dev_addr);
 
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
     display_show_controller_detected("PS5", "DualSense", 3000);
 #endif
 

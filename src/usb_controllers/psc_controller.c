@@ -135,7 +135,7 @@ void psc_update_amiga_joystick(uint8_t dev_addr) {
 
 void psc_mount_cb(uint8_t dev_addr) {
     printf("PSC: PlayStation Classic controller detected (addr=%d)\n", dev_addr);
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
     display_show_controller_detected("PSC", "PlayStation Classic", 3000);
 #endif
     if (!allocate_controller(dev_addr))

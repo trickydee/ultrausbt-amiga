@@ -140,7 +140,7 @@ void horipad_update_amiga_joystick(uint8_t dev_addr) {
 
 void horipad_mount_cb(uint8_t dev_addr) {
     printf("HORIPAD: HORI HORIPAD (Switch) detected (addr=%d)\n", dev_addr);
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
     display_show_controller_detected("HORI", "HORIPAD (Switch)", 3000);
 #endif
     if (!allocate_controller(dev_addr))

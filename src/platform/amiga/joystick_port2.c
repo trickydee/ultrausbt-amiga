@@ -19,7 +19,7 @@
 #include "util/output.h"
 #include <hardware/gpio.h>
 
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
 
 void amiga_joystick_port2_init(void)
 {
@@ -109,7 +109,7 @@ void amiga_joystick_port2_set_button(enum amiga_joystick_port2_buttons button, b
             }
             break;
         case AJ2_BUTTON3:
-            // Button 3 now uses GPIO 28 (remapped from GPIO 18) - no conflicts
+            // Button 3 — GPIO from QM2_AMIGA_B3 (Rev 5: 28, Rev 6: 1)
             if (pressed != prev_button3) {
                 amiga_gpio_set_active_low(QM2_AMIGA_B3, pressed);
                 prev_button3 = pressed;
@@ -134,7 +134,7 @@ bool amiga_joystick_port2_get_button(enum amiga_joystick_port2_buttons button)
 {
     // Note: We don't track button state internally, so we read from GPIO
     // This is a simple implementation - buttons are active low
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
     switch (button) {
         case AJ2_FIRE:
             return !gpio_get(QM2_AMIGA_B1);  // Active low, so invert
@@ -170,4 +170,4 @@ void amiga_joystick_port2_init(void) {}
 void amiga_joystick_port2_set_direction(enum amiga_joystick_port2_direction dir, bool active) { (void)dir; (void)active; }
 void amiga_joystick_port2_set_button(enum amiga_joystick_port2_buttons button, bool pressed) { (void)button; (void)pressed; }
 void amiga_joystick_port2_reset(void) {}
-#endif // HIDPICO_REVISION == 5
+#endif // HIDPICO_REV_ATARI_BOARD

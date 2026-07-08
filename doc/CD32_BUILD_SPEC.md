@@ -75,6 +75,16 @@ The Amiga joyport has **three bidirectional lines** (pins 5, 6, 9 — POT0X, FIR
 | 6 | CLOCKIN | 26 `QM2_AMIGA_B1` | **Input** (shift mode) or open-drain out (dumb mode / Red) |
 | 9 | DATAOUT | 27 `QM2_AMIGA_B2` | **Output** — serial button bits |
 
+### Rev 6 GPIO mapping (Port 2 — direct 5V, no level shifters)
+
+Same DB-9 roles; fire/B2/B3 moved off ADC pins. See [`doc/gpio_rev6_adc_avoidance.md`](./gpio_rev6_adc_avoidance.md).
+
+| DB-9 | CD32 role | Port 2 GPIO | Firmware role in CD32 mode |
+|------|-----------|-------------|----------------------------|
+| 5 | JOYMODE | **1** `QM2_AMIGA_B3` | **Input** |
+| 6 | CLOCKIN | **7** `QM2_AMIGA_B1` | **Input** / open-drain out |
+| 9 | DATAOUT | **0** `QM2_AMIGA_B2` | **Output** |
+
 Port 1 equivalent: pins 5/6/9 → GPIO **3** (B3), **14** (Fire), **2** (B2); directions → GPIO 10–13.
 
 > **Correction history:** Early drafts assumed Clock/Latch/Data on pins 2–4 (direction lines). The PSCD32 diary shows serial signalling on **pins 5, 6, 9** — which on Rev 5 are exactly our **B3 / Fire / B2** GPIOs, not the quadrature/direction pins.

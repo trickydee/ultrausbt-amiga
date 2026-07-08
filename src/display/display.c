@@ -29,7 +29,7 @@ extern bool usb_hid_get_llamatron_mode(void);
 
 // Software version is defined in config.h (included above)
 
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
 
 // Global display instance
 static ssd1306_t disp;
@@ -198,7 +198,7 @@ void display_show_devices(void)
         ssd1306_draw_string(&disp, 0, 45, 1, buf);
     }
 #endif
-#if HIDPICO_REVISION == 5
+#if HIDPICO_REV_ATARI_BOARD
     sprintf(buf, "Port2:  %s", port_mode_get_port2_cd32() ? "CD32" : "STD");
     ssd1306_draw_string(&disp, 0, 55, 1, buf);
 #endif
@@ -461,5 +461,5 @@ void display_set_bt_counts(uint8_t kb, uint8_t mouse, uint8_t joy) {}
 void display_handle_buttons(void) {}
 void display_tick(void) {}
 void display_show_controller_detected(const char* controller_name, const char* controller_model, uint32_t duration_ms) {}
-#endif // HIDPICO_REVISION == 5
+#endif // HIDPICO_REV_ATARI_BOARD
 
