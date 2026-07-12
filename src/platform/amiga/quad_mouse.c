@@ -13,6 +13,7 @@
 #include "platform/common/gpio_util.h"
 #include "platform/amiga/joystick_port1.h"  // For checking joystick mode
 #include "platform/amiga/cd32_pad.h"
+#include "platform/amiga/port_mode.h"
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>  // For abs()
@@ -27,6 +28,10 @@
 // mouse motion values, used between core0 and core1
 volatile int8_t x = 0, y = 0;
 volatile bool motion_flag = false;
+// Core 0 diagnostics: non-zero motion samples fed into Core 1
+volatile uint32_t g_mouse_motion_feed_count = 0;
+volatile int8_t g_mouse_last_dx = 0;
+volatile int8_t g_mouse_last_dy = 0;
 
 // Core 1 pause: BT enumeration (refcount) + Port 1 CD32 (single flag)
 volatile bool g_core1_paused = false;
@@ -157,6 +162,10 @@ void amiga_quad_mouse_set_motion(int8_t in_x, int8_t in_y)
     // Accumulate motion to handle rapid updates smoothly
     // This allows multiple small movements to be combined
     if (scaled_x != 0 || scaled_y != 0) {
+        g_mouse_last_dx = scaled_x;
+        g_mouse_last_dy = scaled_y;
+        g_mouse_motion_feed_count++;
+
         // Add to existing values (with overflow protection)
         int16_t new_x = (int16_t)x + (int16_t)scaled_x;
         int16_t new_y = (int16_t)y + (int16_t)scaled_y;
@@ -570,12 +579,18 @@ bool core1_heartbeat_watchdog_tick(void)
 
     // Periodic visibility while debugging Stadia mouse lockups
     if (absolute_time_diff_us(last_diag, now) >= 2000000) {
-        printf("[DIAG] Core1 hb=%lu phase=%lu paused=%d bt_depth=%lu cd32_pause=%d\n",
+        printf("[DIAG] Core1 hb=%lu phase=%lu paused=%d bt_depth=%lu cd32_pause=%d joy=%d port1=%s motion_feeds=%lu last_d=(%d,%d) flag=%d\n",
                (unsigned long)hb,
                (unsigned long)g_core1_phase,
                g_core1_paused ? 1 : 0,
                (unsigned long)g_bt_pause_depth,
-               g_cd32_pause ? 1 : 0);
+               g_cd32_pause ? 1 : 0,
+               amiga_joystick_port1_is_joystick_mode() ? 1 : 0,
+               port_mode_port1_label(),
+               (unsigned long)g_mouse_motion_feed_count,
+               (int)g_mouse_last_dx,
+               (int)g_mouse_last_dy,
+               motion_flag ? 1 : 0);
         last_diag = now;
     }
 

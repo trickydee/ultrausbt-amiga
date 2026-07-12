@@ -535,6 +535,12 @@ static void handle_event_mouse(uint8_t dev_addr, uint8_t instance, hid_mouse_rep
     if (joystick_mode) {
         // Joystick mode: convert mouse input to joystick signals
         // No mouse quadrature output, only joystick conversion
+        static bool logged_joy_redirect;
+        if (!logged_joy_redirect && (report->x || report->y)) {
+            printf("[DIAG] mouse motion redirected to JOY mode (x=%d y=%d) — Port1 not MOUSE\n",
+                   report->x, report->y);
+            logged_joy_redirect = true;
+        }
         amiga_joystick_port1_set_from_mouse(report->x, report->y, report->buttons);
     } else {
         // Mouse-only mode: normal mouse operation

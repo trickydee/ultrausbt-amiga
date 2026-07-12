@@ -131,6 +131,10 @@ int main(void)
     cd32_port1_init();
     cd32_port2_init();
     port_mode_init();
+    printf("[PORT] Boot Port 1 mode: %s (joy_flag=%d cd32=%d)\n",
+           port_mode_port1_label(),
+           amiga_joystick_port1_is_joystick_mode() ? 1 : 0,
+           cd32_port1_is_enabled() ? 1 : 0);
     display_show_splash();
 #endif
 

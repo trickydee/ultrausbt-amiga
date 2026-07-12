@@ -22,7 +22,7 @@
 #  define SOFTWARE_VERSION_MINOR 2
 #endif
 #ifndef SOFTWARE_VERSION_PATCH
-#  define SOFTWARE_VERSION_PATCH 15
+#  define SOFTWARE_VERSION_PATCH 16
 #endif
 /* Bisect step1: CMake forces HIDPICO_REVISION=5 for Rev 5 hardware. */
 
