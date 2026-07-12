@@ -15,6 +15,9 @@
 #include "pico/time.h"  // For watchdog timing
 #include <stdio.h>
 
+#include "config.h"
+#include "tusb_config.h"
+
 #include "display/display.h"
 #include "platform/amiga/keyboard_serial_io.h"
 #include "platform/amiga/quad_mouse.h"
@@ -28,9 +31,6 @@
 #include "platform/common/gpio_util.h"
 #include "util/debug_cons.h"
 #include "util/output.h"
-
-#include "config.h"
-#include "tusb_config.h"
 
 #if ENABLE_BLUEPAD32
 #include "bluepad32_init.h"

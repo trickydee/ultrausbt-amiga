@@ -19,6 +19,7 @@
 // other includes
 #include <stdint.h>
 
+#include "config.h"
 #include "tusb_config.h"
 #include "platform/amiga/keyboard_serial_io.h"  // amiga only, for now, until i get hold of an ST :D
 #include "platform/amiga/keyboard.h"
