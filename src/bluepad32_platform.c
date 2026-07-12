@@ -235,6 +235,7 @@ static uni_error_t my_platform_on_device_discovered(bd_addr_t addr, const char* 
          addr_str, name ? name : "(null)", cod, rssi);
 
     if (might_be_bt_gamepad(cod, name)) {
+#if BT_PAUSE_CORE1_ON_GAMEPAD_DISCOVERY
         if (core1_get_bt_pause_depth() > 0) {
             logi("[DIAG] Core 1 already paused for gamepad discovery (depth=%lu, COD=0x%04X, name='%s')\n",
                  (unsigned long)core1_get_bt_pause_depth(), cod, name ? name : "(null)");
@@ -245,6 +246,10 @@ static uni_error_t my_platform_on_device_discovered(bd_addr_t addr, const char* 
             core1_wait_for_pause_active(20);
             bt_callback_busy_wait_ms(BT_GAMEPAD_DISCOVERY_SETTLE_MS);
         }
+#else
+        logi("[DIAG] Skipping Core 1 pause on gamepad discovery (COD=0x%04X, name='%s')\n",
+             cod, name ? name : "(null)");
+#endif
     }
 
     if (name && name[0] != '\0') {

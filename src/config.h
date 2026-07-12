@@ -22,7 +22,7 @@
 #  define SOFTWARE_VERSION_MINOR 2
 #endif
 #ifndef SOFTWARE_VERSION_PATCH
-#  define SOFTWARE_VERSION_PATCH 13
+#  define SOFTWARE_VERSION_PATCH 14
 #endif
 /* Bisect step1: CMake forces HIDPICO_REVISION=5 for Rev 5 hardware. */
 
@@ -36,6 +36,11 @@
 // Force-release BT Core 1 pause if enumeration aborts without disconnect callback
 #ifndef BT_CORE1_PAUSE_WATCHDOG_MS
 #  define BT_CORE1_PAUSE_WATCHDOG_MS 45000
+#endif
+// 0 = do not pause Core 1 on gamepad discovery (A/B: Stadia mouse lockup bisect).
+// 1 = pause Core 1 during gamepad discovery (Atari v22.1.0 default behaviour).
+#ifndef BT_PAUSE_CORE1_ON_GAMEPAD_DISCOVERY
+#  define BT_PAUSE_CORE1_ON_GAMEPAD_DISCOVERY 0
 #endif
 
 // Remap one HID scancode to Amiga numpad * (AMIGA_KPAST / 0x5d — PrtScn on Amiga layout).
