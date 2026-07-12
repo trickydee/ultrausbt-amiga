@@ -32,6 +32,8 @@ volatile bool motion_flag = false;
 volatile uint32_t g_mouse_motion_feed_count = 0;
 volatile int8_t g_mouse_last_dx = 0;
 volatile int8_t g_mouse_last_dy = 0;
+volatile uint32_t g_core1_motion_consumed = 0;
+volatile uint32_t g_core1_quad_gpio_updates = 0;
 
 // Core 1 pause: BT enumeration (refcount) + Port 1 CD32 (single flag)
 volatile bool g_core1_paused = false;
@@ -311,6 +313,7 @@ void amiga_quad_mouse_motion()
                 int8_t new_y = y;
         x = y = 0;
         motion_flag = false;
+                g_core1_motion_consumed++;
 
                 // Apply speed multiplier
                 int8_t scaled_x = (int8_t)((double)new_x * MOUSE_SPEED_MULTIPLIER);
@@ -415,6 +418,7 @@ void amiga_quad_mouse_motion()
                         const bool lut_b[4] = {0, 0, 1, 1};
                         amiga_gpio_set_active_low(QM1_AMIGA_H, lut_a[quad_state]);
                         amiga_gpio_set_active_low(gpio_hq, lut_b[quad_state]);
+                        g_core1_quad_gpio_updates++;
                     }
                 }
                 if (xcnt == 0) xdelta = 0;
@@ -449,6 +453,7 @@ void amiga_quad_mouse_motion()
                         const bool lut_b[4] = {0, 0, 1, 1};
                         amiga_gpio_set_active_low(gpio_v, lut_a[quad_state]);
                         amiga_gpio_set_active_low(QM1_AMIGA_VQ, lut_b[quad_state]);
+                        g_core1_quad_gpio_updates++;
                     }
                 }
                 if (ycnt == 0) ydelta = 0;
@@ -579,7 +584,7 @@ bool core1_heartbeat_watchdog_tick(void)
 
     // Periodic visibility while debugging Stadia mouse lockups
     if (absolute_time_diff_us(last_diag, now) >= 2000000) {
-        printf("[DIAG] Core1 hb=%lu phase=%lu paused=%d bt_depth=%lu cd32_pause=%d joy=%d port1=%s motion_feeds=%lu last_d=(%d,%d) flag=%d\n",
+        printf("[DIAG] Core1 hb=%lu phase=%lu paused=%d bt_depth=%lu cd32_pause=%d joy=%d port1=%s motion_feeds=%lu consumed=%lu quad_gpio=%lu last_d=(%d,%d) flag=%d\n",
                (unsigned long)hb,
                (unsigned long)g_core1_phase,
                g_core1_paused ? 1 : 0,
@@ -588,6 +593,8 @@ bool core1_heartbeat_watchdog_tick(void)
                amiga_joystick_port1_is_joystick_mode() ? 1 : 0,
                port_mode_port1_label(),
                (unsigned long)g_mouse_motion_feed_count,
+               (unsigned long)g_core1_motion_consumed,
+               (unsigned long)g_core1_quad_gpio_updates,
                (int)g_mouse_last_dx,
                (int)g_mouse_last_dy,
                motion_flag ? 1 : 0);

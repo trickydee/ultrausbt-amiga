@@ -25,7 +25,25 @@
 // Using a simple array for GPIO 0-31 (32 pins max on RP2040)
 // Each bit represents whether we've cached the direction for that GPIO
 #define MAX_GPIO 32
-static uint32_t gpio_dir_cache = 0;  // Bitmap: bit N = 1 if GPIO N is cached as OUTPUT
+// Shared by Core 0 (buttons/gamepads) and Core 1 (quadrature). Must be atomic —
+// a torn RMW lets the GPIO watchdog think Port 1 mouse pins are stuck OUTPUT and
+// reset them to INPUT, which kills cursor motion while Core 1 keeps running.
+static volatile uint32_t gpio_dir_cache = 0;
+
+static inline void gpio_cache_mark_output(uint32_t gpio)
+{
+    __atomic_or_fetch(&gpio_dir_cache, (1U << gpio), __ATOMIC_SEQ_CST);
+}
+
+static inline void gpio_cache_mark_input(uint32_t gpio)
+{
+    __atomic_and_fetch(&gpio_dir_cache, ~(1U << gpio), __ATOMIC_SEQ_CST);
+}
+
+static inline uint32_t gpio_cache_load(void)
+{
+    return __atomic_load_n(&gpio_dir_cache, __ATOMIC_SEQ_CST);
+}
 
 void amiga_gpio_set_active_low(uint32_t gpio, bool active)
 {
@@ -58,7 +76,7 @@ void amiga_gpio_set_active_low(uint32_t gpio, bool active)
         gpio_put(gpio, 0);
         // Small delay to ensure level is set (some GPIOs need time to settle)
         __sync_synchronize();
-        gpio_dir_cache |= (1U << gpio);  // Mark as output in cache
+        gpio_cache_mark_output(gpio);
     } else {
         // Inactive: set to HIGH (1)
 #if ENABLE_LEVEL_SHIFTER
@@ -69,7 +87,7 @@ void amiga_gpio_set_active_low(uint32_t gpio, bool active)
         gpio_set_dir(gpio, GPIO_IN);
         gpio_set_pulls(gpio, true, false);  // Enable pull-up (3.3V) - required for TXB0108
         __sync_synchronize();
-        gpio_dir_cache &= ~(1U << gpio);  // Mark as input in cache
+        gpio_cache_mark_input(gpio);
 #else
         // Direct connection mode: Set as INPUT with pull-up (3.3V)
         // This works when directly connected to Amiga (no level shifter)
@@ -79,7 +97,7 @@ void amiga_gpio_set_active_low(uint32_t gpio, bool active)
         gpio_set_pulls(gpio, true, false);  // Enable pull-up, disable pull-down
         // Small delay to ensure direction is set (helps with cross-core timing)
         __sync_synchronize();
-        gpio_dir_cache &= ~(1U << gpio);  // Mark as input in cache
+        gpio_cache_mark_input(gpio);
 #endif
     }
 }
@@ -105,7 +123,7 @@ void amiga_gpio_init_active_low(uint32_t gpio, bool initial_active)
         gpio_set_pulls(gpio, false, false);  // Disable pull-ups/pull-downs for OUTPUT
         gpio_set_dir(gpio, GPIO_OUT);
         gpio_put(gpio, 0);
-        gpio_dir_cache |= (1U << gpio);  // Mark as output in cache
+        gpio_cache_mark_output(gpio);
     } else {
         // Inactive: set to HIGH state
 #if ENABLE_LEVEL_SHIFTER
@@ -114,12 +132,12 @@ void amiga_gpio_init_active_low(uint32_t gpio, bool initial_active)
         // This matches the original BSS138 design which had pull-ups on both sides
         gpio_set_dir(gpio, GPIO_IN);
         gpio_set_pulls(gpio, true, false);  // Enable pull-up (3.3V) - required for TXB0108
-        gpio_dir_cache &= ~(1U << gpio);  // Mark as input in cache
+        gpio_cache_mark_input(gpio);
 #else
         // Direct connection mode: Set as INPUT with pull-up (3.3V)
         gpio_set_dir(gpio, GPIO_IN);
         gpio_set_pulls(gpio, true, false);  // Enable pull-up, disable pull-down
-        gpio_dir_cache &= ~(1U << gpio);  // Mark as input in cache
+        gpio_cache_mark_input(gpio);
 #endif
     }
 }
@@ -127,13 +145,13 @@ void amiga_gpio_init_active_low(uint32_t gpio, bool initial_active)
 void amiga_gpio_clear_cache(uint32_t gpio)
 {
     if (gpio < MAX_GPIO) {
-        gpio_dir_cache &= ~(1U << gpio);  // Clear cache for this GPIO
+        gpio_cache_mark_input(gpio);
     }
 }
 
 void amiga_gpio_clear_all_cache(void)
 {
-    gpio_dir_cache = 0;  // Clear all cached GPIO directions
+    __atomic_store_n(&gpio_dir_cache, 0, __ATOMIC_SEQ_CST);
 }
 
 void amiga_gpio_reset_all_to_input(void)
@@ -213,7 +231,7 @@ bool amiga_gpio_watchdog_check(void)
         
         // Read actual GPIO direction and value from hardware
         bool is_output = gpio_get_dir(gpio);
-        bool cached_as_output = (gpio_dir_cache & (1U << gpio)) != 0;
+        bool cached_as_output = (gpio_cache_load() & (1U << gpio)) != 0;
         bool gpio_value = gpio_get(gpio);
         
         // Only consider it stuck if:
@@ -234,6 +252,12 @@ bool amiga_gpio_watchdog_check(void)
     if (recovery_needed) {
         consecutive_mismatches++;
         if (consecutive_mismatches >= 3) {
+            // Bisect: do NOT auto-reset GPIOs — that races with Core 1 quadrature when
+            // Core 0 is driving Port 2 (Stadia) and can freeze the Amiga mouse cursor.
+            printf("[WATCHDOG] would recover GPIO (cache mismatch) — skipped (bisect)\n");
+            consecutive_mismatches = 0;
+            return false;
+#if 0
             // Reset GPIOs to INPUT (inactive) state, but PRESERVE buttons 2 and 3
             // Buttons 2 and 3 may be actively pressed and should not be reset
             // Save current state of buttons 2 and 3 before reset
@@ -264,6 +288,7 @@ bool amiga_gpio_watchdog_check(void)
             
             consecutive_mismatches = 0;  // Reset counter after recovery
             return true;  // Recovery was performed
+#endif
         }
     } else {
         consecutive_mismatches = 0;  // Reset counter if no mismatch
