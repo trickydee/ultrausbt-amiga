@@ -24,6 +24,7 @@
 #ifndef SOFTWARE_VERSION_PATCH
 #  define SOFTWARE_VERSION_PATCH 12
 #endif
+/* Bisect step1: CMake forces HIDPICO_REVISION=5 for Rev 5 hardware. */
 
 // Bluetooth gamepad pairing — Core 1 pause timing (Atari v22.1.0 / ultramegausb family)
 #ifndef BT_GAMEPAD_DISCOVERY_SETTLE_MS

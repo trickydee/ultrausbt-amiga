@@ -81,9 +81,9 @@ int main(void)
     // Print version number at startup to verify build and serial output
     printf("\n");
     printf("========================================\n");
-        printf("amigahid-pico v%d.%d.%d\n", 
-               SOFTWARE_VERSION_MAJOR, SOFTWARE_VERSION_MINOR, 
-               SOFTWARE_VERSION_PATCH);
+    printf("amigahid-pico v%d.%d.%d (PCB rev %d)\n",
+               SOFTWARE_VERSION_MAJOR, SOFTWARE_VERSION_MINOR,
+               SOFTWARE_VERSION_PATCH, HIDPICO_REVISION);
     printf("========================================\n");
     printf("Port 1 toggle: Shift + Left Amiga + J\n");
     printf("Llamatron mode: Shift + Left Amiga + L\n");
