@@ -71,30 +71,23 @@
 
 ## P2 — Bluetooth pairing alignment (Atari v22.1.0)
 
-**Status:** Open — **start here** for the next BT reliability pass.
+**Status:** Partially done — Amiga **v2.2.18** fixed Stadia→mouse `consumed=0` (Core 1 loop-counter period). Remaining: land bisect fixes on `main`, flash-layout audit, callback/`BT_GAMEPAD_*` polish.
 
-**Background:** Atari adapter fixed intermittent BLE gamepad pairing hangs (Stadia, Xbox Wireless) in **v22.1.0**. Amiga shares the same stack (Pico 2 W, Bluepad32, dual-core, Core 1 from XIP) but has only **partial** mitigations. Full technical context is in **[`doc/BT_PAIRING_HANDOFF.md`](./BT_PAIRING_HANDOFF.md)**.
+**Background:** Atari adapter fixed intermittent BLE gamepad pairing hangs (Stadia, Xbox Wireless) in **v22.1.0**. Amiga shares the same stack (Pico 2 W, Bluepad32, dual-core, Core 1 from XIP). Full technical context: **[`doc/BT_PAIRING_HANDOFF.md`](./BT_PAIRING_HANDOFF.md)**. Family best-practices handout (Atari/Apple/future): **[`doc/BT_PAIRING_BEST_PRACTICES.md`](./BT_PAIRING_BEST_PRACTICES.md)**. Stadia/mouse consume lesson: **[`doc/stadia-controller-verification.md`](./stadia-controller-verification.md)**.
 
 ### What to do (in order)
 
-1. **Read** [`doc/BT_PAIRING_HANDOFF.md`](./BT_PAIRING_HANDOFF.md) — especially *Amiga project status* and *Suggested porting order*.
-2. **Audit flash layout** — `src/platform/amiga/mouse_config.c` uses the last 4 KiB sector; confirm it does not overlap BTstack TLV (`PICO_FLASH_BANK_TOTAL_SIZE`). Compare with Atari `NVSettings.cpp`.
-3. **Port Core 1 pause/refcount** from Atari `src/main.cpp`:
-   - `g_core1_pause_depth`, `core1_pause_for_bt_enumeration()`, `core1_resume_after_bt_enumeration()`
-   - `core1_wait_for_pause_active()`
-   - `__wfe()` in Core 1 pause branch (`quad_mouse.c`)
-4. **Update** `src/bluepad32_platform.c`:
-   - Add `bt_callback_busy_wait_ms()`; remove `sleep_ms` from discovery/ready paths
-   - Remove double-pause in `on_device_connected` for Xbox/Stadia
-   - Discovery: pause → wait-for-pause → 30 ms settle
-   - Ready: 100 ms busy-wait → resume (only if `pause_depth > 0`)
-   - Disconnect: resume only if `pause_depth > 0`
-5. **Add** to `src/config.h`: `BT_GAMEPAD_DISCOVERY_SETTLE_MS` (30), `BT_GAMEPAD_CORE1_RESUME_DELAY_MS` (100).
-6. **Hardware test matrix** (Pico 2 W, Rev 5):
+1. **Read** [`doc/BT_PAIRING_HANDOFF.md`](./BT_PAIRING_HANDOFF.md) — especially §9 (`absolute_time` gate) and *Amiga project status*.
+2. **Land** v2.2.18 Core 1 consume fix + pause/watchdog work onto `main` if still on a bisect/feature branch.
+3. **Audit flash layout** — `src/platform/amiga/mouse_config.c` vs BTstack TLV (`PICO_FLASH_BANK_TOTAL_SIZE`). Compare with Atari `NVSettings.cpp`.
+4. **Polish** `src/bluepad32_platform.c` toward Atari: `bt_callback_busy_wait_ms()`, `BT_GAMEPAD_*_MS` settle/ready delays.
+5. **Hardware test matrix** (Pico 2 W, Rev 5):
    - BT keyboard + BT mouse connected → pair Stadia or Xbox → Amiga keyboard, mouse, joysticks still work
+   - DIAG: `consumed` tracks `motion_feeds`; `quad_gpio` rises
    - Reboot → bonded devices reconnect
    - Clear pairing keys (splash Left+Right 5 s) → fresh pair
-7. **Optional:** CYW43 clock trial — Amiga is 200 MHz (`CMakeLists.txt`); Atari BT uses 225 MHz. Only after steps 1–6 pass.
+6. **Optional:** CYW43 clock trial — Amiga is 200 MHz; Atari BT uses 225 MHz. Only after steps 1–5 pass.
+7. **Siblings:** Port the *knowledge* (do not gate Core 1 host-output on `absolute_time` across BT flash) to Atari/Apple docs if needed — Atari Core 1 already uses loop counters for heartbeat; Apple ADB already has pause/refcount (audit any absolute_time-gated output).
 
 ### Reference tree (canonical implementation)
 
@@ -111,9 +104,9 @@
 
 | File | Change |
 |------|--------|
-| `src/platform/amiga/quad_mouse.c` | `__wfe()` pause loop; pause/refcount API |
-| `src/bluepad32_platform.c` | Callback timing, remove double-pause |
-| `src/config.h` | BT_GAMEPAD_* delay constants |
+| `src/platform/amiga/quad_mouse.c` | Keep v2.2.18 loop-counter consume; pause API polish |
+| `src/bluepad32_platform.c` | Callback timing toward Atari |
+| `src/config.h` | BT_GAMEPAD_* delay constants where missing |
 | `src/platform/amiga/mouse_config.c` | Flash sector layout (if overlap found) |
 
 ### Do not do before pairing pass is green

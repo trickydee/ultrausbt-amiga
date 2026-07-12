@@ -14,17 +14,16 @@
 #define _CONFIG_H
 
 // Software version - single source of truth for main.c, OLED display, and serial output.
-// Increment PATCH with each build to verify latest firmware is loaded.
+// v3.0.0: Rev 5/6 GPIO maps + Core 1 loop-counter mouse consume (Stadia-safe).
 #ifndef SOFTWARE_VERSION_MAJOR
-#  define SOFTWARE_VERSION_MAJOR 2
+#  define SOFTWARE_VERSION_MAJOR 3
 #endif
 #ifndef SOFTWARE_VERSION_MINOR
-#  define SOFTWARE_VERSION_MINOR 2
+#  define SOFTWARE_VERSION_MINOR 1
 #endif
 #ifndef SOFTWARE_VERSION_PATCH
-#  define SOFTWARE_VERSION_PATCH 17
+#  define SOFTWARE_VERSION_PATCH 0
 #endif
-/* Bisect step1: CMake forces HIDPICO_REVISION=5 for Rev 5 hardware. */
 
 // Bluetooth gamepad pairing — Core 1 pause timing (Atari v22.1.0 / ultramegausb family)
 #ifndef BT_GAMEPAD_DISCOVERY_SETTLE_MS
@@ -37,10 +36,9 @@
 #ifndef BT_CORE1_PAUSE_WATCHDOG_MS
 #  define BT_CORE1_PAUSE_WATCHDOG_MS 45000
 #endif
-// 0 = do not pause Core 1 on gamepad discovery (A/B: Stadia mouse lockup bisect).
-// 1 = pause Core 1 during gamepad discovery (Atari v22.1.0 default behaviour).
+// Pause Core 1 during BLE gamepad discovery (Atari v22.1.0 default).
 #ifndef BT_PAUSE_CORE1_ON_GAMEPAD_DISCOVERY
-#  define BT_PAUSE_CORE1_ON_GAMEPAD_DISCOVERY 0
+#  define BT_PAUSE_CORE1_ON_GAMEPAD_DISCOVERY 1
 #endif
 // If Core 1 heartbeat does not advance for this long (and not intentionally
 // paused), attempt SEV wake then relaunch the quadrature loop.
@@ -58,6 +56,19 @@
 // Output: `[kbd] HID 0xNN -> Amiga 0xNN` per key down. See doc/device_troubleshooting.md.
 #ifndef KEYBOARD_HID_DEBUG
 #  define KEYBOARD_HID_DEBUG  0
+#endif
+
+// Log the hard-reset key combo state machine on UART (Ctrl+LAmiga+RAmiga/Backspace).
+// Prints ctrl/lamiga/ramiga/backspace/combo/in_reset whenever a tracked key changes.
+#ifndef KEYBOARD_RESET_DEBUG
+#  define KEYBOARD_RESET_DEBUG  0
+#endif
+
+// Minimum time (ms) to hold the Amiga reset line low once the combo is detected.
+// Guarantees a real reset even if a keyboard drops a combo key immediately
+// (matrix ghosting, e.g. MX Keys Mini dropping Backspace on the third key).
+#ifndef RESET_ASSERT_MIN_HOLD_MS
+#  define RESET_ASSERT_MIN_HOLD_MS  500
 #endif
 
 #ifndef HIDPICO_REVISION

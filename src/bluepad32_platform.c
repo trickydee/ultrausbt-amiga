@@ -237,18 +237,24 @@ static uni_error_t my_platform_on_device_discovered(bd_addr_t addr, const char* 
     if (might_be_bt_gamepad(cod, name)) {
 #if BT_PAUSE_CORE1_ON_GAMEPAD_DISCOVERY
         if (core1_get_bt_pause_depth() > 0) {
+#ifdef DEBUG_MESSAGES
             logi("[DIAG] Core 1 already paused for gamepad discovery (depth=%lu, COD=0x%04X, name='%s')\n",
                  (unsigned long)core1_get_bt_pause_depth(), cod, name ? name : "(null)");
+#endif
         } else {
+#ifdef DEBUG_MESSAGES
             logi("[DIAG] Pausing Core 1 for gamepad discovery (COD=0x%04X, name='%s')\n",
                  cod, name ? name : "(null)");
+#endif
             core1_pause_for_bt_enumeration();
             core1_wait_for_pause_active(20);
             bt_callback_busy_wait_ms(BT_GAMEPAD_DISCOVERY_SETTLE_MS);
         }
 #else
+#ifdef DEBUG_MESSAGES
         logi("[DIAG] Skipping Core 1 pause on gamepad discovery (COD=0x%04X, name='%s')\n",
              cod, name ? name : "(null)");
+#endif
 #endif
     }
 
@@ -269,8 +275,10 @@ static void my_platform_on_device_disconnected(uni_hid_device_t* d) {
     logi("bluepad32_platform: device disconnected: %p\n", d);
 
     if (core1_get_bt_pause_depth() > 0) {
+#ifdef DEBUG_MESSAGES
         logi("[DIAG] disconnect during enumeration (depth=%lu), force-releasing Core 1\n",
              (unsigned long)core1_get_bt_pause_depth());
+#endif
         core1_force_release_bt_pause();
     }
     
@@ -388,18 +396,23 @@ static uni_error_t my_platform_on_device_ready(uni_hid_device_t* d) {
 #endif
 
     if (core1_get_bt_pause_depth() > 0) {
+#ifdef DEBUG_MESSAGES
         logi("[DIAG] Waiting %dms before resuming Core 1 after device ready (depth=%lu)\n",
              BT_GAMEPAD_CORE1_RESUME_DELAY_MS,
              (unsigned long)core1_get_bt_pause_depth());
+#endif
         bt_resume_core1_if_paused();
+#ifdef DEBUG_MESSAGES
         logi("[DIAG] Core 1 BT pause depth after ready: %lu\n",
              (unsigned long)core1_get_bt_pause_depth());
+#endif
     } else if (uni_hid_device_is_gamepad(d)) {
-        // Even with discovery pause disabled, Stadia bonding/flash can leave
-        // Core 1 wedged in sleep/WFE — poke it after every gamepad ready.
+        // Stadia bonding/flash can leave Core 1 wedged — poke after every gamepad ready.
         core1_force_release_bt_pause();
+#ifdef DEBUG_MESSAGES
         logi("[DIAG] gamepad ready: Core 1 wake poke (hb=%lu)\n",
              (unsigned long)g_core1_heartbeat);
+#endif
     }
 
     return UNI_ERROR_SUCCESS;
@@ -430,8 +443,10 @@ static void my_platform_on_controller_data(uni_hid_device_t* d, uni_controller_t
         case UNI_CONTROLLER_CLASS_MOUSE: {
             // Safety net: if BT gamepad pause was orphaned, mouse reports must still move.
             if (core1_get_bt_pause_depth() > 0) {
+#ifdef DEBUG_MESSAGES
                 logi("[DIAG] mouse report while Core 1 paused (depth=%lu) — force-releasing\n",
                      (unsigned long)core1_get_bt_pause_depth());
+#endif
                 core1_force_release_bt_pause();
             }
             bt_mouse_storage_t* storage = get_mouse_storage(d);

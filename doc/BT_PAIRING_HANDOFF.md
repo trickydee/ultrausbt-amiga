@@ -2,6 +2,9 @@
 
 **Audience:** LLM or developer working on another **ultramegausb** Pico 2 W HID adapter that sees **random Bluetooth pairing hangs** while keyboards/mice work until a gamepad pairs.
 
+**Standalone family best practices (share this with Atari / Apple / future adapters):**  
+[`doc/BT_PAIRING_BEST_PRACTICES.md`](./BT_PAIRING_BEST_PRACTICES.md)
+
 **Applies to:** Any sibling project with the same architecture — e.g. **Atari ST IKBD**, **Amiga** keyboard/joystick USB/BT bridge, **Apple ADB** mouse/keyboard adapter — not one host protocol only.
 
 **Reference implementation (fixes shipped):** `ultramegausb-atari-st-rpikbd` — **v22.1.0** (`RELEASE_NOTES.md` §22.1.0).
@@ -128,6 +131,16 @@ Stay on **pico-sdk–pinned BTstack** (v1.6.2 era) unless you port `hids_host` +
 
 **Amiga today:** Same submodule pin as siblings — see `doc/submodule-versions.md`.
 
+### 9. Core 1 work gated on `absolute_time` after BT flash (Amiga, July 2026)
+
+**Symptom:** After Stadia (or similar long BLE bond) pairs, Core 1 heartbeat still climbs, Core 0 still feeds mouse deltas, but **host motion dies**. Amiga DIAG: `motion_feeds↑`, `consumed=0`, `quad_gpio=0`, `flag=1`.
+
+**Cause:** Quadrature consume/GPIO updates were inside `if (absolute_time_diff_us(...) >= period)`. After bond/`flash_safe_execute` lockout that gate stopped opening while the loop kept spinning.
+
+**Fix:** Drive Core 1 periods with a **loop counter**; consume pending motion immediately; prefer `busy_wait_us` over `sleep_us` on Core 1. Shipped Amiga **v2.2.18**. Full write-up: [`stadia-controller-verification.md`](./stadia-controller-verification.md).
+
+**Sibling note:** Atari Core 1 already avoids `absolute_time` for its heartbeat (“Use loop counter instead of absolute_time to avoid Bluetooth blocking” in `main.cpp`). Apple ADB should audit any Core 1 path that gates **output generation** on `get_absolute_time()` across BT flash. Pause/refcount alone does not cover this failure mode.
+
 ---
 
 ## What did *not* cause the hang (ruled out)
@@ -135,6 +148,7 @@ Stay on **pico-sdk–pinned BTstack** (v1.6.2 era) unless you port `hids_host` +
 - Map Devices OLED / `usb_device_map` / device name strings (Amiga v2.1.1+).
 - Stadia vs Xbox being “classic BR/EDR only” on Pico 2 W — captures showed **BLE HID gamepads**.
 - Deferring OLED updates during Xbox/Stadia enumerate (Amiga lesson) — reduces interference but is **not** the root multicore flash race.
+- **Rev 6 GPIO pin remap** — orthogonal to the Amiga `consumed=0` mouse-dead mode (failed the same on forced Rev 5).
 
 ---
 
@@ -143,17 +157,17 @@ Stay on **pico-sdk–pinned BTstack** (v1.6.2 era) unless you port `hids_host` +
 ### Boot / multicore
 
 - [x] `flash_safe_execute_core_init()` on Core 1 entry (`quad_mouse.c`)
-- [ ] Core 1 pause branch uses **`__wfe()`** (not `busy_wait_us(5000)`)
+- [x] Core 1 motion period **not** gated solely on `absolute_time` (v2.2.18 loop counter + immediate `motion_flag` consume)
+- [ ] Pause branch policy: prefer `__wfe()` *or* documented busy-wait that cannot miss SEV after flash lockout (Amiga currently uses `busy_wait_us` in pause — intentional after WFE misses)
 - [ ] Confirm wireless build XIP vs `copy_to_ram` in `CMakeLists.txt` (if applicable)
 
 ### Bluetooth platform callbacks (`src/bluepad32_platform.c`)
 
-- [ ] Replace `sleep_ms` in callbacks with `bt_callback_busy_wait_ms()` / `busy_wait_us`
-- [ ] **Refcounted** pause API (move from `quad_mouse.c` or new `core1_bt_pause.c`)
-- [x] Pause on gamepad discovery (partial — needs settle + wait-for-pause)
-- [ ] **Remove** double-pause in `on_device_connected` for Xbox/Stadia
-- [ ] Resume in `on_device_ready` with **100 ms** busy-wait; disconnect resume only if `pause_depth > 0`
-- [ ] Add `BT_GAMEPAD_*_MS` to `src/config.h`
+- [ ] Replace remaining `sleep_ms` in callbacks with `bt_callback_busy_wait_ms()` / `busy_wait_us`
+- [x] Refcounted / anti-stack pause API + force-release / watchdog (bisect line; fold cleanly to main)
+- [x] Heartbeat stall detection + SEV / relaunch (recovers brief park during Stadia bond)
+- [ ] Align discovery settle / ready delays with Atari `BT_GAMEPAD_*_MS` where still ad-hoc
+- [ ] Disconnect resume only when pause depth warrants it (review force-release vs Atari)
 
 ### Flash layout
 
@@ -171,20 +185,20 @@ Stay on **pico-sdk–pinned BTstack** (v1.6.2 era) unless you port `hids_host` +
 
 ### Diagnostics
 
-- [ ] Add `pause_depth`, Core 1 phase, heartbeat freeze detection (mirror Atari `main.cpp` breadcrumbs)
-- [ ] Gate `[DIAG]` logs behind compile flag — they change timing
+- [x] `motion_feeds` / `consumed` / `quad_gpio` / `period` DIAG (prove consume path)
+- [ ] Gate `[DIAG]` logs behind compile flag for release — they change timing
 
 ---
 
 ## Amiga file map (where to edit)
 
-| File | Current role | Target (Atari v22.1.0) |
-|------|--------------|-------------------------|
-| `src/platform/amiga/quad_mouse.c` | Core 1 loop, `g_core1_paused`, pause/resume | Add `__wfe()` in pause branch; optional phase/heartbeat diag |
-| `src/bluepad32_platform.c` | BT callbacks, discovery pause, sleep_ms delays | Refcount pause, busy_wait only, remove connect double-pause |
-| `src/config.h` | GPIO, version, features | Add `BT_GAMEPAD_DISCOVERY_SETTLE_MS`, `BT_GAMEPAD_CORE1_RESUME_DELAY_MS` |
+| File | Current role | Target (Atari v22.1.0 + Amiga lessons) |
+|------|--------------|------------------------------------------|
+| `src/platform/amiga/quad_mouse.c` | Core 1 loop, pause API, motion consume | Keep loop-counter period (v2.2.18); finish pause API polish |
+| `src/bluepad32_platform.c` | BT callbacks, discovery pause | busy_wait only; settle/ready constants |
+| `src/config.h` | GPIO, version, features | `BT_GAMEPAD_*_MS` where still missing |
 | `src/platform/amiga/mouse_config.c` | Mouse type flash persistence | Re-validate sector vs BTstack TLV |
-| `src/main.c` | Core 0 main loop | Pause API externs if moved out of quad_mouse |
+| `src/main.c` | Core 0 main loop | Heartbeat watchdog tick |
 | `src/CMakeLists.txt` | 200 MHz overclock | Document; optional 225 MHz BT trial |
 
 **Diff against Atari (canonical):**
@@ -196,6 +210,9 @@ ultramegausb-atari-st-rpikbd/include/config.h      → BT_GAMEPAD_*_MS constants
 ultramegausb-atari-st-rpikbd/src/NVSettings.cpp    → flash sector layout pattern
 ```
 
+**Amiga Stadia/mouse consume lesson (port knowledge, not pin maps):**
+[`doc/stadia-controller-verification.md`](./stadia-controller-verification.md)
+
 ---
 
 ## Amiga project status (this repo)
@@ -203,28 +220,29 @@ ultramegausb-atari-st-rpikbd/src/NVSettings.cpp    → flash sector layout patte
 | Item | Status | Notes |
 |------|--------|-------|
 | `flash_safe_execute_core_init()` on Core 1 | ✅ | `quad_mouse.c` |
-| Gamepad discovery pause | ⚠️ | No settle delay; no wait-for-pause |
-| Refcounted pause | ❌ | Single bool; double-pause on connect |
-| `__wfe()` in Core 1 pause loop | ❌ | Uses `busy_wait_us(5000)` |
-| `busy_wait_us` only in BT callbacks | ❌ | `sleep_ms` in init + ready |
-| Config delay constants | ❌ | Ad-hoc 50/10 ms |
+| Gamepad discovery pause | ⚠️ | Evolving; anti-stack + optional skip paths on bisect |
+| Refcounted / force-release pause | ✅/⚠️ | Present on bisect line; land cleanly on main |
+| Core 1 motion not `absolute_time`-gated | ✅ | **v2.2.18** — fixes Stadia→mouse `consumed=0` |
+| Heartbeat stall SEV / relaunch | ✅ | Brief park during Stadia bond still possible |
+| `busy_wait_us` only in BT callbacks | ⚠️ | Partial |
+| Config delay constants | ⚠️ | Partial |
 | Flash sector vs BTstack TLV | ⚠️ | `mouse_config.c` — audit required |
 | Map Devices / UI during pair | ✅ | Ruled out as hang cause; defer OLED on Stadia/Xbox |
-| Historical “Stadia fix” in release notes | ⚠️ | Partial early fix; **not** full Atari v22.1.0 set |
+| Historical “Stadia fix” (pause-only) | ⚠️ | Necessary but **not** sufficient; see v2.2.18 |
 
-**Conclusion:** Amiga has **early pairing mitigations** (pause on discovery, flash-safe init, defer display on Stadia/Xbox) but has **not** absorbed the full Atari v22.1.0 pairing hardening. Treat Atari as the implementation source for the next pass.
+**Conclusion:** Amiga now has the **consume-path** fix for post-Stadia dead mouse motion (v2.2.18) plus earlier flash-safe / pause work. Remaining work is polishing pause/callback timing and flash layout toward full Atari v22.1.0 alignment — not re-deriving the GPIO pin table as the mouse bug.
 
 ---
 
 ## Suggested porting order (this repo)
 
 1. Read [`doc/future_work.md`](./future_work.md) § Bluetooth pairing alignment.
-2. **Audit flash map** — `mouse_config.c` vs BTstack TLV (`PICO_FLASH_BANK_TOTAL_SIZE`).
-3. Port **refcounted pause** + `core1_wait_for_pause_active()` from Atari `main.cpp` (adapt names; may live in `quad_mouse.c` or small new module).
-4. Update **`bluepad32_platform.c`**: remove connect double-pause; `bt_callback_busy_wait_ms`; discovery settle + ready resume delays from `config.h`.
-5. Change Core 1 pause branch to **`__wfe()`**.
-6. Hardware matrix on **Pico 2 W**: BT KB + BT mouse connected → pair Stadia or Xbox → keyboard/mouse/joystick still work.
-7. Only then tune main-loop timing or clock speed.
+2. Land v2.2.18-class Core 1 consume fix on `main` if still on a bisect/feature branch.
+3. **Audit flash map** — `mouse_config.c` vs BTstack TLV (`PICO_FLASH_BANK_TOTAL_SIZE`).
+4. Finish **pause/callback polish** toward Atari (`BT_GAMEPAD_*_MS`, busy_wait-only callbacks).
+5. Hardware matrix on **Pico 2 W**: BT KB + BT mouse connected → pair Stadia or Xbox → keyboard/mouse/joystick still work (`consumed` tracks feeds).
+6. Only then tune main-loop timing or clock speed.
+7. Propagate §9 knowledge to Atari/Apple docs if their Core 1 still gates host output on `absolute_time`.
 
 ---
 
@@ -244,7 +262,8 @@ If Core 1’s **application pause loop** busy-spins instead of `__wfe()`:
 
 | Context | Use |
 |---------|-----|
-| Core 1 while `paused` | `__wfe()` |
+| Core 1 while `paused` | `__wfe()` (Atari default) — **or** short `busy_wait_us` if WFE has been observed to miss SEV after flash lockout (Amiga lesson) |
+| Core 1 host-output period | **Loop counter**, not `get_absolute_time()` after BT flash (Amiga v2.2.18 / Atari heartbeat comment) |
 | Core 0 inside BT callbacks (delays) | `busy_wait_us()` only |
 | Core 0 inside BT callbacks (waiting for Core 1 paused) | `busy_wait_us()` poll (`core1_wait_for_pause_active`) |
 
@@ -268,12 +287,13 @@ Do **not** use `__wfe()` on Core 0 inside BT callbacks — it may never wake if 
 | Document | Content |
 |----------|---------|
 | [`doc/future_work.md`](./future_work.md) | **Start here** — pairing alignment task list |
+| [`doc/stadia-controller-verification.md`](./stadia-controller-verification.md) | Stadia USB formats + BLE/`consumed=0` mouse fix |
+| [`doc/device_troubleshooting.md`](./device_troubleshooting.md) | User-facing BT/device issues |
 | [`doc/todo.md`](./todo.md) | General project TODO |
 | [`doc/submodule-versions.md`](./submodule-versions.md) | pico-sdk / bluepad32 pins |
-| `doc/device_troubleshooting.md` | User-facing BT/device issues |
 
 ---
 
 ## One-paragraph summary for paste into another LLM session
 
-> **Context:** ultramegausb-amiga (Pico 2 W, Bluepad32, dual-core). Core 1 = quadrature mouse from XIP (`quad_mouse.c`). **Problem:** random BLE gamepad pairing hangs while KB/mouse work. **Cause:** multicore flash race during BTstack TLV writes. **Atari v22.1.0 fix (port to Amiga):** refcounted Core 1 pause on gamepad discovery; `__wfe()` in Core 1 pause loop; `busy_wait_us` only in BT callbacks; 30 ms settle + 100 ms resume delay in `config.h`; no double-pause on connect; audit `mouse_config.c` flash vs BTstack TLV. **Amiga already has:** `flash_safe_execute_core_init()`, partial discovery pause. **Read:** `doc/BT_PAIRING_HANDOFF.md`, `doc/future_work.md`. **Diff:** Atari `main.cpp`, `bluepad32_platform.c`, `config.h`, `NVSettings.cpp`.
+> **Context:** ultramegausb-amiga (Pico 2 W, Bluepad32, dual-core). Core 1 = quadrature mouse from XIP (`quad_mouse.c`). **Problems:** (1) BLE gamepad pairing hangs — multicore flash race during BTstack TLV; (2) after Stadia bond, mouse motion dead while Core 1 heartbeat alive — `motion_feeds↑` / `consumed=0` because consume was gated on `absolute_time` (fixed v2.2.18 with loop-counter period). **GPIO Rev 6 remap was not the mouse-dead cause.** **Port knowledge to siblings:** do not gate Core 1 host-output on `absolute_time` across BT flash; Atari already uses loop counters for Core 1 heartbeat; Apple ADB has pause/refcount — audit any absolute_time-gated output. **Read:** `doc/BT_PAIRING_HANDOFF.md` §9, `doc/stadia-controller-verification.md`, `doc/future_work.md`.

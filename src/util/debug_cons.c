@@ -22,8 +22,10 @@ struct
 
 void dbgcons_init()
 {
+    // Note: no VT_ED_CLS (screen clear) here — keep the power-on banner and all
+    // boot messages printed before dbgcons_init() visible in the serial log.
     ahprintf(
-        VT_ED_CLS "amigahid-pico by nine <nine@aphlor.org>, https://github.com/borb/amigahid-pico"
+        "\namigahid-pico by nine <nine@aphlor.org>, https://github.com/borb/amigahid-pico\n"
     );
 
     debug_counters.hid_keyboard = 0;

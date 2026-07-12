@@ -85,15 +85,17 @@ int main(void)
                SOFTWARE_VERSION_MAJOR, SOFTWARE_VERSION_MINOR,
                SOFTWARE_VERSION_PATCH, HIDPICO_REVISION);
     printf("========================================\n");
-    printf("Port 1 toggle: Shift + Left Amiga + J\n");
-    printf("Llamatron mode: Shift + Left Amiga + L\n");
+    printf("Port 1 toggle:    Shift + Left Amiga + J\n");
+    printf("Llamatron mode:   Shift + Left Amiga + L\n");
     printf("Port 2 CD32 mode: Shift + Left Amiga + C\n");
+    printf("Reset (classic):  Ctrl + Left Amiga + Right Amiga\n");
+    printf("Reset (alt):      Ctrl + Left Amiga + Backspace\n");
     printf("========================================\n\n");
 
     dbgcons_init();
     
 #if HIDPICO_REV_ATARI_BOARD
-    // Print GPIO reset confirmation (after dbgcons_init so it's visible after screen clear)
+    // Print GPIO reset confirmation (dbgcons_init no longer clears the screen)
     printf("[GPIO] State cleared and reset to INPUT (before other init)\n");
     
     // Initialize the display (same order as Atari code: after dbgcons_init)

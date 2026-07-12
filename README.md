@@ -29,6 +29,27 @@ Other USB HID gamepads may work via the generic gamepad path (directions + up to
 
 **CD32 gamepad mode (Rev 5, v2.1.2):** Toggle Port 2 to the Amiga CD32 seven-button protocol with **Shift + Left Amiga + C** (Left Command / Left Windows on PC/Mac keyboards). Maps modern face buttons and shoulders to CD32 Blue/Red/Yellow/Green/FF/Rew/Pause for CD32-enhanced Amiga titles. See [`doc/CD32_BUILD_SPEC.md`](./doc/CD32_BUILD_SPEC.md).
 
+## Keyboard shortcuts
+
+These combos are captured by the adapter (on USB **and** Bluetooth keyboards) and are not passed through to the Amiga. **Left Amiga** = Left Command / Left GUI / Left Windows key.
+
+| Shortcut | Action |
+|----------|--------|
+| **Ctrl + Left Amiga + Right Amiga** | Amiga keyboard reset (classic combo) |
+| **Ctrl + Left Amiga + Backspace** | Amiga keyboard reset (alternate — for keyboards without a Right Amiga/GUI key, e.g. Logitech MX Keys Mini) |
+| **Shift + Left Amiga + J** | Toggle Port 1 between mouse and joystick mode |
+| **Shift + Left Amiga + L** | Toggle Llamatron twin-stick mode (Port 1 joystick) |
+| **Shift + Left Amiga + C** | Toggle Port 2 CD32 seven-button mode |
+
+Notes:
+- The reset is a **warm reset** (signalled by holding the keyboard clock line low, as the real Amiga keyboard MCU does). It resets the custom chips and reboots the OS; it is not a full power-cycle.
+- The reset line is held for a guaranteed minimum (`RESET_ASSERT_MIN_HOLD_MS`, default 500 ms) so it still triggers on keyboards that drop a combo key from their HID report (matrix ghosting).
+- One HID key can be remapped to Amiga **Help** via `KEY_REMAP_HID_TO_HELP` in `config.h` (default: the Logitech MX `| / ~ #` key, HID `0x32`). Set to `0` to disable.
+
+### OLED buttons
+
+The three on-board OLED buttons provide: **Left** = cycle Port 1 mode (MOUSE → JOY → LLAMA → CD32), **Middle** = cycle screens, **Right** = toggle Bluetooth pairing on the splash screen. Hold **Left + Right for 5 s** on the splash to clear stored Bluetooth pairing keys.
+
 ## **important note**
 
 * current kicad files are for r5 pcb, pin mappings are not yet in the source tree! i have not yet generated this board as a pcb, but it is mostly identical to r4. the keyboard and controller port 1 are correct at time of writing, and will be fixed for the second controller port when the next prototype arrives.
@@ -67,6 +88,13 @@ the rp2040 made sense as a target because it is widely available, has sufficient
 i have not measured the latency, but the keyboard signals are sent out the moment they are received on the usb bus. the potential latency is likely fractionally longer than the amiga mcu but bear in mind the rp2040 is significantly faster than the standard amiga keyboard controller.
 
 ## release notes
+
+### Alternate reset combo + Core 1 stability (v3.1.0)
+- **Alternate keyboard reset:** **Ctrl + Left Amiga + Backspace** triggers an Amiga hard reset for keyboards without a Right Amiga / Right GUI key (e.g. Logitech MX Keys Mini). Classic **Ctrl + Left Amiga + Right Amiga** still works.
+- **Reliable reset signalling:** Reset is asserted by holding the keyboard **CLOCK line low** (standard Amiga keyboard method) with a guaranteed minimum hold (`RESET_ASSERT_MIN_HOLD_MS`, 500 ms) so it still fires when a keyboard ghosts a combo key off the HID report. No scancodes are bit-banged while held in reset.
+- **Boot banner:** Power-on serial banner no longer clears the screen and now lists all keyboard shortcuts (including both reset combos).
+- **Core 1 mouse stability (from v3.0.0):** Quadrature mouse loop no longer gates on `absolute_time`, so mouse motion survives BLE gamepad pairing / flash lockout (Stadia, Xbox). See [`doc/stadia-controller-verification.md`](./doc/stadia-controller-verification.md).
+- **Debug output** gated behind `DEBUG_MESSAGES` / `KEYBOARD_RESET_DEBUG` flags for clean release builds.
 
 ### Dual CD32 pads + stability fixes (v2.2.2)
 - **Dual CD32:** Independent per-port shift registers (Port 1 + Port 2 simultaneously).

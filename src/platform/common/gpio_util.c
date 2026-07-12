@@ -252,9 +252,12 @@ bool amiga_gpio_watchdog_check(void)
     if (recovery_needed) {
         consecutive_mismatches++;
         if (consecutive_mismatches >= 3) {
-            // Bisect: do NOT auto-reset GPIOs — that races with Core 1 quadrature when
-            // Core 0 is driving Port 2 (Stadia) and can freeze the Amiga mouse cursor.
-            printf("[WATCHDOG] would recover GPIO (cache mismatch) — skipped (bisect)\n");
+            // Do NOT auto-reset GPIOs — that races with Core 1 quadrature when
+            // Core 0 is driving Port 2 (gamepad) and can freeze the Amiga mouse cursor.
+            // Keep skip as production behaviour; log only when debugging.
+#ifdef DEBUG_MESSAGES
+            printf("[WATCHDOG] GPIO cache mismatch detected — auto-reset skipped\n");
+#endif
             consecutive_mismatches = 0;
             return false;
 #if 0

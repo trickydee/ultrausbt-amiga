@@ -134,7 +134,7 @@ void amiga_hid_modifier(hid_keyboard_modifier_bm_t modifier, bool up)
 void amiga_send(uint8_t keycode, bool up)
 {
     uint8_t bit_position, bit_mask = 0x80, sendcode;
-    static bool ctrl = false, lamiga = false, ramiga = false, in_reset = false;
+    static bool ctrl = false, lamiga = false, ramiga = false, backspace = false, in_reset = false;
 
     // we don't care about caps lock coming up; ignore it
     if ((keycode == AMIGA_CAPSLOCK) && up)
@@ -149,49 +149,80 @@ void amiga_send(uint8_t keycode, bool up)
         // ahprintf("[akb] caps lock %s\n", caps_lock ? "ON" : "OFF");
     }
 
+    bool combo_key = (keycode == AMIGA_CTRL) || (keycode == AMIGA_LAMIGA) ||
+                     (keycode == AMIGA_RAMIGA) || (keycode == AMIGA_BACKSP);
+
     if (keycode == AMIGA_CTRL)
         ctrl = !up;
     if (keycode == AMIGA_LAMIGA)
         lamiga = !up;
     if (keycode == AMIGA_RAMIGA)
         ramiga = !up;
+    if (keycode == AMIGA_BACKSP)
+        backspace = !up;
 
-    if ((ctrl && lamiga && ramiga) && !in_reset) {
+    // Hard reset: classic Ctrl+Left-Amiga+Right-Amiga, OR the alternate
+    // Ctrl+Left-Amiga+Backspace for keyboards without a Right Amiga/GUI key
+    // (e.g. Logitech MX Keys Mini).
+    bool reset_combo = ctrl && lamiga && (ramiga || backspace);
+
+#if KEYBOARD_RESET_DEBUG
+    if (combo_key) {
+        printf("[reset] key=0x%02x %s | ctrl=%d lamiga=%d ramiga=%d bksp=%d | combo=%d in_reset=%d\n",
+               keycode, up ? "up" : "down",
+               ctrl, lamiga, ramiga, backspace, reset_combo, in_reset);
+    }
+#else
+    (void)combo_key;
+#endif
+
+    if (reset_combo && !in_reset) {
         in_reset = true;
+#if KEYBOARD_RESET_DEBUG
+        printf("[reset] *** ASSERT reset ***\n");
+#endif
         amiga_assert_reset();
     }
 
-    if (in_reset && !(ctrl && lamiga && ramiga)) {
+    if (in_reset && !reset_combo) {
         in_reset = false;
+#if KEYBOARD_RESET_DEBUG
+        printf("[reset] *** RELEASE reset ***\n");
+#endif
         amiga_release_reset();
     }
 
-    // copy input code, roll left, move msb to lsb
-    sendcode = keycode | (up == true ? 0x80 : 0x00);
-    sendcode <<= 1;
-    if (up || (keycode & 0x80))
-        sendcode |= 1;
+    // Do not bit-bang keycodes while the machine is held in reset: pulsing
+    // /clk during reset breaks the held ctrl-amiga-amiga (or ctrl-amiga-backspace)
+    // handshake. See borb/amigahid-pico c638207 ("fix held ctrl-amiga-amiga").
+    if (!in_reset) {
+        // copy input code, roll left, move msb to lsb
+        sendcode = keycode | (up == true ? 0x80 : 0x00);
+        sendcode <<= 1;
+        if (up || (keycode & 0x80))
+            sendcode |= 1;
 
-    for (bit_position = 0; bit_position < 8; bit_position++) {
-        if (sendcode & bit_mask)
-            amiga_gpio_set_active_low(KBD_AMIGA_DAT, true);   // LOW = active
-        else
-            amiga_gpio_set_active_low(KBD_AMIGA_DAT, false); // HIGH = inactive
+        for (bit_position = 0; bit_position < 8; bit_position++) {
+            if (sendcode & bit_mask)
+                amiga_gpio_set_active_low(KBD_AMIGA_DAT, true);   // LOW = active
+            else
+                amiga_gpio_set_active_low(KBD_AMIGA_DAT, false); // HIGH = inactive
 
-        // hold /dat for 20us before pulsing /clk, then wait 50us before next bit
-        sleep_us(20);
-        amiga_gpio_set_active_low(KBD_AMIGA_CLK, true);   // LOW = active (pulse)
-        sleep_us(20);
-        amiga_gpio_set_active_low(KBD_AMIGA_CLK, false);  // HIGH = inactive
-        sleep_us(50); // @todo should be 20?
+            // hold /dat for 20us before pulsing /clk, then wait 50us before next bit
+            sleep_us(20);
+            amiga_gpio_set_active_low(KBD_AMIGA_CLK, true);   // LOW = active (pulse)
+            sleep_us(20);
+            amiga_gpio_set_active_low(KBD_AMIGA_CLK, false);  // HIGH = inactive
+            sleep_us(50); // @todo should be 20?
 
-        // shift the bit pattern for next iteration
-        bit_mask >>= 1;
+            // shift the bit pattern for next iteration
+            bit_mask >>= 1;
+        }
+
+        // set /dat to input for 5ms to signal end of key
+        amiga_gpio_set_active_low(KBD_AMIGA_DAT, false); // HIGH = inactive
+        sleep_ms(5);
     }
-
-    // set /dat to input for 5ms to signal end of key
-    amiga_gpio_set_active_low(KBD_AMIGA_DAT, false); // HIGH = inactive
-    sleep_ms(5);
 
     // @todo we _should_ be checking that the amiga has acked the code by watching /dat
     // for a lwo pulse. according to adcd2.1, while the computer cannot detect
@@ -202,13 +233,25 @@ void amiga_send(uint8_t keycode, bool up)
 void amiga_assert_reset()
 {
     // ahprintf("[akb] *** RESET BEING ASSERTED ***\n");
-    amiga_gpio_set_active_low(KBD_AMIGA_RST, true);  // LOW = active (reset asserted)
+
+    // Standard Amiga hard reset: the keyboard signals reset by holding the keyboard
+    // CLOCK line LOW for >=500ms (the "hard reset warning"). This works on all Amigas
+    // via the keyboard connector. We also drive the dedicated /KBRST line for boards
+    // that have it wired. (See borb/amigahid-pico c638207 / issue #31, @reinauer A3000.)
+    amiga_gpio_set_active_low(KBD_AMIGA_CLK, true);  // CLK LOW = hard reset signal
+    amiga_gpio_set_active_low(KBD_AMIGA_RST, true);  // /KBRST LOW (if wired)
+
+    // Hold long enough for the Amiga to register it, even when a combo key ghosts off
+    // immediately (e.g. MX Keys Mini drops Backspace as the third key is added).
+    // Blocking is fine — we are deliberately resetting the machine.
+    sleep_ms(RESET_ASSERT_MIN_HOLD_MS);
 }
 
 void amiga_release_reset()
 {
     // ahprintf("[akb] *** RESET BEING RELEASED ***\n");
-    amiga_gpio_set_active_low(KBD_AMIGA_RST, false); // HIGH = inactive (reset released)
+    amiga_gpio_set_active_low(KBD_AMIGA_RST, false); // /KBRST HIGH = inactive
+    amiga_gpio_set_active_low(KBD_AMIGA_CLK, false); // CLK HIGH = inactive (release last)
 }
 
 void amiga_service()

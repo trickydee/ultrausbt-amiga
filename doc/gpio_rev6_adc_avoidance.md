@@ -1,8 +1,21 @@
 # GPIO Rev 6 — Avoid ADC Pins (Direct 5V / No Level Shifters)
 
-**Branch:** `feature/gpio-avoid-adc`  
-**Firmware:** `HIDPICO_REVISION=6` (CMakeLists.txt default on this branch)  
-**Target hardware:** RP2350 (Pico 2 / Pico 2 W) with **PCB reroute** of Port 2 DB-9 pins 5, 6, 9
+# Board revision (pin map in `src/config.h`)
+
+| Revision | Hardware | Port 2 fire/B2/B3 | Level shifters |
+|----------|----------|-------------------|----------------|
+| **5** (default build) | Current shipping PCB | GPIO **26 / 27 / 28** | Yes (`ENABLE_LEVEL_SHIFTER=1`) |
+| **6** | Future Pico 2 direct-5V PCB | GPIO **7 / 0 / 1** | No (`ENABLE_LEVEL_SHIFTER=0`) |
+
+Firmware support for both maps is complete. Build Rev 6 with:
+
+```cmake
+add_compile_definitions(HIDPICO_REVISION=6)
+```
+
+Do **not** flash Rev 6 firmware onto a Rev 5 board (wrong pins; also GPIO 0/1 conflict with UART). Full PCB notes: [`gpio_rev6_adc_avoidance.md`](./gpio_rev6_adc_avoidance.md).
+
+**Branch:** historically developed on `feature/gpio-avoid-adc` / bisect; maps live in `config.h` for all builds.
 
 ## Problem (Rev 5)
 
@@ -42,17 +55,18 @@ Directions stay on GPIO 19–22 (unchanged).
 
 | Setting | Rev 5 | Rev 6 |
 |---------|-------|-------|
-| `HIDPICO_REVISION` | 5 | **6** |
+| `HIDPICO_REVISION` | **5** (CMakeLists default) | **6** (`-DHIDPICO_REVISION=6`) |
 | `ENABLE_LEVEL_SHIFTER` | 1 (default) | **0** (default) |
 | `HIDPICO_REV_ATARI_BOARD` | defined | defined |
 
-Build Rev 5 firmware on older PCB:
+Build Rev 6 firmware (new PCB only):
 
 ```bash
-# In CMakeLists.txt or cmake -D:
-add_compile_definitions(HIDPICO_REVISION=5)
-# ENABLE_LEVEL_SHIFTER defaults to 1
+# In CMakeLists.txt:
+add_compile_definitions(HIDPICO_REVISION=6)
 ```
+
+Or keep Rev 5 as the default and pass an override if your build scripts support it.
 
 ## Free GPIO after Rev 6
 

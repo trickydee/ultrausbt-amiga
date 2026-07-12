@@ -13,13 +13,12 @@ add_compile_options(-Wall)
 
 # configuration options
 
-# uncomment for debug slurry
-add_compile_definitions(DEBUG_MESSAGES=1)
+# Uncomment for verbose UART debug (ahprintf, Core1 DIAG, BT pause DIAG, etc.)
+# add_compile_definitions(DEBUG_MESSAGES=1)
 
-# set the board revision (changes which pins are mapped to which ports)
-# Bisect step1: force Rev 5 so we test the GPIO-macro commit against existing hardware.
-# (08eb490 originally defaulted this to 6, which stole UART pins 0/1 on Rev 5 boards.)
-# Revision 6 pin map remains in config.h for later PCB testing.
+# Board revision (pin map in src/config.h):
+#   5 = current shipping PCB (level shifters; Port 2 fire/B2/B3 on GPIO 26/27/28)
+#   6 = direct-5V Pico 2 PCB (Port 2 fire/B2/B3 on GPIO 7/0/1) — see doc/gpio_rev6_adc_avoidance.md
 add_compile_definitions(HIDPICO_REVISION=5)
 
 # Overclock Pico to 200 MHz (all boards, requires Pico SDK 2.1.1+)

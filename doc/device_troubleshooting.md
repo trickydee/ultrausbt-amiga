@@ -8,6 +8,7 @@ This document covers troubleshooting fixes for various device compatibility issu
 2. [Stadia Controller Bluetooth Pairing Issues](#stadia-controller-bluetooth-pairing-issues)
 3. [Joystick Port 1 LEFT/RIGHT Movement Fix](#joystick-port-1-leftright-movement-fix)
 4. [Keyboard HID debug and custom key remaps](#keyboard-hid-debug-and-custom-key-remaps)
+5. [Keyboard reset combos (classic and alternate)](#keyboard-reset-combos-classic-and-alternate)
 
 ---
 
@@ -141,171 +142,74 @@ This fix is particularly important for:
 - **Other PlayStation controllers** - May use similar pairing mechanisms
 - **Any device requiring SSP** - Secure Simple Pairing requires flash writes
 
-#### Devices Not Affected
+#### Devices Not Affected (by the DS5 SSP flash-init issue alone)
 
-- **Stadia controller** - Works without this fix (uses different pairing mechanism)
-- **Simple keyboards/mice** - May work without flash coordination (less strict timing)
+- **Simple keyboards/mice** - Often work without extra SSP coordination (less strict timing)
+- **Stadia** - Still needs Core 1 / flash cooperation; see the Stadia section below (different failure mode than DS5 SSP)
 
 ---
 
 ## Stadia Controller Bluetooth Pairing Issues
 
+**Canonical write-up:** [`stadia-controller-verification.md`](./stadia-controller-verification.md) § *BLE pairing + mouse motion*.  
+**Family handoff:** [`BT_PAIRING_HANDOFF.md`](./BT_PAIRING_HANDOFF.md).
+
 ### Problem Summary
 
-Stadia controllers (and Xbox controllers) were causing system hangs or mouse movement failures when pairing via Bluetooth. The issue occurred during GATT service discovery and enumeration.
+Stadia BLE pairing has gone through several failure modes on this dual-core Pico 2 W adapter:
 
-### Symptoms
+1. **Early:** full hangs during GATT / bond (flash vs Core 1 XIP).
+2. **Mid:** pause/refcount mistakes (Core 1 stuck paused after failed reconnect).
+3. **July 2026 (v2.2.13–v2.2.17):** Stadia pairs and Port 2 works; **mouse buttons work**; **cursor motion dead**. Core 1 heartbeat still climbing.
 
-1. **Initial Issue**: System would hang completely when Stadia controller was detected
-2. **Secondary Issue**: After fixing hangs, mouse movement would stop working after pairing Stadia controller
-3. **Timing Issue**: If mouse was paired first, then Stadia controller, mouse would stop working
-4. **Order Dependency**: Pairing order mattered - Stadia first worked, but pairing mouse after Stadia caused hangs
+### Latest smoking gun (v2.2.16–v2.2.17 DIAG)
 
-### Root Cause
+```text
+motion_feeds↑  consumed=0  quad_gpio=0  flag=1  hb↑  paused=0  port1=MOUSE
+```
 
-The issue was caused by **flash access conflicts** during GATT service discovery:
+Core 0 was posting motion; Core 1 never consumed it or drove quadrature GPIOs.
 
-1. **Stadia controllers** require extensive GATT service discovery during enumeration
-2. **GATT discovery** involves multiple flash reads/writes for TLV storage
-3. **Core 1 (mouse processing)** was still running and accessing flash simultaneously
-4. **Without proper coordination**, Core 1 would interfere with Bluetooth flash access
-5. This caused either:
-   - Complete system hangs (if Core 1 froze)
-   - Mouse movement to stop (if Core 1 didn't resume properly)
+### Root Cause (confirmed)
 
-### Solution
+Motion consume + quad GPIO updates in `amiga_quad_mouse_motion()` were gated on `absolute_time_diff_us(...) >= update_period_us`. After Stadia bond / `flash_safe_execute` lockout, that **time gate stopped opening** while the Core 1 loop kept running. Stadia is a strong trigger because its bond/re-encrypt path does more TLV flash work than a typical mouse pair.
 
-Implemented a multi-part fix involving Core 1 pause/resume with proper timing and memory barriers.
+**Not** the cause of the `consumed=0` failure:
 
-#### Implementation Details
+- Rev 6 GPIO pin remap (orthogonal; Rev 5 builds failed the same way).
+- USB Stadia report-format parsing (BLE path is Bluepad32).
+- Memory barriers alone (hygiene; DIAG showed the timed block never ran).
 
-**File**: `src/bluepad32_platform.c`
+Earlier pause/resume / `flash_safe_execute_core_init()` work remains necessary for hang avoidance, but was **not sufficient** for this motion-dead mode.
 
-1. **Pause Core 1 during device discovery**:
-   ```c
-   void my_platform_on_device_discovered(uni_hid_device_t* d, ...) {
-       // Check if this is a gamepad (especially Xbox/Stadia)
-       if (cod == 0x2508 || cod == 0x508) {  // Gamepad COD
-           amiga_quad_mouse_pause_core1();
-       }
-   }
-   ```
+### Fix (v2.2.18)
 
-2. **Pause Core 1 during device connection**:
-   ```c
-   void my_platform_on_device_connected(uni_hid_device_t* d, ...) {
-       // Check if this is Xbox/Stadia
-       if (vendor_id == 0x045E || vendor_id == 0x18D1) {
-           amiga_quad_mouse_pause_core1();
-       }
-   }
-   ```
+**File:** `src/platform/amiga/quad_mouse.c`
 
-3. **Add delay before resuming Core 1** (in `on_device_ready`):
-   ```c
-   void my_platform_on_device_ready(uni_hid_device_t* d, ...) {
-       // Check vendor/product ID BEFORE allocating storage (matches Atari ordering)
-       bool is_xbox_stadia = (vendor_id == 0x045E) ||  // Microsoft (Xbox)
-                             (vendor_id == 0x18D1 && product_id == 0x9400);  // Google (Stadia)
-       
-       if (is_xbox_stadia) {
-           // Wait for GATT service discovery to complete
-           sleep_ms(50);  // Reduced from 100ms after testing
-           amiga_quad_mouse_resume_core1();
-       } else {
-           // Other gamepads need shorter delay
-           sleep_ms(10);
-           amiga_quad_mouse_resume_core1();
-       }
-   }
-   ```
+- Period from a **loop counter**, not `get_absolute_time()`.
+- Consume `motion_flag` as soon as it is set; keep period ticks for the quadrature state machine.
+- `__dmb()` on the Core0↔Core1 motion handoff.
+- Prefer `busy_wait_us` over `sleep_us` on Core 1 after BT flash activity.
 
-4. **Remove display updates during enumeration** (for Stadia/Xbox):
-   ```c
-   if (is_xbox_stadia) {
-       // IMPORTANT: Do NOT update display during Stadia/Xbox enumeration
-       // Defer display updates to avoid flash conflicts
-       // Display will be updated in main loop after enumeration completes
-   }
-   ```
+Healthy DIAG: `consumed` tracks `motion_feeds`, `quad_gpio` rises, `period` climbs, `flag=0` at idle.
 
-**File**: `src/platform/amiga/quad_mouse.c`
+### Supporting mitigations (still relevant)
 
-5. **Improved Core 1 pause/resume with memory barriers**:
-   ```c
-   void amiga_quad_mouse_pause_core1(void) {
-       __sync_synchronize();  // Full memory barrier
-       g_core1_paused = true;
-       __sync_synchronize();
-   }
-   
-   void amiga_quad_mouse_resume_core1(void) {
-       __sync_synchronize();  // Full memory barrier
-       g_core1_paused = false;
-       __sync_synchronize();
-       busy_wait_us(50);  // Small delay to let Core 1 detect the change
-   }
-   ```
+These reduce hangs / pause stacking; they do not replace the v2.2.18 consume-path fix:
 
-6. **Use busy_wait instead of sleep when paused**:
-   ```c
-   if (g_core1_paused) {
-       // Use busy_wait instead of sleep_ms to keep Core 1 active and responsive
-       busy_wait_us(5000);  // 5ms busy wait
-       continue;
-   }
-   ```
+| Mitigation | Role |
+|------------|------|
+| `flash_safe_execute_core_init()` on Core 1 entry | Required for TLV/bond flash |
+| Refcounted BT pause + force-release / watchdog | Avoid stuck `paused` after failed reconnect |
+| Optional skip of discovery pause for some gamepads | A/B; not the `consumed=0` fix |
+| Heartbeat stall → SEV / relaunch | Recovers brief Core 1 park during bond |
+| Defer heavy OLED work during enumerate | Reduces interference; not root cause |
 
-7. **Move heartbeat counter to top of loop**:
-   ```c
-   while (1) {
-       g_core1_heartbeat++;  // Increment even when paused
-       
-       if (g_core1_paused) {
-           // ... pause handling
-       }
-   }
-   ```
+### Devices / notes
 
-### Key Fixes Applied
-
-1. **Early Pause**: Pause Core 1 as soon as gamepad is discovered (before connection)
-2. **Vendor ID Check Ordering**: Check vendor/product ID BEFORE allocating storage (matches Atari code)
-3. **Timing Delays**: 50ms delay for Stadia/Xbox, 10ms for other gamepads
-4. **Memory Barriers**: Use `__sync_synchronize()` for cross-core visibility
-5. **Busy Wait When Paused**: Keep Core 1 active but paused (don't use deep sleep)
-6. **Defer Display Updates**: Don't update display during critical enumeration phase
-7. **Heartbeat Monitoring**: Track Core 1 activity to verify resume
-
-### Testing
-
-After implementing these fixes:
-- Stadia controllers pair successfully without hangs
-- Mouse movement continues working after Stadia pairing
-- Pairing order no longer matters
-- System remains stable with multiple Bluetooth devices
-
-### Important Notes
-
-#### Devices Affected
-
-- **Stadia controllers** (vendor ID 0x18D1, product ID 0x9400) - Most sensitive
-- **Xbox controllers** (vendor ID 0x045E) - Similar issues
-- **Other gamepads** - May benefit from shorter delays
-
-#### Timing Considerations
-
-- **50ms delay** for Stadia/Xbox was found to be optimal (tested from 10ms to 100ms)
-- **Shorter delays** (10ms) work for other gamepads
-- **Too long delays** can cause noticeable lag in device enumeration
-- **Too short delays** can cause hangs or mouse movement failures
-
-#### Memory Barrier Importance
-
-The `__sync_synchronize()` calls are critical:
-- Without them, Core 1 may not see the pause flag change
-- This can cause Core 1 to continue running during flash access
-- Results in hangs or corrupted flash writes
+- **Stadia** (`0x18D1` / `0x9400`) — strongest trigger seen for motion-dead after pair.
+- **Xbox Wireless** — same general BT/flash class; retest after Core 1 changes.
+- Brief `[BT] Core 1 heartbeat stalled … relaunching` during Stadia setup can still appear; mouse should recover after v2.2.18.
 
 ---
 
@@ -742,14 +646,53 @@ Sends **`AMIGA_KPAST` (`0x5d`)** — Amiga numpad `*` / Print Screen — when th
 
 ---
 
+## Keyboard reset combos (classic and alternate)
+
+The adapter emulates the Amiga keyboard hard-reset (Ctrl-Amiga-Amiga). Two combos are recognised on USB **and** Bluetooth keyboards:
+
+| Combo | Notes |
+|-------|-------|
+| **Ctrl + Left Amiga + Right Amiga** | Classic Amiga reset. Requires a keyboard with a Right Amiga / Right GUI (Right Windows / Right Command) key. |
+| **Ctrl + Left Amiga + Backspace** | Alternate reset for keyboards **without** a Right Amiga key (e.g. Logitech MX Keys Mini). |
+
+Left Amiga = Left GUI (Left Windows / Left Command).
+
+### How the reset is signalled
+
+The reset is asserted the way a real Amiga keyboard MCU does it: by **holding the keyboard CLOCK (`KCLK`) line LOW** (the "hard reset warning"), rather than relying only on the dedicated `/KBRST` line (which is not wired on every board). Both are driven for maximum compatibility. See `amiga_assert_reset()` / `amiga_release_reset()` in `src/platform/amiga/keyboard_serial_io.c`.
+
+Key points implemented for reliability:
+
+- **Minimum hold time** (`RESET_ASSERT_MIN_HOLD_MS`, default 500 ms in `config.h`). Many keyboards **ghost** — they drop a combo key from the HID report the instant a third key is added (the MX Keys Mini drops Backspace). Without a guaranteed hold, the reset pulse would be too short for the Amiga to latch. The assert blocks for this minimum on purpose (we are deliberately resetting the machine).
+- **No key bit-banging while `in_reset`.** Pulsing `/clk` to send scancodes during a reset breaks the held handshake, so the transmit loop is skipped while reset is asserted (matches borb/amigahid-pico c638207, "fix held ctrl-amiga-amiga").
+
+### Debugging the combo
+
+Enable the reset state-machine log in `src/config.h`:
+
+```c
+#define KEYBOARD_RESET_DEBUG  1
+```
+
+Each tracked key change logs the combo state, e.g.:
+
+```text
+[reset] key=0x66 down | ctrl=1 lamiga=1 ramiga=0 bksp=1 | combo=1 in_reset=0
+[reset] *** ASSERT reset ***
+```
+
+Set back to `0` for normal use (default in release builds).
+
+---
+
 ## Summary
 
 These fixes address critical device compatibility issues:
 
 1. **DS5 Pairing**: Flash-safe execution coordination for SSP pairing
-2. **Stadia Pairing**: Core 1 pause/resume with proper timing for GATT discovery
+2. **Stadia / BLE gamepad + mouse**: Core 1 must survive bond/flash lockout; Amiga v2.2.18 stops gating quadrature consume on `absolute_time` (see [`stadia-controller-verification.md`](./stadia-controller-verification.md))
 3. **Joystick LEFT/RIGHT**: GPIO direction fixes, memory barriers, and button conflict resolution
 4. **Button 2/3 Voltage**: Amiga model compatibility difference (not a firmware bug)
 
-All fixes involve proper cross-core synchronization and flash access coordination, which are critical for reliable operation on multi-core systems with Bluetooth support.
+Cross-core flash coordination and Core 1 timing that does not depend on fragile `absolute_time` gates are both required for reliable Pico 2 W + Bluepad32 operation.
 

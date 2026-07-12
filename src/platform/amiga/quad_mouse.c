@@ -34,6 +34,7 @@ volatile int8_t g_mouse_last_dx = 0;
 volatile int8_t g_mouse_last_dy = 0;
 volatile uint32_t g_core1_motion_consumed = 0;
 volatile uint32_t g_core1_quad_gpio_updates = 0;
+volatile uint32_t g_core1_period_ticks = 0;
 
 // Core 1 pause: BT enumeration (refcount) + Port 1 CD32 (single flag)
 volatile bool g_core1_paused = false;
@@ -180,7 +181,9 @@ void amiga_quad_mouse_set_motion(int8_t in_x, int8_t in_y)
         
         x = (int8_t)new_x;
         y = (int8_t)new_y;
+        __dmb();  // x,y must be visible to Core 1 before the flag
         motion_flag = true;
+        __dmb();
     }
 }
 
@@ -262,7 +265,12 @@ void amiga_quad_mouse_motion()
     bool prev_x_neg = false;
     bool prev_y_neg = false;
     
-    absolute_time_t last_update = get_absolute_time();
+    // Prefer a loop-based period over absolute_time: after BT flash lockout on
+    // Core 1, time_diff checks were never firing (consumed/quad_gpio stayed 0
+    // while heartbeat and motion_feeds kept rising).
+    uint32_t loops_since_update = 0;
+    // ~170us target with busy_wait_us(50) ≈ 4 loops
+    const uint32_t loops_per_update = 4;
     
     /**
      * Quadrature motion uses a hardware-side counter with two signal lines per axis.
@@ -271,7 +279,7 @@ void amiga_quad_mouse_motion()
      * and 1.5, giving four possible states for each t/2.
      * 
      * This implementation uses 16-bit accumulators with phase extraction from
-     * upper 8 bits, providing smooth transitions and proper direction change handling.
+     * upper 8 bits, providing smoother transitions and proper direction change handling.
      * 
      * Reference: Atari-Quadrature-USB-Mouse-Adapter and Yaumataca projects
      */
@@ -280,9 +288,9 @@ void amiga_quad_mouse_motion()
         g_core1_heartbeat++;
         g_core1_phase = CORE1_PHASE_LOOP_TOP;
 
-        __sync_synchronize();
+        __dmb();
         bool paused = g_core1_paused;
-        __sync_synchronize();
+        __dmb();
 
         if (paused) {
             g_core1_phase = CORE1_PHASE_PAUSED;
@@ -293,26 +301,26 @@ void amiga_quad_mouse_motion()
         }
 
         g_core1_phase = CORE1_PHASE_MOTION;
-        absolute_time_t current_time = get_absolute_time();
-        
-        // Get update period based on mouse type
-        __sync_synchronize();
-        mouse_type_t mouse_type = g_mouse_type;
-        __sync_synchronize();
-        uint32_t update_period_us = (mouse_type == MOUSE_TYPE_ATARI) ? ATARI_UPDATE_PERIOD_US : AMIGA_UPDATE_PERIOD_US;
-        
-        // Check if it's time to update
-        int64_t time_diff = absolute_time_diff_us(last_update, current_time);
-        if (time_diff >= (int64_t)update_period_us) {
-            last_update = current_time;
-            
+
+        __dmb();
+        bool pending_motion = motion_flag;
+        __dmb();
+
+        loops_since_update++;
+        // Always service pending motion immediately; otherwise tick at ~170us.
+        if (pending_motion || loops_since_update >= loops_per_update) {
+            loops_since_update = 0;
+            g_core1_period_ticks++;
+
             // Process new motion input
+            __dmb();
             if (motion_flag) {
-        // Read motion atomically
+                // Read motion atomically
                 int8_t new_x = x;
                 int8_t new_y = y;
-        x = y = 0;
-        motion_flag = false;
+                x = y = 0;
+                motion_flag = false;
+                __dmb();
                 g_core1_motion_consumed++;
 
                 // Apply speed multiplier
@@ -402,14 +410,14 @@ void amiga_quad_mouse_motion()
                     // Quadrature lookup tables (from Yaumataca reference)
                     // lut_a: {0, 1, 1, 0} - Signal A
                     // lut_b: {0, 0, 1, 1} - Signal B (90° shifted)
-                    __sync_synchronize();
+                    __dmb();
                     bool joy_mode = amiga_joystick_port1_is_joystick_mode();
 #if HIDPICO_REV_ATARI_BOARD
                     bool port1_cd32 = cd32_port1_is_enabled();
 #else
                     bool port1_cd32 = false;
 #endif
-                    __sync_synchronize();
+                    __dmb();
                     if (!joy_mode && !port1_cd32) {
                         uint32_t gpio_hq = get_gpio_hq();
                         uint8_t quad_state = xph & 0x03;
@@ -437,14 +445,14 @@ void amiga_quad_mouse_motion()
                     yph = new_yph;
                     if (ycnt > 0) ycnt--;
                     
-                    __sync_synchronize();
+                    __dmb();
                     bool joy_mode = amiga_joystick_port1_is_joystick_mode();
 #if HIDPICO_REV_ATARI_BOARD
                     bool port1_cd32 = cd32_port1_is_enabled();
 #else
                     bool port1_cd32 = false;
 #endif
-                    __sync_synchronize();
+                    __dmb();
                     if (!joy_mode && !port1_cd32) {
                         uint32_t gpio_v = get_gpio_v();
                         uint8_t quad_state = yph & 0x03;
@@ -557,8 +565,10 @@ bool core1_bt_pause_watchdog_tick(void)
         return false;
     }
 
+#ifdef DEBUG_MESSAGES
     printf("[BT] Core 1 BT pause watchdog: forcing resume (depth was %lu)\n",
            (unsigned long)g_bt_pause_depth);
+#endif
     core1_force_release_bt_pause();
     return true;
 }
@@ -567,7 +577,9 @@ bool core1_heartbeat_watchdog_tick(void)
 {
     static uint32_t last_hb;
     static absolute_time_t last_change;
+#ifdef DEBUG_MESSAGES
     static absolute_time_t last_diag;
+#endif
     static bool armed;
     static bool relaunched;
 
@@ -577,14 +589,17 @@ bool core1_heartbeat_watchdog_tick(void)
     if (!armed) {
         last_hb = hb;
         last_change = now;
+#ifdef DEBUG_MESSAGES
         last_diag = now;
+#endif
         armed = true;
         return false;
     }
 
-    // Periodic visibility while debugging Stadia mouse lockups
+    // Periodic Core 1 / motion DIAG (Stadia mouse lockup investigations)
+#ifdef DEBUG_MESSAGES
     if (absolute_time_diff_us(last_diag, now) >= 2000000) {
-        printf("[DIAG] Core1 hb=%lu phase=%lu paused=%d bt_depth=%lu cd32_pause=%d joy=%d port1=%s motion_feeds=%lu consumed=%lu quad_gpio=%lu last_d=(%d,%d) flag=%d\n",
+        printf("[DIAG] Core1 hb=%lu phase=%lu paused=%d bt_depth=%lu cd32_pause=%d joy=%d port1=%s motion_feeds=%lu consumed=%lu quad_gpio=%lu period=%lu last_d=(%d,%d) flag=%d\n",
                (unsigned long)hb,
                (unsigned long)g_core1_phase,
                g_core1_paused ? 1 : 0,
@@ -595,11 +610,13 @@ bool core1_heartbeat_watchdog_tick(void)
                (unsigned long)g_mouse_motion_feed_count,
                (unsigned long)g_core1_motion_consumed,
                (unsigned long)g_core1_quad_gpio_updates,
+               (unsigned long)g_core1_period_ticks,
                (int)g_mouse_last_dx,
                (int)g_mouse_last_dy,
                motion_flag ? 1 : 0);
         last_diag = now;
     }
+#endif
 
     if (hb != last_hb) {
         last_hb = hb;
@@ -619,15 +636,19 @@ bool core1_heartbeat_watchdog_tick(void)
         return false;
     }
 
+#ifdef DEBUG_MESSAGES
     printf("[BT] Core 1 heartbeat stalled (hb=%lu phase=%lu) — SEV wake\n",
            (unsigned long)hb, (unsigned long)g_core1_phase);
+#endif
     core1_force_release_bt_pause();
     last_change = now;
 
     if (!relaunched) {
         busy_wait_us(2000);
         if (g_core1_heartbeat == hb) {
+#ifdef DEBUG_MESSAGES
             printf("[BT] Core 1 still stalled — relaunching amiga_quad_mouse_motion\n");
+#endif
             multicore_reset_core1();
             busy_wait_us(1000);
             multicore_launch_core1(amiga_quad_mouse_motion);
