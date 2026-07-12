@@ -469,14 +469,28 @@ void amiga_quad_mouse_resume_core1(void)
     __dmb();
 }
 
+static void core1_wake_from_pause(void)
+{
+    // Core 1 waits in __wfe(); clear the pause flag then SEV so it leaves WFE.
+    // Double SEV covers the case where Core 1 was between the paused check and WFE.
+    __sev();
+    __sev();
+}
+
 void core1_pause_for_bt_enumeration(void)
 {
-    uint32_t depth = ++g_bt_pause_depth;
+    // Do not stack pauses: a failed Stadia reconnect can rediscover without
+    // calling on_device_disconnected, and a second ++depth leaves Core 1 stuck
+    // after a single resume-by-1 on device ready.
+    if (g_bt_pause_depth > 0) {
+        return;
+    }
+    g_bt_pause_depth = 1;
+    g_core1_pause_spins = 0;
     __dmb();
     core1_recompute_paused();
     __dmb();
     core1_bt_pause_watchdog_arm();
-    (void)depth;
 }
 
 void core1_wait_for_pause_active(uint32_t timeout_ms)
@@ -492,15 +506,9 @@ void core1_wait_for_pause_active(uint32_t timeout_ms)
 
 void core1_resume_after_bt_enumeration(void)
 {
-    if (g_bt_pause_depth == 0) {
-        return;
-    }
-    --g_bt_pause_depth;
-    __dmb();
-    core1_recompute_paused();
-    __dmb();
-    core1_bt_pause_watchdog_disarm();
-    busy_wait_us(50);
+    // Prefer force-release semantics for BT enumeration: a single successful
+    // ready/disconnect must clear any orphaned discovery pause.
+    core1_force_release_bt_pause();
 }
 
 uint32_t core1_get_bt_pause_depth(void)
@@ -511,6 +519,8 @@ uint32_t core1_get_bt_pause_depth(void)
 void core1_force_release_bt_pause(void)
 {
     if (g_bt_pause_depth == 0) {
+        // Still poke Core 1 in case it is sitting in WFE with a stale view.
+        core1_wake_from_pause();
         return;
     }
     g_bt_pause_depth = 0;
@@ -518,6 +528,7 @@ void core1_force_release_bt_pause(void)
     core1_recompute_paused();
     __dmb();
     core1_bt_pause_watchdog_disarm();
+    core1_wake_from_pause();
 }
 
 bool core1_bt_pause_watchdog_tick(void)
