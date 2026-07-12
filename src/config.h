@@ -191,9 +191,10 @@
 #  define GPIO_BUTTON_MIDDLE 17             // Center button (toggle screens)
 #  define GPIO_BUTTON_RIGHT  16             // Right button (toggle BT pairing on splash)
 #elif HIDPICO_REVISION == 6
-// Rev 6: same as Rev 5 (Atari-board layout) but Port 2 fire/B2/B3 moved off ADC pins
-// (GPIO 26-28) for direct Amiga 5V on RP2350 (Pico 2) without level shifters.
-// See doc/gpio_rev6_adc_avoidance.md for PCB routing.
+// Rev 6: direct 5V on RP2350 (Pico 2) without level shifters.
+// OLED UI buttons move to ADC pins 26-28 (3.3V only, no Amiga 5V).
+// Port 2 fire/B2/B3 use freed header GPIOs 16-18 (5V-tolerant).
+// GPIO 0/1 reserved for debug UART. See doc/gpio_rev6_adc_avoidance.md.
 #  define I2C_PORT      i2c0
 #  define I2C_PIN_SDA   8
 #  define I2C_PIN_SCL   9
@@ -221,15 +222,18 @@
 #  define JOY0_ATARI_DOWN  20
 #  define JOY0_ATARI_LEFT  21
 #  define JOY0_ATARI_RIGHT 22
-#  define JOY0_ATARI_FIRE  7                 // Was GPIO 26 (ADC0) on Rev 5
+#  define JOY0_ATARI_FIRE  16                 // Was GPIO 26 (ADC0) on Rev 5
 
 #  define QM2_AMIGA_V    JOY0_ATARI_UP
 #  define QM2_AMIGA_H    JOY0_ATARI_DOWN
 #  define QM2_AMIGA_VQ   JOY0_ATARI_LEFT
 #  define QM2_AMIGA_HQ   JOY0_ATARI_RIGHT
-#  define QM2_AMIGA_B1   JOY0_ATARI_FIRE      // Fire — GPIO 7 (5V-tolerant)
-#  define QM2_AMIGA_B2   0                    // Was GPIO 27 (ADC1); CD32 DATA
-#  define QM2_AMIGA_B3   1                    // Was GPIO 28 (ADC2); CD32 JOYMODE
+#  define QM2_AMIGA_B1   JOY0_ATARI_FIRE      // Fire — GPIO 16 (5V-tolerant)
+#  define QM2_AMIGA_B2   17                   // Was GPIO 27 (ADC1); CD32 DATA
+#  define QM2_AMIGA_B3   18                   // Was GPIO 28 (ADC2); CD32 JOYMODE
+
+#  define DEBUG_UART_TX  0
+#  define DEBUG_UART_RX  1
 
 #  define SSD1306_SDA    I2C_PIN_SDA
 #  define SSD1306_SCL    I2C_PIN_SCL
@@ -238,9 +242,10 @@
 #  define SSD1306_WIDTH  128
 #  define SSD1306_HEIGHT 64
 
-#  define GPIO_BUTTON_LEFT   18
-#  define GPIO_BUTTON_MIDDLE 17
-#  define GPIO_BUTTON_RIGHT  16
+// OLED UI buttons on ADC pins — 3.3V tactile switches only (not 5V-tolerant lines)
+#  define GPIO_BUTTON_LEFT   26             // Was GPIO 18 on Rev 5
+#  define GPIO_BUTTON_MIDDLE 27             // Was GPIO 17 on Rev 5
+#  define GPIO_BUTTON_RIGHT  28             // Was GPIO 16 on Rev 5
 #else
 #  error "HIDPICO_REVISION must be 2, 4, 5, or 6. Current value is not recognized."
 #endif

@@ -81,9 +81,9 @@ Same DB-9 roles; fire/B2/B3 moved off ADC pins. See [`doc/gpio_rev6_adc_avoidanc
 
 | DB-9 | CD32 role | Port 2 GPIO | Firmware role in CD32 mode |
 |------|-----------|-------------|----------------------------|
-| 5 | JOYMODE | **1** `QM2_AMIGA_B3` | **Input** |
-| 6 | CLOCKIN | **7** `QM2_AMIGA_B1` | **Input** / open-drain out |
-| 9 | DATAOUT | **0** `QM2_AMIGA_B2` | **Output** |
+| 5 | JOYMODE | **18** `QM2_AMIGA_B3` | **Input** |
+| 6 | CLOCKIN | **16** `QM2_AMIGA_B1` | **Input** / open-drain out |
+| 9 | DATAOUT | **17** `QM2_AMIGA_B2` | **Output** |
 
 Port 1 equivalent: pins 5/6/9 → GPIO **3** (B3), **14** (Fire), **2** (B2); directions → GPIO 10–13.
 

@@ -18,7 +18,8 @@ add_compile_options(-Wall)
 
 # Board revision (pin map in src/config.h):
 #   5 = current shipping PCB (level shifters; Port 2 fire/B2/B3 on GPIO 26/27/28)
-#   6 = direct-5V Pico 2 PCB (Port 2 fire/B2/B3 on GPIO 7/0/1) — see doc/gpio_rev6_adc_avoidance.md
+#   6 = direct-5V Pico 2 PCB (Port 2 fire/B2/B3 on GPIO 16/17/18; OLED buttons on ADC 26/27/28;
+#       GPIO 0/1 = debug UART) — see doc/gpio_rev6_adc_avoidance.md
 add_compile_definitions(HIDPICO_REVISION=5)
 
 # Overclock Pico to 200 MHz (all boards, requires Pico SDK 2.1.1+)
