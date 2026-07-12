@@ -276,7 +276,8 @@ void amiga_quad_mouse_motion()
         if (paused) {
             g_core1_phase = CORE1_PHASE_PAUSED;
             g_core1_pause_spins++;
-            __wfe();
+            // Avoid bare __wfe(): after BT flash lockout it can miss SEV and park forever.
+            busy_wait_us(100);
             continue;
         }
 
@@ -445,8 +446,8 @@ void amiga_quad_mouse_motion()
             }
         }
         
-        // Sleep briefly to avoid busy-waiting
-        sleep_us(50);
+        // busy_wait only — sleep_us can hang on Core 1 after BT flash/bond activity
+        busy_wait_us(50);
     }
 }
 
@@ -545,5 +546,74 @@ bool core1_bt_pause_watchdog_tick(void)
     printf("[BT] Core 1 BT pause watchdog: forcing resume (depth was %lu)\n",
            (unsigned long)g_bt_pause_depth);
     core1_force_release_bt_pause();
+    return true;
+}
+
+bool core1_heartbeat_watchdog_tick(void)
+{
+    static uint32_t last_hb;
+    static absolute_time_t last_change;
+    static absolute_time_t last_diag;
+    static bool armed;
+    static bool relaunched;
+
+    uint32_t hb = g_core1_heartbeat;
+    absolute_time_t now = get_absolute_time();
+
+    if (!armed) {
+        last_hb = hb;
+        last_change = now;
+        last_diag = now;
+        armed = true;
+        return false;
+    }
+
+    // Periodic visibility while debugging Stadia mouse lockups
+    if (absolute_time_diff_us(last_diag, now) >= 2000000) {
+        printf("[DIAG] Core1 hb=%lu phase=%lu paused=%d bt_depth=%lu cd32_pause=%d\n",
+               (unsigned long)hb,
+               (unsigned long)g_core1_phase,
+               g_core1_paused ? 1 : 0,
+               (unsigned long)g_bt_pause_depth,
+               g_cd32_pause ? 1 : 0);
+        last_diag = now;
+    }
+
+    if (hb != last_hb) {
+        last_hb = hb;
+        last_change = now;
+        relaunched = false;
+        return false;
+    }
+
+    // Heartbeat frozen — only act if we are not intentionally paused
+    if (g_bt_pause_depth > 0 || g_cd32_pause) {
+        last_change = now;
+        return false;
+    }
+
+    int64_t stalled_us = absolute_time_diff_us(last_change, now);
+    if (stalled_us < (int64_t)CORE1_HEARTBEAT_STALL_MS * 1000) {
+        return false;
+    }
+
+    printf("[BT] Core 1 heartbeat stalled (hb=%lu phase=%lu) — SEV wake\n",
+           (unsigned long)hb, (unsigned long)g_core1_phase);
+    core1_force_release_bt_pause();
+    last_change = now;
+
+    if (!relaunched) {
+        busy_wait_us(2000);
+        if (g_core1_heartbeat == hb) {
+            printf("[BT] Core 1 still stalled — relaunching amiga_quad_mouse_motion\n");
+            multicore_reset_core1();
+            busy_wait_us(1000);
+            multicore_launch_core1(amiga_quad_mouse_motion);
+            relaunched = true;
+            last_hb = g_core1_heartbeat;
+            last_change = get_absolute_time();
+            return true;
+        }
+    }
     return true;
 }

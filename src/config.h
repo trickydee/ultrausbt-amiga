@@ -22,7 +22,7 @@
 #  define SOFTWARE_VERSION_MINOR 2
 #endif
 #ifndef SOFTWARE_VERSION_PATCH
-#  define SOFTWARE_VERSION_PATCH 14
+#  define SOFTWARE_VERSION_PATCH 15
 #endif
 /* Bisect step1: CMake forces HIDPICO_REVISION=5 for Rev 5 hardware. */
 
@@ -41,6 +41,11 @@
 // 1 = pause Core 1 during gamepad discovery (Atari v22.1.0 default behaviour).
 #ifndef BT_PAUSE_CORE1_ON_GAMEPAD_DISCOVERY
 #  define BT_PAUSE_CORE1_ON_GAMEPAD_DISCOVERY 0
+#endif
+// If Core 1 heartbeat does not advance for this long (and not intentionally
+// paused), attempt SEV wake then relaunch the quadrature loop.
+#ifndef CORE1_HEARTBEAT_STALL_MS
+#  define CORE1_HEARTBEAT_STALL_MS 500
 #endif
 
 // Remap one HID scancode to Amiga numpad * (AMIGA_KPAST / 0x5d — PrtScn on Amiga layout).

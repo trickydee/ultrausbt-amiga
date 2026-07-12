@@ -169,6 +169,7 @@ int main(void)
             bluepad32_poll();
             bluepad32_pairing_tick();
             core1_bt_pause_watchdog_tick();
+            core1_heartbeat_watchdog_tick();
             port_config_flush_pending();
 
             process_bluepad32_devices();

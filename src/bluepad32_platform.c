@@ -394,6 +394,12 @@ static uni_error_t my_platform_on_device_ready(uni_hid_device_t* d) {
         bt_resume_core1_if_paused();
         logi("[DIAG] Core 1 BT pause depth after ready: %lu\n",
              (unsigned long)core1_get_bt_pause_depth());
+    } else if (uni_hid_device_is_gamepad(d)) {
+        // Even with discovery pause disabled, Stadia bonding/flash can leave
+        // Core 1 wedged in sleep/WFE — poke it after every gamepad ready.
+        core1_force_release_bt_pause();
+        logi("[DIAG] gamepad ready: Core 1 wake poke (hb=%lu)\n",
+             (unsigned long)g_core1_heartbeat);
     }
 
     return UNI_ERROR_SUCCESS;
