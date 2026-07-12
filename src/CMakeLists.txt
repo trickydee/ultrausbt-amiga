@@ -38,6 +38,8 @@ endif()
 add_executable(amigahid-pico
   main.c
   usb_hid.c
+  usb_hid_device.c
+  usb_mode.c
   usb_device_map.c
   ${CMAKE_SOURCE_DIR}/ssd1306/ssd1306.c
 )
@@ -83,7 +85,9 @@ target_link_libraries(amigahid-pico PUBLIC
   hardware_gpio
   hardware_i2c
   hardware_pio
+  hardware_watchdog
   tinyusb_host
+  tinyusb_device
   tinyusb_board
 )
 

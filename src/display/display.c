@@ -5,6 +5,7 @@
 #include "display/display.h"
 #include "config.h"
 #include "usb_device_map.h"
+#include "usb_mode.h"
 #include "ssd1306.h"
 #include <hardware/i2c.h>
 #include <hardware/gpio.h>
@@ -49,10 +50,16 @@ static display_screen_t current_screen = DISPLAY_SCREEN_SPLASH;
 #define BUTTON_DEBOUNCE_COUNT 10
 #define BT_PAIR_PRESS_MIN_MS 50
 #define BT_WIPE_COMBO_HOLD_MS 5000
+#define USB_MODE_COMBO_HOLD_MS 2000
 static uint8_t button_middle_debounce = 0;
 static uint8_t button_left_debounce = 0;
 static bool button_right_pressed = false;
 static absolute_time_t button_right_press_start;
+#if ENABLE_USB_DEVICE_MODE
+static bool usb_mode_combo_active = false;
+static absolute_time_t usb_mode_combo_start;
+static uint32_t usb_mode_overlay_last_seconds = UINT32_MAX;
+#endif
 #if ENABLE_BLUEPAD32
 static bool bt_wipe_combo_active = false;
 static bool bt_wipe_combo_done = false;
@@ -69,6 +76,18 @@ static void display_show_bt_clear_overlay(uint32_t seconds_left) {
     ssd1306_draw_string(&disp, 0, 28, 2, (char*)"Clear");
     snprintf(countdown, sizeof(countdown), "%2lus", (unsigned long)seconds_left);
     ssd1306_draw_string(&disp, 96, 48, 1, countdown);
+    ssd1306_show(&disp);
+}
+#endif
+
+#if ENABLE_USB_DEVICE_MODE
+static void display_show_usb_mode_overlay(bool to_device, uint32_t seconds_left) {
+    char buf[20];
+    ssd1306_clear(&disp);
+    ssd1306_draw_string(&disp, 0, 2, 1, (char*)"Switch to:");
+    ssd1306_draw_string(&disp, 0, 18, 2, to_device ? (char*)"PC KBD" : (char*)"AMIGA");
+    snprintf(buf, sizeof(buf), "hold M+R %lus", (unsigned long)seconds_left);
+    ssd1306_draw_string(&disp, 0, 50, 1, buf);
     ssd1306_show(&disp);
 }
 #endif
@@ -105,7 +124,23 @@ void display_init(void)
 void display_show_splash(void)
 {
     char version_buf[16];
-    
+
+#if ENABLE_USB_DEVICE_MODE
+    // In USB device mode the Amiga-output subsystems (port_mode, Bluetooth) are not
+    // initialised, so show a dedicated splash and skip the host-mode status below.
+    if (usb_mode_is_device()) {
+        ssd1306_clear(&disp);
+        ssd1306_draw_string(&disp, 0, 0, 2, (char*)"PC KBD");
+        ssd1306_draw_string(&disp, 0, 22, 1, (char*)"Amiga kbd -> USB");
+        ssd1306_draw_string(&disp, 0, 34, 1, (char*)"M+R 2s: to Amiga");
+        sprintf(version_buf, "v%d.%d.%d", SOFTWARE_VERSION_MAJOR, SOFTWARE_VERSION_MINOR, SOFTWARE_VERSION_PATCH);
+        ssd1306_draw_string(&disp, 0, 52, 1, version_buf);
+        ssd1306_show(&disp);
+        current_screen = DISPLAY_SCREEN_SPLASH;
+        return;
+    }
+#endif
+
     ssd1306_clear(&disp);
     
     // Show Port 1 mode as title (AMIGA, ATARI, JOYSTICK, or LLAMA, centered, scale 2x)
@@ -269,6 +304,49 @@ void display_handle_buttons(void)
     // Handle LEFT button
     bool left_state = gpio_get(GPIO_BUTTON_LEFT);
     bool right_state = gpio_get(GPIO_BUTTON_RIGHT);
+
+#if ENABLE_USB_DEVICE_MODE
+    // Middle + Right held for 2s toggles between normal (USB->Amiga) and PC keyboard
+    // (Amiga->USB) mode. This works in both modes; the toggle persists and reboots.
+    bool middle_now = gpio_get(GPIO_BUTTON_MIDDLE);
+    if (!middle_now && !right_state) {
+        bool to_device = !usb_mode_is_device();
+        if (!usb_mode_combo_active) {
+            usb_mode_combo_active = true;
+            usb_mode_combo_start = get_absolute_time();
+            usb_mode_overlay_last_seconds = UINT32_MAX;
+            printf("[USBMODE] Hold M+R to switch to %s...\n", to_device ? "PC KBD" : "AMIGA");
+        }
+        uint32_t held_ms = (uint32_t)(absolute_time_diff_us(usb_mode_combo_start, get_absolute_time()) / 1000);
+        uint32_t remaining_ms = (held_ms >= USB_MODE_COMBO_HOLD_MS) ? 0 : (USB_MODE_COMBO_HOLD_MS - held_ms);
+        uint32_t remaining_s = (remaining_ms + 999) / 1000;
+        if (remaining_s != usb_mode_overlay_last_seconds) {
+            usb_mode_overlay_last_seconds = remaining_s;
+            display_show_usb_mode_overlay(to_device, remaining_s);
+        }
+        if (held_ms >= USB_MODE_COMBO_HOLD_MS) {
+            usb_mode_request_toggle();  // persists + reboots, does not return
+        }
+        button_left_debounce = 0;
+        button_middle_debounce = 0;
+        button_right_pressed = false;
+        return;
+    } else if (usb_mode_combo_active) {
+        usb_mode_combo_active = false;
+        usb_mode_overlay_last_seconds = UINT32_MAX;
+        // Combo aborted before completing: restore the current screen.
+        if (current_screen == DISPLAY_SCREEN_SPLASH) display_show_splash();
+        else if (current_screen == DISPLAY_SCREEN_DEVICES) display_show_devices();
+        else if (current_screen == DISPLAY_SCREEN_MAP_DEVICES) display_show_map_devices();
+    }
+
+    // In device mode the Bluetooth / port-mode button actions below are not valid
+    // (those subsystems are not initialised); only the mode-toggle combo applies.
+    if (usb_mode_is_device()) {
+        return;
+    }
+#endif
+
 #if ENABLE_BLUEPAD32
     // Left+Right combo: hold 5s to clear Bluetooth pairing keys.
     if (!left_state && !right_state) {
@@ -395,6 +473,12 @@ void display_handle_buttons(void)
 
 void display_tick(void)
 {
+#if ENABLE_USB_DEVICE_MODE
+    // Don't redraw over the mode-switch overlay while the combo is being held.
+    if (usb_mode_combo_active) {
+        return;
+    }
+#endif
 #if ENABLE_BLUEPAD32
     if (current_screen != DISPLAY_SCREEN_SPLASH || bt_wipe_combo_active || !bluepad32_is_enabled()) {
         return;

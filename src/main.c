@@ -18,6 +18,13 @@
 #include "config.h"
 #include "tusb_config.h"
 
+#include "usb_mode.h"
+#if ENABLE_USB_DEVICE_MODE
+#include "usb_hid_device.h"
+#include "platform/amiga/keyboard_host_in.h"
+#include "platform/amiga/mouse_host_in.h"
+#endif
+
 #include "display/display.h"
 #include "platform/amiga/keyboard_serial_io.h"
 #include "platform/amiga/quad_mouse.h"
@@ -103,53 +110,71 @@ int main(void)
     display_init();
 #endif
 
-    // initialise the usb host stack on the rhport from tusb_config.h
-    // Note: tuh_init() is deprecated, using tusb_init() with proper structure
-    tusb_rhport_init_t host_init = {
-        .role = TUSB_ROLE_HOST,
-        .speed = TUSB_SPEED_AUTO
-    };
-    tusb_init(BOARD_TUH_RHPORT, &host_init);
+    // Decide our USB role: HOST (normal, USB/BT -> Amiga) or DEVICE (reverse, read
+    // a real Amiga keyboard/mouse and present as a USB HID keyboard+mouse to a PC).
+    // Selected at boot from flash; toggled at runtime via the OLED (Middle+Right 2s).
+    usb_mode_init();
+    printf("USB mode: %s\n", usb_mode_is_device()
+           ? "DEVICE (Amiga keyboard/mouse -> PC)"
+           : "HOST (USB/BT -> Amiga)");
+    printf("Switch USB mode: hold OLED Middle + Right buttons for 2 seconds\n");
+    printf("========================================\n\n");
 
-    // we're single arch right now, but in future this should hand off to whatever the
-    // configured arch is
-    amiga_init();
+    // Bring up the TinyUSB stack in the selected role.
+    usb_mode_start_usb();
 
-    // start amiga mouse emulation
-    amiga_quad_mouse_init();
+#if ENABLE_USB_DEVICE_MODE
+    if (usb_mode_is_device()) {
+        // USB device mode: read the Amiga keyboard (and Port 1 mouse). Do NOT init the
+        // Amiga output emulation (keyboard TX / quadrature / joystick / CD32 / BT).
+        keyboard_host_in_init();
+        mouse_host_in_init();
+#if HIDPICO_REV_ATARI_BOARD
+        display_show_splash();
+#endif
+    } else
+#endif
+    {
+        // we're single arch right now, but in future this should hand off to whatever the
+        // configured arch is
+        amiga_init();
+
+        // start amiga mouse emulation
+        amiga_quad_mouse_init();
 
 #if HIDPICO_REV_ATARI_BOARD
-    // Refresh splash screen after mouse type is loaded from flash
-    // This ensures the correct title (AMIGA/ATARI) is displayed
-    display_show_splash();
+        // Refresh splash screen after mouse type is loaded from flash
+        // This ensures the correct title (AMIGA/ATARI) is displayed
+        display_show_splash();
 #endif
 
-    // initialize joystick port 1 (shares GPIO pins with mouse)
-    amiga_joystick_port1_init();
+        // initialize joystick port 1 (shares GPIO pins with mouse)
+        amiga_joystick_port1_init();
 
-    // initialize joystick port 2 (dedicated GPIO pins for Revision 5/6)
-    amiga_joystick_port2_init();
+        // initialize joystick port 2 (dedicated GPIO pins for Revision 5/6)
+        amiga_joystick_port2_init();
 #if HIDPICO_REV_ATARI_BOARD
-    cd32_port1_init();
-    cd32_port2_init();
-    port_mode_init();
-    printf("[PORT] Boot Port 1 mode: %s (joy_flag=%d cd32=%d)\n",
-           port_mode_port1_label(),
-           amiga_joystick_port1_is_joystick_mode() ? 1 : 0,
-           cd32_port1_is_enabled() ? 1 : 0);
-    display_show_splash();
+        cd32_port1_init();
+        cd32_port2_init();
+        port_mode_init();
+        printf("[PORT] Boot Port 1 mode: %s (joy_flag=%d cd32=%d)\n",
+               port_mode_port1_label(),
+               amiga_joystick_port1_is_joystick_mode() ? 1 : 0,
+               cd32_port1_is_enabled() ? 1 : 0);
+        display_show_splash();
 #endif
 
 #if ENABLE_BLUEPAD32
-    // initialize bluepad32 for Bluetooth keyboard support (Pico 2 W only)
-    bluepad32_init();
-    
+        // initialize bluepad32 for Bluetooth keyboard support (Pico 2 W only)
+        bluepad32_init();
+
 #if HIDPICO_REV_ATARI_BOARD
-    // Refresh splash screen after Bluetooth is initialized
-    // This ensures the correct mode (USB+BT) is displayed
-    display_show_splash();
+        // Refresh splash screen after Bluetooth is initialized
+        // This ensures the correct mode (USB+BT) is displayed
+        display_show_splash();
 #endif
 #endif
+    }
 
 #if HIDPICO_REV_ATARI_BOARD
     // Watchdog: Check GPIO state periodically (every 5 seconds)
@@ -159,6 +184,21 @@ int main(void)
 #endif
 
     while (1) {
+#if ENABLE_USB_DEVICE_MODE
+        if (usb_mode_is_device()) {
+            // USB device mode: service the device stack and forward Amiga input.
+            tud_task();
+            usb_hid_device_task();
+            keyboard_host_in_task();
+            mouse_host_in_task();
+#if HIDPICO_REV_ATARI_BOARD
+            display_handle_buttons();  // Middle+Right 2s toggles back to host mode
+            display_tick();
+#endif
+            continue;
+        }
+#endif
+
         // run host mode jobs (hotplug events, packet io callbacks)
         tuh_task();
         switch_check_delayed_init();

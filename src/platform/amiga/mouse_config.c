@@ -5,6 +5,7 @@
 #include "mouse_config.h"
 #include "config.h"
 #include "pico/flash.h"
+#include "pico/multicore.h"
 #include "pico/stdlib.h"
 #include "hardware/flash.h"
 #include "hardware/sync.h"
@@ -38,7 +39,8 @@ typedef struct {
     mouse_type_t mouse_type;
     uint8_t port1_mode;
     uint8_t port2_cd32;
-    uint8_t pad[2];
+    uint8_t usb_device_mode;  // reuses a former pad byte; 0xFF on pre-v2 configs
+    uint8_t pad[1];
     uint32_t reserved[12];
 } port_config_flash_t;
 
@@ -61,6 +63,7 @@ static void port_config_flash_write(void* param) {
     config->mouse_type = src->mouse_type;
     config->port1_mode = (uint8_t)src->port1_mode;
     config->port2_cd32 = src->port2_cd32 ? 1 : 0;
+    config->usb_device_mode = src->usb_device_mode ? 1 : 0;
 
     uint32_t ints = save_and_disable_interrupts();
     flash_range_erase(g_config_flash_offset, FLASH_SECTOR_SIZE);
@@ -81,10 +84,20 @@ static bool port_config_save_now(const port_config_data_t* config) {
            (unsigned)config->port1_mode,
            config->port2_cd32 ? 1 : 0);
 
-    int result = flash_safe_execute(port_config_flash_write, (void*)config, 5000);
-    if (result != 0) {
-        printf("[CONFIG] ERROR: flash save failed (%d)\n", result);
-        return false;
+    // flash_safe_execute() coordinates with core1's flash lockout victim, which is
+    // only installed when core1 is running (host mode launches it via the quad-mouse
+    // core). In USB device mode core1 is never started, so the lockout victim is not
+    // initialised and flash_safe_execute() would fail. In that single-core context it
+    // is safe to write directly (interrupts are disabled inside the write helper).
+    if (multicore_lockout_victim_is_initialized(1)) {
+        int result = flash_safe_execute(port_config_flash_write, (void*)config, 5000);
+        if (result != 0) {
+            printf("[CONFIG] ERROR: flash save failed (%d)\n", result);
+            return false;
+        }
+    } else {
+        printf("[CONFIG] core1 lockout not initialised; writing flash directly\n");
+        port_config_flash_write((void*)config);
     }
     return true;
 }
@@ -99,6 +112,7 @@ void port_config_load(port_config_data_t* out) {
     out->mouse_type = MOUSE_TYPE_AMIGA;
     out->port1_mode = PORT1_MODE_MOUSE;
     out->port2_cd32 = false;
+    out->usb_device_mode = 0;
 
     const port_config_flash_t* flash =
         (const port_config_flash_t*)(XIP_BASE + g_config_flash_offset);
@@ -111,6 +125,7 @@ void port_config_load(port_config_data_t* out) {
             out->port1_mode = (port1_mode_t)flash->port1_mode;
         }
         out->port2_cd32 = flash->port2_cd32 != 0;
+        out->usb_device_mode = (flash->usb_device_mode == 1) ? 1 : 0;
         printf("[CONFIG] Loaded v%lu: mouse=%s port1=%u port2_cd32=%d\n",
                (unsigned long)flash->version,
                out->mouse_type == MOUSE_TYPE_ATARI ? "Atari" : "Amiga",

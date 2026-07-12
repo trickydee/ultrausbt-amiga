@@ -48,7 +48,11 @@ Notes:
 
 ### OLED buttons
 
-The three on-board OLED buttons provide: **Left** = cycle Port 1 mode (MOUSE → JOY → LLAMA → CD32), **Middle** = cycle screens, **Right** = toggle Bluetooth pairing on the splash screen. Hold **Left + Right for 5 s** on the splash to clear stored Bluetooth pairing keys.
+The three on-board OLED buttons provide: **Left** = cycle Port 1 mode (MOUSE → JOY → LLAMA → CD32), **Middle** = cycle screens, **Right** = toggle Bluetooth pairing on the splash screen. Hold **Left + Right for 5 s** on the splash to clear stored Bluetooth pairing keys. Hold **Middle + Right for 2 s** to toggle **USB device mode** (see below).
+
+## USB device mode (use an Amiga keyboard on a PC)
+
+The adapter can also run in reverse: read a real Amiga keyboard (and Port 1 mouse) and present itself to a **host PC as a USB HID keyboard + mouse**. Toggle it with **Middle + Right (hold 2 s)** on the OLED; the setting is saved and the adapter reboots into the selected mode. See [`doc/usb-device-mode.md`](./doc/usb-device-mode.md) for wiring, protocol, and caveats.
 
 ## **important note**
 
@@ -88,6 +92,13 @@ the rp2040 made sense as a target because it is widely available, has sufficient
 i have not measured the latency, but the keyboard signals are sent out the moment they are received on the usb bus. the potential latency is likely fractionally longer than the amiga mcu but bear in mind the rp2040 is significantly faster than the standard amiga keyboard controller.
 
 ## release notes
+
+### USB device mode — Amiga keyboard/mouse to PC (v3.2.0)
+- **New reverse mode:** read a real Amiga keyboard (KCLK/KDAT) and Port 1 mouse and present the adapter to a PC as a composite USB HID keyboard + mouse.
+- **Runtime toggle:** hold **Middle + Right (2 s)** on the OLED; the mode is persisted to flash and the adapter reboots into it. Single USB PHY ⇒ only one role active at a time.
+- **Receive path:** KCLK-edge IRQ capture, un-rotate/un-invert decode, ~85 µs KDAT handshake, reverse Amiga→HID keycode map (built by inverting the existing table), caps-lock resync pulse.
+- **New modules:** `usb_mode`, `usb_hid_device`, `keyboard_host_in`, `mouse_host_in`; TinyUSB device stack enabled alongside host. See [`doc/usb-device-mode.md`](./doc/usb-device-mode.md).
+- Gated by `ENABLE_USB_DEVICE_MODE` (default on). Receive timing / mouse polarity need on-hardware verification.
 
 ### Alternate reset combo + Core 1 stability (v3.1.0)
 - **Alternate keyboard reset:** **Ctrl + Left Amiga + Backspace** triggers an Amiga hard reset for keyboards without a Right Amiga / Right GUI key (e.g. Logitech MX Keys Mini). Classic **Ctrl + Left Amiga + Right Amiga** still works.

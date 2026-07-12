@@ -36,6 +36,19 @@
 #   define CFG_TUH_ENABLED 1
 #endif
 
+// enable the device stack so the adapter can act as a USB HID keyboard/mouse to a
+// PC (reverse mode: read a real Amiga keyboard and forward keystrokes). Both stacks
+// are compiled in; only one is tusb_init()'d at a time (single USB PHY). See usb_mode.c.
+#ifndef CFG_TUD_ENABLED
+#   define CFG_TUD_ENABLED 1
+#endif
+
+#if CFG_TUD_ENABLED
+#   define CFG_TUD_HID            1  // single HID interface, composite (kbd+mouse) report
+#   define CFG_TUD_ENDPOINT0_SIZE 64
+#   define CFG_TUD_HID_EP_BUFSIZE 16
+#endif
+
 // max speed from board
 #define CFG_TUH_MAX_SPEED BOARD_TUH_MAX_SPEED
 

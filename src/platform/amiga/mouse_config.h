@@ -14,6 +14,7 @@ typedef struct {
     mouse_type_t mouse_type;
     port1_mode_t port1_mode;
     bool port2_cd32;
+    uint8_t usb_device_mode;  // 0 = normal (USB->Amiga host), 1 = PC keyboard (Amiga->USB device)
 } port_config_data_t;
 
 mouse_type_t mouse_config_load(void);

@@ -15,14 +15,36 @@
 
 // Software version - single source of truth for main.c, OLED display, and serial output.
 // v3.0.0: Rev 5/6 GPIO maps + Core 1 loop-counter mouse consume (Stadia-safe).
+// v3.2.0: USB device mode — read a real Amiga keyboard/mouse and present as a USB HID to a PC.
 #ifndef SOFTWARE_VERSION_MAJOR
 #  define SOFTWARE_VERSION_MAJOR 3
 #endif
 #ifndef SOFTWARE_VERSION_MINOR
-#  define SOFTWARE_VERSION_MINOR 1
+#  define SOFTWARE_VERSION_MINOR 2
 #endif
 #ifndef SOFTWARE_VERSION_PATCH
 #  define SOFTWARE_VERSION_PATCH 0
+#endif
+
+// USB device mode ("PC keyboard" mode): read a real Amiga keyboard (and mouse) on the
+// keyboard connector / Port 1 and present the adapter to a PC as a USB HID keyboard+mouse.
+// This is the reverse of normal operation. The two roles share one USB PHY, so only one is
+// active at a time; the mode is chosen at boot from flash and toggled at runtime via the OLED.
+#ifndef ENABLE_USB_DEVICE_MODE
+#  define ENABLE_USB_DEVICE_MODE 1
+#endif
+
+// USB HID device identity presented to the host PC (Raspberry Pi VID + project PID).
+#ifndef USB_DEVICE_VID
+#  define USB_DEVICE_VID 0x2E8A
+#endif
+#ifndef USB_DEVICE_PID
+#  define USB_DEVICE_PID 0xAB1A         /* "ABIA" ~ amiga */
+#endif
+
+// Log the Amiga keyboard receive state machine (frames, decoded keycodes) on UART.
+#ifndef KEYBOARD_IN_DEBUG
+#  define KEYBOARD_IN_DEBUG 1
 #endif
 
 // Bluetooth gamepad pairing — Core 1 pause timing (Atari v22.1.0 / ultramegausb family)
