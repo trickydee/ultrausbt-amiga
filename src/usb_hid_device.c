@@ -83,8 +83,12 @@ static volatile int8_t  s_mouse_x = 0, s_mouse_y = 0, s_mouse_wheel = 0;
 
 static volatile uint8_t s_led_state = 0;
 
-// caps-lock pulse: 0 idle, 1 send press, 2 send release
+// caps-lock pulse: 0 idle, 1 send press, 2 held (waiting to release).
+// macOS ignores very short Caps Lock presses (its caps-lock delay), so the
+// synthetic key must be held down for a while before release.
+#define CAPS_HOLD_MS 120
 static volatile uint8_t s_caps_pulse_phase = 0;
+static absolute_time_t  s_caps_press_time;
 
 //--------------------------------------------------------------------
 // Public producer API (called from the keyboard/mouse read paths)
@@ -124,14 +128,16 @@ void usb_hid_device_task(void)
 {
     if (!tud_mounted()) return;
 
-    // caps-lock synthetic pulse (press, then release) takes priority so it is not
-    // clobbered by a normal report while it is in flight.
+    // caps-lock synthetic pulse takes priority so it is not clobbered by a normal
+    // report while in flight. The key is held down for CAPS_HOLD_MS before release
+    // because macOS ignores momentary Caps Lock presses.
     if (s_caps_pulse_phase != 0 && tud_hid_ready()) {
         if (s_caps_pulse_phase == 1) {
             uint8_t keys[6] = { HID_KEY_CAPS_LOCK, 0, 0, 0, 0, 0 };
             tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, keys);
+            s_caps_press_time = get_absolute_time();
             s_caps_pulse_phase = 2;
-        } else {
+        } else if (absolute_time_diff_us(s_caps_press_time, get_absolute_time()) >= (CAPS_HOLD_MS * 1000)) {
             tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, NULL);
             s_caps_pulse_phase = 0;
         }
