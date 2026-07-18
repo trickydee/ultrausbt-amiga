@@ -23,7 +23,7 @@
 #  define SOFTWARE_VERSION_MINOR 2
 #endif
 #ifndef SOFTWARE_VERSION_PATCH
-#  define SOFTWARE_VERSION_PATCH 0
+#  define SOFTWARE_VERSION_PATCH 1
 #endif
 
 // USB device mode ("PC keyboard" mode): read a real Amiga keyboard (and mouse) on the
@@ -42,9 +42,11 @@
 #  define USB_DEVICE_PID 0xAB1A         /* "ABIA" ~ amiga */
 #endif
 
-// Log the Amiga keyboard receive state machine (frames, decoded keycodes) on UART.
+// Log Amiga keyboard receive (frames, keycodes, 1 Hz KCLK heartbeat, resync) on UART.
+// Default off for quiet builds; set to 1 when diagnosing device-mode keyboard issues.
+// See doc/usb-device-mode.md ("Diagnosing with KEYBOARD_IN_DEBUG").
 #ifndef KEYBOARD_IN_DEBUG
-#  define KEYBOARD_IN_DEBUG 1
+#  define KEYBOARD_IN_DEBUG 0
 #endif
 
 // Bluetooth gamepad pairing — Core 1 pause timing (Atari v22.1.0 / ultramegausb family)

@@ -112,8 +112,9 @@ The mode is persisted in the existing `port_config` flash sector
 
 ### Diagnosing with `KEYBOARD_IN_DEBUG`
 
-With the flag set to `1`, the once-per-second heartbeat is the fastest way to read the
-state of the link:
+Default is **off (`0`)** in `src/config.h`. Set it to `1`, rebuild, and watch UART
+(115200) when debugging device-mode keyboard receive. With the flag on, the
+once-per-second heartbeat is the fastest way to read the state of the link:
 
 ```
 [kbd-in] KCLK edges=136 (+7/s) CLK=1 DAT=1
@@ -126,6 +127,10 @@ state of the link:
 - **edges climb only while typing**, with `raw=`/`amiga=` values that match the keys →
   working normally.
 
+Also logged when enabled: per-frame `raw=` / `amiga=` decode, named telemetry codes
+(`0xFD` initiate / `0xFE` terminate power-up, etc.), and periodic resync-handshake
+notices.
+
 ## Status / testing notes
 
 - **Verified working on real hardware** (Amiga 2000 keyboard → ultramegausb Rev 5 board
@@ -135,5 +140,3 @@ state of the link:
   move the decode to a GPIO IRQ or PIO state machine.
 - Joystick-to-PC (gamepad HID) is not implemented; it would add a third
   `TUD_HID_REPORT_DESC_GAMEPAD` interface + `tud_hid_gamepad_report()`.
-- `KEYBOARD_IN_DEBUG` is currently **enabled (`1`)** for diagnostics; set it back to `0`
-  for a quiet release build.
