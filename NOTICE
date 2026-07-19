@@ -1,0 +1,16 @@
+ultrausbt-amiga
+https://github.com/trickydee/ultrausbt-amiga
+
+Copyright (c) 2026 ultrausbt
+
+This project is a fork of amigahid-pico by just nine <nine@aphlor.org>
+  https://github.com/borb/amigahid-pico
+  Copyright (c) 2021 just nine
+
+The Program (including Contributions) is distributed under the Eclipse Public
+License 2.0 (EPL-2.0). See the LICENSE file in this repository and
+https://spdx.org/licenses/EPL-2.0
+
+Third-party components (pico-sdk, TinyUSB, Bluepad32/BTstack, ssd1306, and any
+vendored controller helpers such as xinput_host) retain their own copyrights
+and licenses; see the respective subdirectories and file headers.

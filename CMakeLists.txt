@@ -15,6 +15,8 @@ add_compile_options(-Wall)
 
 # Uncomment for verbose UART debug (ahprintf, Core1 DIAG, BT pause DIAG, etc.)
 # add_compile_definitions(DEBUG_MESSAGES=1)
+# Or set CONTROLLER_DEBUG=1 in src/config.h for HID report hex dumps / stick samples.
+# Mount/unmount and Bluepad32 connect logs stay enabled by default.
 
 # Board revision (pin map in src/config.h):
 #   5 = current shipping PCB (level shifters; Port 2 fire/B2/B3 on GPIO 26/27/28)

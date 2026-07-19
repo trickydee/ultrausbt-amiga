@@ -1,6 +1,9 @@
 /**
  * this file is part of amigahid-pico, (c) 2021 just nine <nine@aphlor.org>
- * please locate the full source at https://github.com/borb/amigahid-pico
+ * https://github.com/borb/amigahid-pico
+ *
+ * Modifications Copyright (c) 2026 ultrausbt
+ * https://github.com/trickydee/ultrausbt-amiga
  *
  * released under the terms of the Eclipse Public License 2.0 (EPL-2.0).
  * please find the complete license text at https://spdx.org/licenses/EPL-2.0
@@ -331,11 +334,14 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
         tuh_hid_receive_report(dev_addr, instance);
         return;
     } else if (ps4_is_dualshock4(vid, pid)) {
+#if CONTROLLER_DEBUG
         static bool ps4_first_report = true;
         if (ps4_first_report) {
-            printf("PS4: Report received in tuh_hid_report_received_cb (len=%d, protocol=%d)\n", len, hid_protocol);
+            printf("PS4: Report received in tuh_hid_report_received_cb (len=%d, protocol=%d)\n",
+                   len, hid_protocol);
             ps4_first_report = false;
         }
+#endif
         ps4_process_report(dev_addr, report, len);
         tuh_hid_receive_report(dev_addr, instance);
         return;
@@ -466,11 +472,14 @@ static void process_report(uint8_t dev_addr, uint8_t instance, uint8_t const *re
                         tuh_hid_receive_report(dev_addr, instance);
                         return;
                     } else if (ps4_is_dualshock4(vid, pid)) {
+#if CONTROLLER_DEBUG
                         static bool ps4_debug_printed = false;
                         if (!ps4_debug_printed) {
-                            printf("PS4: Report received in process_report (len=%d, usage=0x%04X)\n", len, report_info->usage);
+                            printf("PS4: Report received in process_report (len=%d, usage=0x%04X)\n",
+                                   len, report_info->usage);
                             ps4_debug_printed = true;
                         }
+#endif
                         ps4_process_report(dev_addr, report, len);
                         // Continue to request reports
                         tuh_hid_receive_report(dev_addr, instance);

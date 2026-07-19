@@ -1,9 +1,11 @@
 /**
- * this file is part of amigahid-pico, (c) 2021 just nine <nine@aphlor.org>
- * please locate the full source at https://github.com/borb/amigahid-pico
+ * Copyright (c) 2026 ultrausbt
+ * https://github.com/trickydee/ultrausbt-amiga
  *
- * released under the terms of the Eclipse Public License 2.0 (EPL-2.0).
- * please find the complete license text at https://spdx.org/licenses/EPL-2.0
+ * Released under the Eclipse Public License 2.0 (EPL-2.0).
+ * https://spdx.org/licenses/EPL-2.0
+ *
+ * Part of ultrausbt-amiga (fork of amigahid-pico by just nine / borb).
  *
  * Sony PlayStation Classic controller (0x054C / 0x0CDA).
  * Report format: 3 bytes (joypad-os sony_psc_report_t) - buttons, dpad+buttons, counter.

@@ -1,9 +1,11 @@
 /**
- * this file is part of amigahid-pico, (c) 2021 just nine <nine@aphlor.org>
- * please locate the full source at https://github.com/borb/amigahid-pico
+ * Copyright (c) 2026 ultrausbt
+ * https://github.com/trickydee/ultrausbt-amiga
  *
- * released under the terms of the Eclipse Public License 2.0 (EPL-2.0).
- * please find the complete license text at https://spdx.org/licenses/EPL-2.0
+ * Released under the Eclipse Public License 2.0 (EPL-2.0).
+ * https://spdx.org/licenses/EPL-2.0
+ *
+ * Part of ultrausbt-amiga (fork of amigahid-pico by just nine / borb).
  *
  * HORI HORIPAD for Nintendo Switch (0x0F0D / 0x00C1).
  * Report format matches joypad-os hori_horipad_report_t (buttons, dpad, 4 axes).

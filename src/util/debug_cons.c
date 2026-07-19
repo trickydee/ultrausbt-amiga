@@ -1,6 +1,9 @@
 /**
  * this file is part of amigahid-pico, (c) 2021 just nine <nine@aphlor.org>
- * please locate the full source at https://github.com/borb/amigahid-pico
+ * https://github.com/borb/amigahid-pico
+ *
+ * Modifications Copyright (c) 2026 ultrausbt
+ * https://github.com/trickydee/ultrausbt-amiga
  *
  * released under the terms of the Eclipse Public License 2.0 (EPL-2.0).
  * please find the complete license text at https://spdx.org/licenses/EPL-2.0
@@ -25,7 +28,8 @@ void dbgcons_init()
     // Note: no VT_ED_CLS (screen clear) here — keep the power-on banner and all
     // boot messages printed before dbgcons_init() visible in the serial log.
     ahprintf(
-        "\namigahid-pico by nine <nine@aphlor.org>, https://github.com/borb/amigahid-pico\n"
+        "\nultrausbt-amiga by ultrausbt, https://github.com/trickydee/ultrausbt-amiga\n"
+        "based on amigahid-pico by nine <nine@aphlor.org>, https://github.com/borb/amigahid-pico\n"
     );
 
     debug_counters.hid_keyboard = 0;

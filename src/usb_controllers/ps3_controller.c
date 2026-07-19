@@ -1,9 +1,11 @@
 /**
- * this file is part of amigahid-pico, (c) 2021 just nine <nine@aphlor.org>
- * please locate the full source at https://github.com/borb/amigahid-pico
+ * Copyright (c) 2026 ultrausbt
+ * https://github.com/trickydee/ultrausbt-amiga
  *
- * released under the terms of the Eclipse Public License 2.0 (EPL-2.0).
- * please find the complete license text at https://spdx.org/licenses/EPL-2.0
+ * Released under the Eclipse Public License 2.0 (EPL-2.0).
+ * https://spdx.org/licenses/EPL-2.0
+ *
+ * Part of ultrausbt-amiga (fork of amigahid-pico by just nine / borb).
  *
  * PS3 DualShock 3 controller implementation
  * Based on Atari IKBD implementation
@@ -223,45 +225,32 @@ void ps3_update_amiga_joystick(uint8_t dev_addr) {
 }
 
 void ps3_mount_cb(uint8_t dev_addr) {
-    printf("\n");
-    printf("═══════════════════════════════════════════════════════\n");
-    printf("  🎮 PS3 DUALSHOCK 3 DETECTED!\n");
-    printf("  Device Address: %d\n", dev_addr);
-    printf("  \n");
-    printf("  Sending PS3 initialization command...\n");
-    printf("  \n");
-    printf("═══════════════════════════════════════════════════════\n");
-    printf("\n");
-    
+    printf("PS3: DualShock 3 detected (addr=%d)\n", dev_addr);
+
 #if HIDPICO_REV_ATARI_BOARD
-    // Show on OLED - match Atari IKBD style
     display_show_controller_detected("PS3", "DualShock 3", 3000);
 #endif
     
     ps3_controller_t* ctrl = allocate_controller(dev_addr);
     if (ctrl) {
-        printf("PS3: Controller registered!\n");
+        printf("PS3: Controller registered\n");
         usb_map_register_gamepad(dev_addr, "PS3");
         
-        // PS3 DualShock 3 requires special initialization
-        // Send Feature Report 0xF4 to enable the controller
+        // PS3 DualShock 3 requires Feature Report 0xF4 to enable reports
         static const uint8_t ps3_init_report[] = {
-            0x42, 0x0C, 0x00, 0x00  // PS3 enable command
+            0x42, 0x0C, 0x00, 0x00
         };
         
-        printf("PS3: Sending initialization feature report (0xF4)...\n");
-        
-        // Send feature report to initialize controller
-        bool result = tuh_hid_set_report(dev_addr, 0, // instance 0
-                                          0xF4,        // report_id
+        bool result = tuh_hid_set_report(dev_addr, 0,
+                                          0xF4,
                                           HID_REPORT_TYPE_FEATURE,
                                           (uint8_t*)ps3_init_report, 
                                           sizeof(ps3_init_report));
         
         if (result) {
-            printf("PS3: Initialization sent successfully!\n");
+            printf("PS3: Initialization sent\n");
         } else {
-            printf("PS3: WARNING - Initialization send failed!\n");
+            printf("PS3: WARNING - initialization send failed\n");
         }
     }
 }

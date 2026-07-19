@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 ultrausbt
+ * https://github.com/trickydee/ultrausbt-amiga
+ *
+ * Released under the Eclipse Public License 2.0 (EPL-2.0).
+ * https://spdx.org/licenses/EPL-2.0
+ *
+ * Part of ultrausbt-amiga (fork of amigahid-pico by just nine / borb).
+ */
+
 #ifndef _PICO_BTSTACK_BTSTACK_CONFIG_H
 #define _PICO_BTSTACK_BTSTACK_CONFIG_H
 

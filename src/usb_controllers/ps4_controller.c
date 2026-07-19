@@ -1,9 +1,11 @@
 /**
- * this file is part of amigahid-pico, (c) 2021 just nine <nine@aphlor.org>
- * please locate the full source at https://github.com/borb/amigahid-pico
+ * Copyright (c) 2026 ultrausbt
+ * https://github.com/trickydee/ultrausbt-amiga
  *
- * released under the terms of the Eclipse Public License 2.0 (EPL-2.0).
- * please find the complete license text at https://spdx.org/licenses/EPL-2.0
+ * Released under the Eclipse Public License 2.0 (EPL-2.0).
+ * https://spdx.org/licenses/EPL-2.0
+ *
+ * Part of ultrausbt-amiga (fork of amigahid-pico by just nine / borb).
  *
  * PS4 DualShock 4 controller implementation
  * Based on Atari IKBD implementation
@@ -104,18 +106,22 @@ bool ps4_process_report(uint8_t dev_addr, const uint8_t* report, uint16_t len) {
     
     // PS4 reports are at least 9 bytes
     if (len < 9) {
+#if CONTROLLER_DEBUG
         printf("PS4: Report too short (%d bytes)\n", len);
+#endif
         return false;
     }
     
     if (first_report) {
         first_report = false;
+#if CONTROLLER_DEBUG
         printf("PS4: First report received (len=%d)\n", len);
         printf("PS4: First 16 bytes: ");
         for (int i = 0; i < (len < 16 ? len : 16); i++) {
             printf("%02X ", report[i]);
         }
         printf("\n");
+#endif
     }
     
     // Parse PS4 report
@@ -167,14 +173,16 @@ bool ps4_process_report(uint8_t dev_addr, const uint8_t* report, uint16_t len) {
         input->r2_trigger = report[offset + 8];
     }
     
-    // Debug: Print parsed values every 100 reports
+#if CONTROLLER_DEBUG
     static uint32_t report_count = 0;
     report_count++;
     if ((report_count % 100) == 0) {
         printf("PS4: Report #%lu - x=%d y=%d dpad=%d cross=%d circle=%d square=%d\n",
-               report_count, input->x, input->y, input->dpad, input->cross, input->circle, input->square);
+               (unsigned long)report_count, input->x, input->y, input->dpad,
+               input->cross, input->circle, input->square);
     }
-    
+#endif
+
     // Update Amiga joystick port 2
     ps4_update_amiga_joystick(dev_addr);
     
@@ -253,32 +261,15 @@ void ps4_update_amiga_joystick(uint8_t dev_addr) {
 }
 
 void ps4_mount_cb(uint8_t dev_addr) {
-    printf("\n");
-    printf("═══════════════════════════════════════════════════════\n");
-    printf("  🎮 PS4 DUALSHOCK 4 DETECTED!\n");
-    printf("  Device Address: %d\n", dev_addr);
-    printf("  \n");
-    printf("  PS4 controllers are standard HID devices\n");
-    printf("  Should work immediately with TinyUSB 0.19.0!\n");
-    printf("  \n");
-    printf("  Button mapping:\n");
-    printf("  - Left Stick / D-Pad = Directions\n");
-    printf("  - Cross (X) = Fire\n");
-    printf("  - Circle = Button 2\n");
-    printf("  - Square = Button 3\n");
-    printf("  - R2 Trigger = Fire (alternative)\n");
-    printf("  \n");
-    printf("═══════════════════════════════════════════════════════\n");
-    printf("\n");
-    
+    printf("PS4: DualShock 4 detected (addr=%d)\n", dev_addr);
+
 #if HIDPICO_REV_ATARI_BOARD
-    // Show on OLED - match Atari IKBD style
     display_show_controller_detected("PS4", "DualShock 4", 3000);
 #endif
     
     ps4_controller_t* ctrl = allocate_controller(dev_addr);
     if (ctrl) {
-        printf("PS4: Controller registered!\n");
+        printf("PS4: Controller registered\n");
         usb_map_register_gamepad(dev_addr, "PS4");
     }
 }

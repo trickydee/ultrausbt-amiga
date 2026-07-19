@@ -1,4 +1,12 @@
 /**
+ * Copyright (c) 2026 ultrausbt
+ * https://github.com/trickydee/ultrausbt-amiga
+ *
+ * Released under the Eclipse Public License 2.0 (EPL-2.0).
+ * https://spdx.org/licenses/EPL-2.0
+ *
+ * Part of ultrausbt-amiga (fork of amigahid-pico by just nine / borb).
+ *
  * Amiga CD32 gamepad protocol (joystick ports 1 and 2, Rev 5).
  */
 

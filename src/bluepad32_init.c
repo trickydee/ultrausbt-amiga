@@ -1,4 +1,12 @@
 /**
+ * Copyright (c) 2026 ultrausbt
+ * https://github.com/trickydee/ultrausbt-amiga
+ *
+ * Released under the Eclipse Public License 2.0 (EPL-2.0).
+ * https://spdx.org/licenses/EPL-2.0
+ *
+ * Part of ultrausbt-amiga (fork of amigahid-pico by just nine / borb).
+ *
  * bluepad32 initialization
  * separated from main.c to avoid HID type conflicts between TinyUSB and btstack
  */

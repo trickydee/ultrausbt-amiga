@@ -1,4 +1,12 @@
 /**
+ * Copyright (c) 2026 ultrausbt
+ * https://github.com/trickydee/ultrausbt-amiga
+ *
+ * Released under the Eclipse Public License 2.0 (EPL-2.0).
+ * https://spdx.org/licenses/EPL-2.0
+ *
+ * Part of ultrausbt-amiga (fork of amigahid-pico by just nine / borb).
+ *
  * Mouse and port configuration persistence using flash storage.
  */
 
@@ -79,10 +87,12 @@ static bool port_config_save_now(const port_config_data_t* config) {
         return false;
     }
 
+#ifdef DEBUG_MESSAGES
     printf("[CONFIG] Saving: mouse=%s port1=%u port2_cd32=%d\n",
            config->mouse_type == MOUSE_TYPE_ATARI ? "Atari" : "Amiga",
            (unsigned)config->port1_mode,
            config->port2_cd32 ? 1 : 0);
+#endif
 
     // flash_safe_execute() coordinates with core1's flash lockout victim, which is
     // only installed when core1 is running (host mode launches it via the quad-mouse
@@ -96,7 +106,9 @@ static bool port_config_save_now(const port_config_data_t* config) {
             return false;
         }
     } else {
+#ifdef DEBUG_MESSAGES
         printf("[CONFIG] core1 lockout not initialised; writing flash directly\n");
+#endif
         port_config_flash_write((void*)config);
     }
     return true;
@@ -173,7 +185,9 @@ bool port_config_save(const port_config_data_t* config) {
     if (core1_get_bt_pause_depth() > 0) {
         g_port_config_pending_data = *config;
         g_port_config_pending = true;
+#ifdef DEBUG_MESSAGES
         printf("[CONFIG] Deferred save during BT enumeration\n");
+#endif
         return true;
     }
 

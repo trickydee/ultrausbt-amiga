@@ -1,6 +1,9 @@
 /**
  * this file is part of amigahid-pico, (c) 2021 just nine <nine@aphlor.org>
- * please locate the full source at https://github.com/borb/amigahid-pico
+ * https://github.com/borb/amigahid-pico
+ *
+ * Modifications Copyright (c) 2026 ultrausbt
+ * https://github.com/trickydee/ultrausbt-amiga
  *
  * released under the terms of the Eclipse Public License 2.0 (EPL-2.0).
  * please find the complete license text at https://spdx.org/licenses/EPL-2.0
@@ -47,6 +50,13 @@
 // See doc/usb-device-mode.md ("Diagnosing with KEYBOARD_IN_DEBUG").
 #ifndef KEYBOARD_IN_DEBUG
 #  define KEYBOARD_IN_DEBUG 0
+#endif
+
+// Verbose controller / HID report dumps (hex dumps, periodic stick samples).
+// Mount/unmount and Bluepad32 connect messages stay on regardless. Also enable
+// with CMake: add_compile_definitions(DEBUG_MESSAGES=1) for ahprintf + DIAG.
+#ifndef CONTROLLER_DEBUG
+#  define CONTROLLER_DEBUG 0
 #endif
 
 // Bluetooth gamepad pairing — Core 1 pause timing (Atari v22.1.0 / ultramegausb family)

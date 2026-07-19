@@ -1,12 +1,15 @@
 /**
  * this file is part of amigahid-pico, (c) 2021 just nine <nine@aphlor.org>
- * please locate the full source at https://github.com/borb/amigahid-pico
+ * https://github.com/borb/amigahid-pico
+ *
+ * Modifications Copyright (c) 2026 ultrausbt
+ * https://github.com/trickydee/ultrausbt-amiga
  *
  * released under the terms of the Eclipse Public License 2.0 (EPL-2.0).
  * please find the complete license text at https://spdx.org/licenses/EPL-2.0
  *
  * amiga joystick port 2 interface implementation.
- * 
+ *
  * Joystick Port 2 uses dedicated GPIO pins (QM2_AMIGA_*).
  * This provides simple digital joystick emulation by controlling direction
  * and button signals directly.
