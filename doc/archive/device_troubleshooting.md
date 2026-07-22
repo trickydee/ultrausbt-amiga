@@ -152,7 +152,7 @@ This fix is particularly important for:
 ## Stadia Controller Bluetooth Pairing Issues
 
 **Canonical write-up:** [`stadia-controller-verification.md`](./stadia-controller-verification.md) § *BLE pairing + mouse motion*.  
-**Family handoff:** [`BT_PAIRING_HANDOFF.md`](./BT_PAIRING_HANDOFF.md).
+**Family handoff:** [`archive/BT_PAIRING_HANDOFF.md`](./archive/BT_PAIRING_HANDOFF.md).
 
 ### Problem Summary
 

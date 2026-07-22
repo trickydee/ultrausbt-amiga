@@ -1,4 +1,7 @@
-# errata
+# errata (amigahid-pico / borb)
+
+Upstream PCB errata from the original [amigahid-pico](https://github.com/borb/amigahid-pico) project.
+Kept here for anyone building from the included KiCad layouts.
 
 this project is still in the relatively early stages in terms of hardware design and i'm learning things like kicad as i go along. it's likely i'll make mistakes, so this section documents those mistakes.
 

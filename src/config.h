@@ -19,14 +19,15 @@
 // Software version - single source of truth for main.c, OLED display, and serial output.
 // v3.0.0: Rev 5/6 GPIO maps + Core 1 loop-counter mouse consume (Stadia-safe).
 // v3.2.0: USB device mode — read a real Amiga keyboard/mouse and present as a USB HID to a PC.
+// v4.0.0: Public release packaging — ultrausbt branding, LICENSE/NOTICE, quiet UART, docs.
 #ifndef SOFTWARE_VERSION_MAJOR
-#  define SOFTWARE_VERSION_MAJOR 3
+#  define SOFTWARE_VERSION_MAJOR 4
 #endif
 #ifndef SOFTWARE_VERSION_MINOR
-#  define SOFTWARE_VERSION_MINOR 2
+#  define SOFTWARE_VERSION_MINOR 0
 #endif
 #ifndef SOFTWARE_VERSION_PATCH
-#  define SOFTWARE_VERSION_PATCH 1
+#  define SOFTWARE_VERSION_PATCH 0
 #endif
 
 // USB device mode ("PC keyboard" mode): read a real Amiga keyboard (and mouse) on the
@@ -47,7 +48,7 @@
 
 // Log Amiga keyboard receive (frames, keycodes, 1 Hz KCLK heartbeat, resync) on UART.
 // Default off for quiet builds; set to 1 when diagnosing device-mode keyboard issues.
-// See doc/usb-device-mode.md ("Diagnosing with KEYBOARD_IN_DEBUG").
+// See doc/archive/amiga-usb-device-mode.md ("Diagnosing with KEYBOARD_IN_DEBUG").
 #ifndef KEYBOARD_IN_DEBUG
 #  define KEYBOARD_IN_DEBUG 0
 #endif
@@ -87,7 +88,7 @@
 #endif
 
 // Log HID scancodes on UART when keys are pressed (set 1 to discover remaps).
-// Output: `[kbd] HID 0xNN -> Amiga 0xNN` per key down. See doc/device_troubleshooting.md.
+// Output: `[kbd] HID 0xNN -> Amiga 0xNN` per key down. See doc/archive/device_troubleshooting.md.
 #ifndef KEYBOARD_HID_DEBUG
 #  define KEYBOARD_HID_DEBUG  0
 #endif

@@ -113,7 +113,7 @@ RP2040 has **no** 5V-tolerant GPIOs. Rev 6 direct-wiring target is **Pico 2 / Pi
 ## References
 
 - `src/config.h` — `HIDPICO_REVISION == 6` block
-- `doc/amiga-code-atari-board-gpio-mappings.md` — Rev 5 baseline
-- `doc/CD32_BUILD_SPEC.md` — CD32 pin roles
-- `doc/gpio_allocation_plan.md` — Option 2 (GPIO 0/1 for Port 2 B2/B3)
+- `doc/archive/amiga-code-atari-board-gpio-mappings.md` — Rev 5 baseline
+- `doc/archive/CD32_BUILD_SPEC.md` — CD32 pin roles (archived build spec)
+- `doc/archive/gpio_allocation_plan.md` — Option 2 (GPIO 0/1 for Port 2 B2/B3)
 - Raspberry Pi RP2350 A4: GPIO 0–25 5V-tolerant; 26–29 ADC only

@@ -1,191 +1,215 @@
-# amigahid-pico
+# Amiga USB & Bluetooth Adapter
 
-please note: the interesting stuff goes into the [development](https://github.com/borb/amigahid-pico/tree/development) branch, so if main seems slow, check it out.
+## Overview
 
-## introduction
+This project uses a Raspberry Pi Pico to connect modern USB and Bluetooth devices such as keyboards, mice, trackballs and gamepads to classic Amiga computers — without needing a USB stack on the Amiga itself.
 
-amigahid-pico uses the rp2040 microcontroller (e.g. the raspberry pi pico) in a carrier board to attach usb input devices to a standard amiga without the need for a usb stack on the amiga itself.
+The project was created so I could connect my modern peripherals with my Amiga 2000, the device has a Keyboard and 2 x Atari style Joystick connectors to interface with the Amiga.
 
-it currently supports keyboards and mice and provides connection via the internal keyboard connector, the rj11/din socket on big-box amigas, and via the controller ports.
+The example adapter hardware for the project is focused on the Amiga 2000, although it can be adapted easily for other Amigas.
 
-**this project is very much a work in progress.**
+The adapter is bi-directional, allowing not only modern USB and BT HID hardware to be connected to the amiga, but also allowing for Amiga Keyboards to be connected as a USB HID Keyboard to a modern computer - soon this will be extended to allow attachment of Amiga/Atari Mice and Atari/CD32 DSUM style Joysticks.
 
-### Supported USB controllers (Joystick Port 2)
+The device is connected to the Amiga using straight through cables, I am using 2 x 9 Pin DSub to Dsub and 1 x 5 Pin DIN (MIDI) cables.
 
-USB gamepads are mapped to Amiga joystick port 2 (directions, fire, and second/third button where supported). The following have dedicated drivers:
 
-| Controller | Notes |
-|------------|--------|
-| **Sony DualShock 3** (PS3) | Wired USB; also third‑party PS3‑compatible devices (HORI, Mad Catz, Qanba, Nacon, Logitech F310, Zero Delay encoder, etc.) using the same HID report format |
-| **Sony DualShock 4** (PS4) | Wired USB; also third‑party PS4‑compatible devices (HORI, Razer, Brook, Mad Catz, Qanba, Nacon, PowerA, etc.) using the same HID report format |
-| **Sony DualSense** (PS5) | Wired USB (report ID 0x01); DualSense and DualSense Edge supported |
-| **Nintendo Switch Pro Controller** | Wired USB; Pro, JoyCon L/R/pair, JoyCon Charge Grip (0x200E), SNES Controller NSO (0x2017); compatible third‑party Switch-style pads (e.g. PowerA) also supported |
-| **Sony PlayStation Classic** (PSC) | Wired USB (0x054C / 0x0CDA); D-pad and face/shoulder buttons mapped to port 2 |
-| **HORI HORIPAD** (Switch) | Wired USB (0x0F0D / 0x00C1); D-pad or left stick, B/A/Y and shoulders mapped to port 2 |
-| **Google Stadia** | Wired USB (Google Controller) |
-| **Xbox** | XInput: Xbox 360 (wired/wireless dongle), Xbox One, OG Xbox; HID fallback for Xbox pads that enumerate as HID |
+On a **Pico 2 W** you can mix USB and Bluetooth devices. USB-only builds work on any Pico / Pico 2.
 
-Other USB HID gamepads may work via the generic gamepad path (directions + up to 3 buttons). Bluetooth gamepads are supported on Pico W / Pico 2 W builds via Bluepad32.
+**This project is a fork of [amigahid-pico](https://github.com/borb/amigahid-pico)** by **just nine** (borb). That project is the foundation for Amiga keyboard and mouse signalling on the Pico. This fork builds on that work for the ultrausbt Amiga Adapter board: OLED UI, dual joystick ports, CD32 pad protocol, Bluetooth (Bluepad32), many modern USB controllers, and USB **device** mode (Amiga keyboard → PC).
 
-**CD32 gamepad mode (Rev 5, v2.1.2):** Toggle Port 2 to the Amiga CD32 seven-button protocol with **Shift + Left Amiga + C** (Left Command / Left Windows on PC/Mac keyboards). Maps modern face buttons and shoulders to CD32 Blue/Red/Yellow/Green/FF/Rew/Pause for CD32-enhanced Amiga titles. See [`doc/CD32_BUILD_SPEC.md`](./doc/CD32_BUILD_SPEC.md).
+Please visit and star the upstream project:  
+**https://github.com/borb/amigahid-pico**
+
+Current firmware: **v4.0.0** · License: [EPL-2.0](./LICENSE) · [NOTICE](./NOTICE)
+
+![A2000 USB/BT Adapter](./doc/images/A2000-USB-BT-Adapter.jpg)
+
+
+## Contributions
+
+This project is open source and I am happy to receive pull requests and issues to further improve capabilities.
+
+## USB device support
+
+* USB HID Keyboards
+* USB HID Mice
+* USB HID Gamepads / Joysticks (see below)
+
+## Game controller support
+
+The following USB HID gamepads / joysticks are supported (more to come):
+
+* PlayStation 3 DualShock 3 (and third-party PS3-compatible pads: HORI, Mad Catz, Qanba, Nacon, Logitech F310, etc.)
+* PlayStation 4 DualShock 4 (and third-party PS4-compatible pads)
+* PlayStation 5 DualSense and DualSense Edge (USB)
+* PlayStation Classic (PSC)
+* Xbox XInput — Xbox 360 / One / OG (plus HID fallback)
+* Nintendo Switch Pro Controller, Joy-Con (L/R/Pair/Grip), SNES Controller (NSO)
+* HORI HORIPAD for Nintendo Switch
+* Google Stadia Controller
+
+Other USB HID gamepads may work via the generic path (directions + up to three buttons). Gamepads map to **Joystick Port 2** by default; Port 1 can be switched to joystick / Llamatron / CD32 mode from the OLED or keyboard shortcuts.
+
+## Bluetooth support (Pico 2 W)
+
+Bluetooth keyboards, mice, and gamepads are supported on the **Raspberry Pi Pico 2 W** (RP2350) via [Bluepad32](https://github.com/ricardoquesada/bluepad32). You can run a fully wireless Amiga setup, or mix USB and Bluetooth devices.
+
+### Pairing
+
+1. On the OLED splash screen, use the **Right** button to enable pairing (or wait for the short post-boot pairing window).
+2. Put your device into Bluetooth pairing mode.
+3. Confirm the device on the OLED **Devices** / **Map Devices** screens.
+
+To clear stored pairing keys, hold **Left + Right** for 5 seconds on the splash screen (on-screen countdown).
+
+**Note:** Bluetooth support is intended for Pico 2 W. Prefer Pico 2 W for wireless builds.
+
+# Usage
+
+## USB
+
+Connect devices to the Pico USB port (use a powered USB OTG hub if you need multiple devices). Supported keyboards, mice, and gamepads should enumerate within a few seconds; confirm on the OLED. If you find a modern device that does not work, open an issue.
+
+## Bluetooth
+
+See **Bluetooth support** above. Pairing is controlled from the OLED splash screen. Keyboard shortcuts work the same on USB and Bluetooth keyboards.
 
 ## Keyboard shortcuts
 
-These combos are captured by the adapter (on USB **and** Bluetooth keyboards) and are not passed through to the Amiga. **Left Amiga** = Left Command / Left GUI / Left Windows key.
+The adapter uses a number of Keyboard shortcut key combinations to toggle features.
 
-| Shortcut | Action |
-|----------|--------|
-| **Ctrl + Left Amiga + Right Amiga** | Amiga keyboard reset (classic combo) |
-| **Ctrl + Left Amiga + Backspace** | Amiga keyboard reset (alternate — for keyboards without a Right Amiga/GUI key, e.g. Logitech MX Keys Mini) |
-| **Shift + Left Amiga + J** | Toggle Port 1 between mouse and joystick mode |
-| **Shift + Left Amiga + L** | Toggle Llamatron twin-stick mode (Port 1 joystick) |
-| **Shift + Left Amiga + C** | Toggle Port 2 CD32 seven-button mode |
+These combos are handled by the adapter (USB **and** Bluetooth keyboards) and are **not** passed through to the Amiga. **Left Amiga** = Left Command / Left GUI / Left Windows on PC/Mac keyboards.
 
-Notes:
-- The reset is a **warm reset** (signalled by holding the keyboard clock line low, as the real Amiga keyboard MCU does). It resets the custom chips and reboots the OS; it is not a full power-cycle.
-- The reset line is held for a guaranteed minimum (`RESET_ASSERT_MIN_HOLD_MS`, default 500 ms) so it still triggers on keyboards that drop a combo key from their HID report (matrix ghosting).
-- One HID key can be remapped to Amiga **Help** via `KEY_REMAP_HID_TO_HELP` in `config.h` (default: the Logitech MX `| / ~ #` key, HID `0x32`). Set to `0` to disable.
+| Shortcut | Function |
+|----------|----------|
+| **Ctrl + Left Amiga + Right Amiga** | Amiga hard reset (classic) |
+| **Ctrl + Left Amiga + Backspace** | Amiga hard reset (alternate for keyboards without Right Amiga/GUI) |
+| **Shift + Left Amiga + J** | Toggle Port 1 between mouse, joystick and CD32 mode|
+| **Shift + Left Amiga + L** | Toggle Llamatron / Robotron style twin-stick mode (Port2 Direction + Port 1 Fire) |
+| **Shift + Left Amiga + C** | Toggle Port 2 CD32 Controller Emulation seven-button mode |
+Reset is signalled by holding the Amiga keyboard **CLOCK** line low (as a real Amiga keyboard MCU does), with a minimum hold time so it still works when a keyboard drops a combo key from its HID report.
 
-### OLED buttons
+Optional: remap one HID scancode to Amiga **Help** via `KEY_REMAP_HID_TO_HELP` in `src/config.h` (default: Logitech MX `| / ~ #` key). Set to `0` to disable. This is useful for mapping the quit key in WHDload.
 
-The three on-board OLED buttons provide: **Left** = cycle Port 1 mode (MOUSE → JOY → LLAMA → CD32), **Middle** = cycle screens, **Right** = toggle Bluetooth pairing on the splash screen. Hold **Left + Right for 5 s** on the splash to clear stored Bluetooth pairing keys. Hold **Middle + Right for 2 s** to toggle **USB device mode** (see below).
+### Llamatron dual-stick mode
 
-## USB device mode (use an Amiga keyboard on a PC)
+**Shift + Left Amiga + L** enables Llamatron / twin-stick style routing on Port 1 (one dual-stick gamepad shared across ports). Mutually exclusive with Port 1 CD32. See the OLED Port 1 mode label (**LLAMA**).
 
-The adapter can also run in reverse: read a real Amiga keyboard (and Port 1 mouse) and present itself to a **host PC as a USB HID keyboard + mouse**. Toggle it with **Middle + Right (hold 2 s)** on the OLED; the setting is saved and the adapter reboots into the selected mode. See [`doc/usb-device-mode.md`](./doc/usb-device-mode.md) for wiring, protocol, handshake/resync, and `KEYBOARD_IN_DEBUG` (default off).
+### CD32 seven-button mode
 
-## **important note**
+**Shift + Left Amiga + C** toggles Port 2 into the Amiga CD32 serial pad protocol (seven buttons + D-pad). Port 1 CD32 is selected via the OLED **Left** button cycle (**MOUSE → JOY → LLAMA → CD32**). Both ports support CD32. Known limitation: Bluetooth pad routing when one of two pads disconnects — see [`doc/future_work.md`](./doc/future_work.md).
 
-* current kicad files are for r5 pcb, pin mappings are not yet in the source tree! i have not yet generated this board as a pcb, but it is mostly identical to r4. the keyboard and controller port 1 are correct at time of writing, and will be fixed for the second controller port when the next prototype arrives.
+# OLED UI
 
-* **always read the [errata](./doc/errata.md) section for the current pcb layout before deciding whether or not to build.**
+An SSD1306 OLED and three buttons are supported on the ultrausbt Amiga board (optional for a bare Pico, but recommended).
 
-![rev 5 pcb](./doc/images/board-rev-5.jpg)
+| Control | Action |
+|---------|--------|
+| **Left** | Cycle Port 1 mode: MOUSE → JOY → LLAMA → CD32 |
+| **Middle** | Cycle screens (splash → Devices → Map Devices) |
+| **Right** | Toggle Bluetooth pairing (splash) |
+| **Left + Right** (hold 5 s) | Clear stored Bluetooth pairing keys |
+| **Middle + Right** (hold 2 s) | Toggle USB **host** ↔ **device** mode (saves and reboots) |
 
-## documentation
+# USB device mode (Amiga keyboard on a PC)
 
-* [continue here (session handoff)](./doc/CONTINUE_HERE.md) — start here when resuming development
-* [hardware](./doc/hardware.md)
-* [errors in revisions (errata)](./doc/errata.md)
+The adapter can run in reverse: read a real Amiga keyboard (KCLK/KDAT) and Port 1 mouse, and present itself to a host PC as a composite USB HID keyboard + mouse.
 
-## building
+* Toggle with **Middle + Right** (hold 2 s) on the OLED.
+* The mode is stored in flash; the board reboots into host or device role (single USB PHY).
+* Protocol and diagnostics: [`doc/archive/amiga-usb-device-mode.md`](./doc/archive/amiga-usb-device-mode.md).
 
-Firmware is built with **`build-all.sh`** (see `doc/CONTINUE_HERE.md`). Output UF2s land in **`dist/`**.
+# Hardware
+
+Note: The Hardware adpater for this project is unique to this repo, the GPIO's used are DIFFERENT to the adpaters used in the original adpaters developed by Nine. 
+
+* **Rev 5** — level-shifted Amiga I/O (`HIDPICO_REVISION=5` in root `CMakeLists.txt`)
+* **Rev 6** — direct 5V-tolerant I/O on Pico 2 / Pico 2 W; Port 2 fire/B2/B3 on GPIO 16/17/18; OLED buttons on ADC 26/27/28 — see [`doc/gpio_rev6_adc_avoidance.md`](./doc/gpio_rev6_adc_avoidance.md)
+
+KiCad sources live under `kicad/`. Upstream PCB notes and errata from amigahid-pico are archived at [`doc/archive/borb-amigahid-hardware.md`](./doc/archive/borb-amigahid-hardware.md) and [`doc/archive/borb-amigahid-errata.md`](./doc/archive/borb-amigahid-errata.md) — read the errata before manufacturing boards based on those layouts.
+
+# Building the firmware
+
+The firmware can either be downloaded pre built from the Releases section, or you can build yourself with the 'build-all.sh' script. 
 
 ```bash
-./build-all.sh                              # default: Pico 2 W
-BUILD_BOARDS=pico,pico2_w ./build.sh        # Pico + Pico 2 W
+# Default: Pico 2 W → dist/
+./build-all.sh
+
+# Incremental rebuild
+CLEAN_BUILD_DIRS=0 ./build-all.sh
+
+# Multiple boards
+BUILD_BOARDS=pico,pico2_w ./build.sh
+BUILD_BOARDS=all ./build-all.sh
 ```
 
-## history
+Flash the matching `.uf2` from `dist/` (hold **BOOTSEL**, copy to the RPI-RP2 drive).
 
-this project is a rewrite of the [amigahid](https://github.com/borb/amigahid) project to the rp2040 microcontroller.
+Board revision is set in the root `CMakeLists.txt` (`HIDPICO_REVISION=5` or `6`).
 
-originally, after the retirement of the arduino adk board and shortening availability of the max3421e "usb host shield" for arduino boards, the need for a cheap, easy and continually available replacement was sought.
+By default the serial console shows boot info and device connect/disconnect messages. For verbose dumps, uncomment `DEBUG_MESSAGES=1` in `CMakeLists.txt`, or set `CONTROLLER_DEBUG` / `KEYBOARD_IN_DEBUG` in `src/config.h`.
 
-at first, the uhs mini via a level shifter seemed ideal, but significant issues were found convincing it to work with a variety of arduino boards.
+# Documentation
 
-the rp2040 made sense as a target because it is widely available, has sufficient physical connections and is powerful enough to meet multiple needs.
+Index: [`doc/README.md`](./doc/README.md)
 
-## what is the latency of this?
+| Doc | Topic |
+|-----|--------|
+| [`doc/future_work.md`](./doc/future_work.md) | Known limitations / roadmap |
+| [`doc/gpio_rev6_adc_avoidance.md`](./doc/gpio_rev6_adc_avoidance.md) | Rev 6 pin rationale |
+| [`doc/BT_PAIRING_BEST_PRACTICES.md`](./doc/BT_PAIRING_BEST_PRACTICES.md) | Bluetooth pairing |
+| [`doc/archive/`](./doc/archive/) | Detailed / historical notes |
 
-i have not measured the latency, but the keyboard signals are sent out the moment they are received on the usb bus. the potential latency is likely fractionally longer than the amiga mcu but bear in mind the rp2040 is significantly faster than the standard amiga keyboard controller.
+# Acknowledgements
 
-## release notes
+**Upstream — please support the original project:**
 
-### USB device mode polish (v3.2.1)
-- **Caps Lock on macOS:** synthetic Caps Lock HID pulse held ~120 ms so macOS accepts the toggle (momentary presses are ignored by the OS delay).
-- **`KEYBOARD_IN_DEBUG` default off** for quiet release builds; enable in `src/config.h` when diagnosing Amiga keyboard receive (see [`doc/usb-device-mode.md`](./doc/usb-device-mode.md)).
+* **[amigahid-pico](https://github.com/borb/amigahid-pico)** by **just nine** \<[nine@aphlor.org](mailto:nine@aphlor.org)\> — the original Amiga HID-on-Pico work this firmware forks and extends. Without that project this adapter would not exist.
 
-### USB device mode — Amiga keyboard/mouse to PC (v3.2.0)
-- **New reverse mode:** read a real Amiga keyboard (KCLK/KDAT) and Port 1 mouse and present the adapter to a PC as a composite USB HID keyboard + mouse.
-- **Runtime toggle:** hold **Middle + Right (2 s)** on the OLED; the mode is persisted to flash and the adapter reboots into it. Single USB PHY ⇒ only one role active at a time.
-- **Receive path:** KCLK-edge IRQ capture, un-rotate/un-invert decode, ~85 µs KDAT handshake + resync recovery, reverse Amiga→HID keycode map (built by inverting the existing table), caps-lock resync pulse.
-- **New modules:** `usb_mode`, `usb_hid_device`, `keyboard_host_in`, `mouse_host_in`; TinyUSB device stack enabled alongside host. See [`doc/usb-device-mode.md`](./doc/usb-device-mode.md).
-- Gated by `ENABLE_USB_DEVICE_MODE` (default on). Verified on Amiga 2000 keyboard → Rev 5 board → macOS.
+The “ultrausbt” / ultramegausb name is tongue-in-cheek and highlights the capabilities made possible by TinyUSB, Bluepad32, and the Pico ecosystem.
 
-### Alternate reset combo + Core 1 stability (v3.1.0)
-- **Alternate keyboard reset:** **Ctrl + Left Amiga + Backspace** triggers an Amiga hard reset for keyboards without a Right Amiga / Right GUI key (e.g. Logitech MX Keys Mini). Classic **Ctrl + Left Amiga + Right Amiga** still works.
-- **Reliable reset signalling:** Reset is asserted by holding the keyboard **CLOCK line low** (standard Amiga keyboard method) with a guaranteed minimum hold (`RESET_ASSERT_MIN_HOLD_MS`, 500 ms) so it still fires when a keyboard ghosts a combo key off the HID report. No scancodes are bit-banged while held in reset.
-- **Boot banner:** Power-on serial banner no longer clears the screen and now lists all keyboard shortcuts (including both reset combos).
-- **Core 1 mouse stability (from v3.0.0):** Quadrature mouse loop no longer gates on `absolute_time`, so mouse motion survives BLE gamepad pairing / flash lockout (Stadia, Xbox). See [`doc/stadia-controller-verification.md`](./doc/stadia-controller-verification.md).
-- **Debug output** gated behind `DEBUG_MESSAGES` / `KEYBOARD_RESET_DEBUG` flags for clean release builds.
+This fork also relies on:
 
-### Dual CD32 pads + stability fixes (v2.2.2)
-- **Dual CD32:** Independent per-port shift registers (Port 1 + Port 2 simultaneously).
-- **Fix:** Lightweight CD32 ISRs + `cd32_service()` — restores OLED/UI and Amiga output (v2.2.1 regression).
-- **Fix:** GPIO watchdog skipped while CD32 active.
-- **Known instability:** Occasional ghost adjacent buttons (B+A, Y+G); BT pad routing breaks when one of two pads disconnects. See `doc/future_work.md`.
+* [Raspberry Pi Pico SDK](https://github.com/raspberrypi/pico-sdk) — RP2040 / RP2350 platform
+* [TinyUSB](https://github.com/hathach/tinyusb) by Ha Thach — USB host and device stacks
+* [Bluepad32](https://github.com/ricardoquesada/bluepad32) by Ricardo Quesada — Bluetooth HID gamepads, keyboards, and mice
+* [BTstack](https://github.com/bluekitchen/btstack) (via Pico SDK / Bluepad32) — Bluetooth controller stack
+* [pico-ssd1306](https://github.com/daschr/pico-ssd1306) by David Schramm — OLED display driver
+* [tusb_xinput](https://github.com/Ryzee119/tusb_xinput) by Ryzee119 — Xbox XInput host path for TinyUSB
+* CD32 protocol analysis via [PSCD32 Development Diary](https://www.mrdictionary.net/PSCD32/diary/2019_08_09.htm) (Mathew Carr) and related pad schematics
 
-### Dual CD32 pads (v2.2.1)
-- **Simultaneous Port 1 + Port 2 CD32:** Independent shift-register drivers — two real CD32-style pads at once.
-- **Setup:** OLED left button → Port 1 CD32; **Shift + Left Amiga + C** → Port 2 CD32; pair two BT gamepads.
-- **Routing:** BT pad #1 → Port 2, BT pad #2 → Port 1; USB pad still Port 2 only.
-- **Mouse:** Unavailable on Port 1 while Port 1 CD32 active.
+**Other Projects**
+I also have a number of other Retro Computer adapter projects:
+[Atari Mega ST/TT IKBD - USB/BT Adapater](https://github.com/trickydee/ultramegausb-atari-st-rpikbd).
+[Apple ADB - USB/BT Adapater](https://github.com/trickydee/TBC).
+[PC XT / AT / PS2 - USB/BT Adapater](https://github.com/trickydee/TBC).
 
-### Port 1 CD32, mode persistence, OLED cycle (v2.2.0)
-- **Port 1 CD32:** Seven-button protocol on Port 1 (BT gamepad #2); Core 1 mouse paused while active.
-- **OLED left button:** Cycles Port 1 **MOUSE → JOY → LLAMA → CD32 → MOUSE** on splash and Devices screens.
-- **Flash persistence:** Port 1 mode and Port 2 CD32 setting saved across reboots (`port_config` sector).
-- **Port mode manager:** `port_mode.c` centralizes mode apply (CD32 vs Llamatron).
 
-### CD32 gamepad mode (v2.1.2)
-- **Port 2 CD32 protocol:** Shift-register emulation on Rev 5 GPIOs (JOYMODE/CLOCK/DATA on pins 5/6/9) for seven-button CD32 games.
-- **Toggle:** **Shift + Left Amiga + C** from USB or Bluetooth keyboard; OLED Devices screen shows `Port2: CD32` or `Port2: STD`.
-- **Gamepad routing:** Unified `port2_gamepad_submit()` for USB (PS4, Xbox, Stadia, generic HID) and Bluetooth gamepad #1.
-- **Llamatron:** Mutually exclusive with CD32 mode on either port.
 
-### Map Devices UI and build alignment (v2.1.1)
-- **Map Devices screen**: Renamed from Bluetooth Devices; shows J2/J1/K1/M1 with Bluetooth and USB device names.
-- **USB device map**: New `usb_device_map` module; driver-specific labels (PS5, Switch, Xbox, etc.) without generic overwrite.
-- **Build flow**: `build-all.sh` aligned with Atari adapter — builds under `build/build-<board>/`, artifacts in `dist/`.
-- **Docs**: Removed outdated `installation.md` and stale µgui README note; updated `.gitignore`.
+**This ultrausbt Amiga fork** is maintained by [trickydee](https://github.com/trickydee) ([ultrausbt-amiga](https://github.com/trickydee/ultrausbt-amiga)). A large portion of the code and documentation was developed with [Cursor](https://cursor.com) and supporting LLMs — this project would not exist in its current form without those tools, on top of the open-source foundations above.
 
-### Pairing UX and startup window (v2.1.0)
-- **Bluetooth pairing control on splash**: Right button now toggles pairing ON/OFF directly from the splash screen.
-- **Safer key reset flow**: Hold **Left + Right** for 5 seconds to clear stored pairing keys, with on-screen `Pairing Clear` countdown feedback.
-- **Startup pairing window**: Pairing is automatically enabled for 60 seconds after boot, then disabled until manually toggled back on.
-- **Live countdown refresh**: Splash screen pairing status updates once per second (for example `Pair ON 42s`) without needing to switch screens.
+# Release notes (recent)
 
-### More controllers and Switch PIDs (v1.0.54)
-- **Switch**: Added JoyCon Charge Grip (0x200E) and SNES Controller NSO (0x2017) to the Switch driver; same report format as Pro Controller.
-- **PlayStation Classic (PSC)**: New dedicated driver for Sony PS Classic controller (0x054C / 0x0CDA). D-pad, Cross/Circle/Square/Triangle, L1/R1/L2/R2 mapped to Amiga joystick port 2.
-- **HORI HORIPAD**: New dedicated driver for HORI HORIPAD for Nintendo Switch (0x0F0D / 0x00C1). D-pad or left stick for direction; B/A/Y and R2 for fire/buttons.
+### v4.0.0
+* Public release packaging for [ultrausbt-amiga](https://github.com/trickydee/ultrausbt-amiga)
+* EPL-2.0 `LICENSE` + `NOTICE`; ultrausbt copyright; Cursor/LLM credit in Acknowledgements
+* Quieter UART by default (boot + device connect kept; controller dump spam gated)
+* Docs: public index, `doc/archive/` for historical notes, rewritten README
 
-### Controller support and version display (v1.0.53)
-- **PS5 DualSense**: Added USB support for Sony DualSense and DualSense Edge (report ID 0x01, joypad-os compatible report layout). Left stick, D-pad, Cross/Circle/Square/Triangle, R2/L2 (analog and digital) mapped to Amiga joystick.
-- **PS3 / PS4 third‑party devices**: Extended VID/PID lists to match joypad-os; arcade sticks and compatible pads (HORI, Mad Catz, Qanba, Razer, Brook, Nacon, Logitech F310, PowerA, etc.) that use the same HID report format are now recognised and work as PS3 or PS4.
-- **Version display**: Firmware version is defined in `config.h` (single source of truth); serial startup output and OLED splash both show the same version (e.g. v1.0.53).
+### v3.2.1
+* Caps Lock pulse held ~120 ms so macOS accepts the toggle
+* `KEYBOARD_IN_DEBUG` default off
 
-### Bluetooth Fix (revision5-wip branch)
-- **Fixed Bluetooth pairing issue**: Added `pico_btstack_ble` library to linker dependencies
-  - Provides GATT client functions required for HID service discovery
-  - Fixes issue where Bluetooth keyboards would pair then immediately unpair
-  - Required for proper Bluepad32 HID service discovery and connection maintenance
+### v3.2.0
+* USB device mode: Amiga keyboard + Port 1 mouse → PC as HID
+* OLED Middle + Right (2 s) toggles host ↔ device; persisted + reboot
 
-## roadmap
+### v3.1.0
+* Alternate reset: Ctrl + Left Amiga + Backspace
+* Core 1 mouse consume safe across Bluetooth flash lockout (Stadia)
 
-please see the issues tab on the [github repository](https://github.com/borb/amigahid-pico) for the current list of planned features. the tl;dr is:
+### v2.2.x
+* Dual Port 1 + Port 2 CD32; Map Devices UI; pairing UX
 
-normal:
-* i<sup>2</sup>c display for config/status
-* controller emulation
-    * keyboard-based controller emulation (use udlr for directions?)
-    * USB mouse to joystick port 1 emulation
-* flash memory-based configuration
-* possible amiga-side control panel (using bidirectional controller port signals)
-* rotary control simulation (for controlling gotek drives)
-
-crazy talk:
-* non-amiga support
-* non-hidbp support
-* analogue/paddle emulation
-* fix some tinyusb issues (hotplug, timing-related instability)
-
-## license
-
-on the fence at the moment, but the current license choice is Eclipse Public License 2.0 (EPL-2.0).
-
-## whuh... who?
-
-nine <[nine@aphlor.org](mailto:nine@aphlor.org)>
+Earlier history: see git log.

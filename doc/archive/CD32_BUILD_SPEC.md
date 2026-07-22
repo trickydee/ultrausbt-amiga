@@ -1,9 +1,9 @@
 # CD32 controller support — build specification
 
 **Branch:** `feature/cd32`  
-**Status:** Implemented (v2.2.2) — dual Port 1 + Port 2 CD32; **known instability** (see §9 risks + `doc/future_work.md`)  
+**Status:** Implemented (v2.2.2) — dual Port 1 + Port 2 CD32; **known instability** (see §9 risks + [`../future_work.md`](../future_work.md))  
 **Hardware target:** Rev 5 (`HIDPICO_REVISION == 5`) — Pico 2 W + ultramegausb board  
-**Prior research:** [`doc/cd32_pad_implementation_plan.md`](./cd32_pad_implementation_plan.md) (2024 draft — superseded; kept for protocol background)  
+**Prior research:** [`cd32_pad_implementation_plan.md`](./cd32_pad_implementation_plan.md) (2024 draft — superseded; kept for protocol background)  
 **Protocol reference:** [PSCD32 Development Diary, 9 Aug 2019](https://www.mrdictionary.net/PSCD32/diary/2019_08_09.htm) (Mathew Carr) — analysis of Gerd Kautzmann’s CD32 pad schematic; **authoritative DB-9 pin roles** below.
 
 ---
@@ -77,7 +77,7 @@ The Amiga joyport has **three bidirectional lines** (pins 5, 6, 9 — POT0X, FIR
 
 ### Rev 6 GPIO mapping (Port 2 — direct 5V, no level shifters)
 
-Same DB-9 roles; fire/B2/B3 moved off ADC pins. See [`doc/gpio_rev6_adc_avoidance.md`](./gpio_rev6_adc_avoidance.md).
+Same DB-9 roles; fire/B2/B3 moved off ADC pins. See [`../gpio_rev6_adc_avoidance.md`](../gpio_rev6_adc_avoidance.md).
 
 | DB-9 | CD32 role | Port 2 GPIO | Firmware role in CD32 mode |
 |------|-----------|-------------|----------------------------|
@@ -106,7 +106,7 @@ Port 1 equivalent: pins 5/6/9 → GPIO **3** (B3), **14** (Fire), **2** (B2); di
 Same recommendation as the 2024 plan:
 
 - **User-selectable** CD32 mode via OLED + button (consistent with Port 1 MOUSE/JOY/LLAMA cycle).
-- **Persist** preference in flash (extend `mouse_config` or new `port_config` sector — audit vs BTstack TLV per [`doc/BT_PAIRING_HANDOFF.md`](./BT_PAIRING_HANDOFF.md)).
+- **Persist** preference in flash (extend `mouse_config` or new `port_config` sector — audit vs BTstack TLV per [`BT_PAIRING_HANDOFF.md`](./BT_PAIRING_HANDOFF.md)).
 - **No auto-detect** in v1 (JOYMODE can toggle anytime; optional monitor later).
 
 ### ISR design (updated for real protocol)
@@ -365,8 +365,8 @@ When CD32 active, Map Devices row **J2** could show `CD32` suffix — optional v
 | KTRL_CD32 (firmware reference) | https://github.com/MickGyver/KTRL-CD32 |
 | 9pin2supergun | https://github.com/turmoni/9pin2supergun |
 | Amiga Hardware Manual — controller | https://amigadev.elowar.com/read/ADCD_2.1/Hardware_Manual_guide/node017E.html |
-| Prior internal plan | [`doc/cd32_pad_implementation_plan.md`](./cd32_pad_implementation_plan.md) |
-| joypad-os button layouts (future) | [`doc/joypad-os-investigation.md`](./joypad-os-investigation.md) |
+| Prior internal plan | [`cd32_pad_implementation_plan.md`](./cd32_pad_implementation_plan.md) |
+| joypad-os button layouts (future) | [`joypad-os-investigation.md`](./joypad-os-investigation.md) |
 | Rev 5 GPIO | [`src/config.h`](../src/config.h) |
 
 ---
@@ -380,4 +380,4 @@ When CD32 active, Map Devices row **J2** could show `CD32` suffix — optional v
 5. Branch `usb_hid.c` gamepad path through `cd32_pad_set_buttons()`.
 6. Run test matrix §8 before merging.
 
-**Start task list:** [`doc/future_work.md`](./future_work.md) § CD32 controller support.
+**Start task list:** [`../future_work.md`](../future_work.md) § CD32 controller support.

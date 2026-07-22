@@ -211,7 +211,7 @@ ultramegausb-atari-st-rpikbd/src/NVSettings.cpp    → flash sector layout patte
 ```
 
 **Amiga Stadia/mouse consume lesson (port knowledge, not pin maps):**
-[`doc/stadia-controller-verification.md`](./stadia-controller-verification.md)
+[`stadia-controller-verification.md`](./stadia-controller-verification.md)
 
 ---
 
@@ -287,8 +287,8 @@ Do **not** use `__wfe()` on Core 0 inside BT callbacks — it may never wake if 
 | Document | Content |
 |----------|---------|
 | [`doc/future_work.md`](./future_work.md) | **Start here** — pairing alignment task list |
-| [`doc/stadia-controller-verification.md`](./stadia-controller-verification.md) | Stadia USB formats + BLE/`consumed=0` mouse fix |
-| [`doc/device_troubleshooting.md`](./device_troubleshooting.md) | User-facing BT/device issues |
+| [`stadia-controller-verification.md`](./stadia-controller-verification.md) | Stadia USB formats + BLE/`consumed=0` mouse fix |
+| [`device_troubleshooting.md`](./device_troubleshooting.md) | User-facing BT/device issues |
 | [`doc/todo.md`](./todo.md) | General project TODO |
 | [`doc/submodule-versions.md`](./submodule-versions.md) | pico-sdk / bluepad32 pins |
 

@@ -1,4 +1,7 @@
-# hardware
+# hardware (amigahid-pico / borb)
+
+Upstream hardware notes from the original [amigahid-pico](https://github.com/borb/amigahid-pico) project.
+Kept for reference when working with the included KiCad layouts.
 
 ## how do i attach this to my amiga?
 

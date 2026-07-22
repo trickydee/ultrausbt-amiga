@@ -11,10 +11,10 @@ Copy this file into another repo’s `docs/` (or paste into an LLM session) with
 | Project | Notes |
 |---------|--------|
 | `ultramegausb-atari-st-rpikbd` | v22.1.0+ pairing hardening (`main.cpp`, `bluepad32_platform.c`, `config.h`, `NVSettings.cpp`) |
-| `ultramegausb-amiga` | v2.2.18+ Core 1 motion consume fix (`quad_mouse.c`); Stadia DIAG lessons |
+| `ultrausbt-amiga` | v2.2.18+ Core 1 motion consume fix (`quad_mouse.c`); Stadia DIAG lessons |
 | `ultramegausb-apple-adb` | Pause/refcount + `flash_safe_execute_core_init` patterns |
 
-**Related deeper write-ups (optional):** project-local `BT_PAIRING_HANDOFF.md`, Amiga `stadia-controller-verification.md`.
+**Related deeper write-ups (optional):** project-local `archive/BT_PAIRING_HANDOFF.md`, Amiga `archive/stadia-controller-verification.md`.
 
 ---
 
