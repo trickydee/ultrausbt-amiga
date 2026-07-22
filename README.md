@@ -20,7 +20,7 @@ On a **Pico 2 W** you can mix USB and Bluetooth devices. USB-only builds work on
 Please visit and star the upstream project:  
 **https://github.com/borb/amigahid-pico**
 
-Current firmware: **v4.0.0** · License: [EPL-2.0](./LICENSE) · [NOTICE](./NOTICE)
+Current firmware: **v4.0.0** · [Release notes](./RELEASE_NOTES.md) · License: [EPL-2.0](./LICENSE) · [NOTICE](./NOTICE)
 
 ![A2000 USB/BT Adapter](./doc/images/A2000-USB-BT-Adapter.jpg)
 
@@ -156,6 +156,7 @@ Index: [`doc/README.md`](./doc/README.md)
 
 | Doc | Topic |
 |-----|--------|
+| [`RELEASE_NOTES.md`](./RELEASE_NOTES.md) | Firmware changelog |
 | [`doc/future_work.md`](./doc/future_work.md) | Known limitations / roadmap |
 | [`doc/gpio_rev6_adc_avoidance.md`](./doc/gpio_rev6_adc_avoidance.md) | Rev 6 pin rationale |
 | [`doc/BT_PAIRING_BEST_PRACTICES.md`](./doc/BT_PAIRING_BEST_PRACTICES.md) | Bluetooth pairing |
@@ -188,28 +189,3 @@ I also have a number of other Retro Computer adapter projects:
 
 
 **This ultrausbt Amiga fork** is maintained by [trickydee](https://github.com/trickydee) ([ultrausbt-amiga](https://github.com/trickydee/ultrausbt-amiga)). A large portion of the code and documentation was developed with [Cursor](https://cursor.com) and supporting LLMs — this project would not exist in its current form without those tools, on top of the open-source foundations above.
-
-# Release notes (recent)
-
-### v4.0.0
-* Public release packaging for [ultrausbt-amiga](https://github.com/trickydee/ultrausbt-amiga)
-* EPL-2.0 `LICENSE` + `NOTICE`; ultrausbt copyright; Cursor/LLM credit in Acknowledgements
-* Quieter UART by default (boot + device connect kept; controller dump spam gated)
-* Docs: public index, `doc/archive/` for historical notes, rewritten README
-
-### v3.2.1
-* Caps Lock pulse held ~120 ms so macOS accepts the toggle
-* `KEYBOARD_IN_DEBUG` default off
-
-### v3.2.0
-* USB device mode: Amiga keyboard + Port 1 mouse → PC as HID
-* OLED Middle + Right (2 s) toggles host ↔ device; persisted + reboot
-
-### v3.1.0
-* Alternate reset: Ctrl + Left Amiga + Backspace
-* Core 1 mouse consume safe across Bluetooth flash lockout (Stadia)
-
-### v2.2.x
-* Dual Port 1 + Port 2 CD32; Map Devices UI; pairing UX
-
-Earlier history: see git log.

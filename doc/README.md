@@ -7,6 +7,7 @@ Public docs for the Amiga USB/Bluetooth adapter firmware (Pico / Pico 2 / Pico 2
 | Doc | Audience |
 |-----|----------|
 | [`../README.md`](../README.md) | Features, shortcuts, build & flash |
+| [`../RELEASE_NOTES.md`](../RELEASE_NOTES.md) | Firmware changelog |
 | [`gpio_rev6_adc_avoidance.md`](./gpio_rev6_adc_avoidance.md) | Why Rev 6 moved Port 2 / OLED pins |
 
 ## Features
