@@ -55,8 +55,8 @@
 // maximum number of reports per hid device
 #define MAX_REPORT 4
 
-// Llamatron twinstick mode state
-// When enabled, a single gamepad's left stick controls Port 1, right stick controls Port 2
+// Llamatron twin-stick mode state
+// When enabled, a single BT gamepad's left stick drives Port 2, right stick drives Port 1
 static bool llamatron_mode = false;
 static bool llamatron_active = false;  // True when mode is active and conditions are met
 static bool llamatron_restore_joystick_mode = false;  // Track if port 1 was in joystick mode before enabling Llamatron
@@ -726,8 +726,7 @@ static void handle_event_keyboard(uint8_t dev_addr, uint8_t instance, hid_keyboa
 #if HIDPICO_REV_ATARI_BOARD
     if (cd32_combo_active && !last_cd32_combo_pressed) {
         port_mode_toggle_port2_cd32();
-        ahprintf("[CD32] *** Port 2 CD32: %s ***\n",
-                 port_mode_get_port2_cd32() ? "ON" : "OFF");
+                ahprintf("[CD32] *** Port 2: %s ***\n", port_mode_port2_label());
         display_show_devices();
     }
     last_cd32_combo_pressed = cd32_combo_active;
@@ -948,8 +947,7 @@ void process_bluepad32_keyboard(void)
 #if HIDPICO_REV_ATARI_BOARD
             if (cd32_combo_active && !bt_last_cd32_combo_pressed) {
                 port_mode_toggle_port2_cd32();
-                ahprintf("[CD32-BT] *** Port 2 CD32: %s ***\n",
-                         port_mode_get_port2_cd32() ? "ON" : "OFF");
+                ahprintf("[CD32-BT] *** Port 2: %s ***\n", port_mode_port2_label());
                 display_show_devices();
             }
 #endif
@@ -1110,9 +1108,9 @@ void process_bluepad32_gamepad(void)
         dir_bits; \
     })
     
-    // Check if Llamatron mode is active (requires exactly one gamepad and port 1 in joystick mode)
+    // Llamatron: one pad twin-stick. Compatible with Port 2 CD32; exclusive with Port 1 CD32.
     if (llamatron_mode && bt_gamepad_count == 1 && amiga_joystick_port1_is_joystick_mode()
-        && !cd32_port2_is_enabled() && !cd32_port1_is_enabled()) {
+        && !cd32_port1_is_enabled()) {
         bool has_data = bluepad32_get_gamepad(0, &bt_gamepad);
         
         if (has_data) {
@@ -1133,16 +1131,29 @@ void process_bluepad32_gamepad(void)
             
             // Port 2: Left stick (axis_x, axis_y) - Movement (D-pad has priority)
             uint8_t port2_direction_bits = CONVERT_GAMEPAD_TO_DIRECTIONS(&bt_gamepad, ANALOG_STICK_DEADZONE);
-            amiga_joystick_port2_set_direction(AJ2_UP,    (port2_direction_bits & 0x01) != 0);
-            amiga_joystick_port2_set_direction(AJ2_DOWN,  (port2_direction_bits & 0x02) != 0);
-            amiga_joystick_port2_set_direction(AJ2_LEFT,  (port2_direction_bits & 0x04) != 0);
-            amiga_joystick_port2_set_direction(AJ2_RIGHT, (port2_direction_bits & 0x08) != 0);
-            
-            // Port 2 fire: BUTTON_B (movement stick fire button)
-            amiga_joystick_port2_set_button(AJ2_FIRE, (bt_gamepad.buttons & 0x02) != 0);  // BUTTON_B
-            // Port 2 buttons 2 and 3 (from gamepad buttons X and Y)
-            amiga_joystick_port2_set_button(AJ2_BUTTON2, (bt_gamepad.buttons & 0x04) != 0);  // BUTTON_X
-            amiga_joystick_port2_set_button(AJ2_BUTTON3, (bt_gamepad.buttons & 0x08) != 0);  // BUTTON_Y
+            const bool face_a = (bt_gamepad.buttons & 0x01) != 0;  // BUTTON_A
+            const bool face_b = (bt_gamepad.buttons & 0x02) != 0;  // BUTTON_B
+            const bool face_x = (bt_gamepad.buttons & 0x04) != 0;  // BUTTON_X
+            const bool face_y = (bt_gamepad.buttons & 0x08) != 0;  // BUTTON_Y
+            const bool l_trig = (bt_gamepad.buttons & 0x10) != 0;
+            const bool r_trig = (bt_gamepad.buttons & 0x20) != 0;
+            const bool start  = bt_gamepad.misc_buttons != 0;
+
+            if (cd32_port2_is_enabled()) {
+                /* Full CD32 seven-button map on the movement port. */
+                port2_gamepad_submit(port2_direction_bits,
+                                     face_a, face_b, face_x, face_y,
+                                     l_trig, r_trig, start);
+            } else {
+                /* Classic Llamatron: B = Port 2 fire (A reserved for Port 1 aim fire). */
+                amiga_joystick_port2_set_direction(AJ2_UP,    (port2_direction_bits & 0x01) != 0);
+                amiga_joystick_port2_set_direction(AJ2_DOWN,  (port2_direction_bits & 0x02) != 0);
+                amiga_joystick_port2_set_direction(AJ2_LEFT,  (port2_direction_bits & 0x04) != 0);
+                amiga_joystick_port2_set_direction(AJ2_RIGHT, (port2_direction_bits & 0x08) != 0);
+                amiga_joystick_port2_set_button(AJ2_FIRE, face_b);
+                amiga_joystick_port2_set_button(AJ2_BUTTON2, face_x);
+                amiga_joystick_port2_set_button(AJ2_BUTTON3, face_y);
+            }
             
             // Port 1: Right stick (axis_rx, axis_ry) - Fire direction
             uint8_t port1_direction_bits = CONVERT_RIGHT_STICK_TO_DIRECTIONS(&bt_gamepad, ANALOG_STICK_DEADZONE);
@@ -1152,7 +1163,7 @@ void process_bluepad32_gamepad(void)
             amiga_joystick_port1_set_direction(AJ1_RIGHT, (port1_direction_bits & 0x08) != 0);
             
             // Port 1 fire: BUTTON_A (fire direction stick fire button)
-            amiga_joystick_port1_set_button(AJ1_FIRE, (bt_gamepad.buttons & 0x01) != 0);  // BUTTON_A
+            amiga_joystick_port1_set_button(AJ1_FIRE, face_a);
             
             #undef CONVERT_RIGHT_STICK_TO_DIRECTIONS
         } else {

@@ -58,7 +58,7 @@ static bool g_port_config_pending;
 static port_config_data_t g_port_config_pending_data;
 
 static bool port1_mode_valid(uint8_t mode) {
-    return mode <= (uint8_t)PORT1_MODE_CD32;
+    return mode <= (uint8_t)PORT1_MODE_MOUSE_ATARI;
 }
 
 static void port_config_flash_write(void* param) {

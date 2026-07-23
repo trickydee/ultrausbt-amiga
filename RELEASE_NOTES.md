@@ -2,6 +2,27 @@
 
 Firmware version source of truth: `SOFTWARE_VERSION_*` in [`src/config.h`](./src/config.h).
 
+## v4.0.4
+
+* Splash heading **Controller Mode**; Port 1 above Port 2; labels `1:Ami Ms` / `2:Joy`
+* Mouse mode names **Ami Ms** / **Atr Ms**
+
+## v4.0.3
+
+* Port 1 OLED cycle: **Ami Ms → Joy → CD32 → Llama → Atr Ms** (Amiga / Atari mouse in the mode list)
+* Port 2 OLED cycle: **Joy ↔ CD32** (label was STD)
+
+## v4.0.2
+
+* Splash home screen shows both ports (`2: CD32` / `1: Mouse`) in large type
+* OLED **Right** toggles Port 2 STD ↔ CD32; **Middle + Left** toggles Bluetooth pairing
+* Version string moved to splash bottom-right (PAIR hint removed)
+
+## v4.0.1
+
+* Llamatron twin-stick works with Port 2 CD32 enabled (still exclusive with Port 1 CD32)
+* In Llamatron + Port 2 CD32, Port 2 gets the full seven-button CD32 map
+
 ## v4.0.0
 
 * Public release packaging for [ultrausbt-amiga](https://github.com/trickydee/ultrausbt-amiga)

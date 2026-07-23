@@ -20,6 +20,10 @@
 // v3.0.0: Rev 5/6 GPIO maps + Core 1 loop-counter mouse consume (Stadia-safe).
 // v3.2.0: USB device mode — read a real Amiga keyboard/mouse and present as a USB HID to a PC.
 // v4.0.0: Public release packaging — ultrausbt branding, LICENSE/NOTICE, quiet UART, docs.
+// v4.0.1: Llamatron twin-stick allowed with Port 2 CD32 (still exclusive with Port 1 CD32).
+// v4.0.2: Splash shows both port modes; Right=Port2, Middle+Left=BT pairing.
+// v4.0.3: Port1 cycle includes Ami/Atari mouse; Port2 Joy↔CD32.
+// v4.0.4: Splash "Controller Mode" heading; Ami Ms / Atr Ms labels; Port1 above Port2.
 #ifndef SOFTWARE_VERSION_MAJOR
 #  define SOFTWARE_VERSION_MAJOR 4
 #endif
@@ -27,7 +31,7 @@
 #  define SOFTWARE_VERSION_MINOR 0
 #endif
 #ifndef SOFTWARE_VERSION_PATCH
-#  define SOFTWARE_VERSION_PATCH 0
+#  define SOFTWARE_VERSION_PATCH 4
 #endif
 
 // USB device mode ("PC keyboard" mode): read a real Amiga keyboard (and mouse) on the

@@ -20,7 +20,7 @@ On a **Pico 2 W** you can mix USB and Bluetooth devices. USB-only builds work on
 Please visit and star the upstream project:  
 **https://github.com/borb/amigahid-pico**
 
-Current firmware: **v4.0.0** · [Release notes](./RELEASE_NOTES.md) · License: [EPL-2.0](./LICENSE) · [NOTICE](./NOTICE)
+Current firmware: **v4.0.4** · [Release notes](./RELEASE_NOTES.md) · License: [EPL-2.0](./LICENSE) · [NOTICE](./NOTICE)
 
 ![A2000 USB/BT Adapter](./doc/images/A2000-USB-BT-Adapter.jpg)
 
@@ -56,7 +56,7 @@ Bluetooth keyboards, mice, and gamepads are supported on the **Raspberry Pi Pico
 
 ### Pairing
 
-1. On the OLED splash screen, use the **Right** button to enable pairing (or wait for the short post-boot pairing window).
+1. On the OLED splash screen, hold **Middle + Left** to enable pairing (or wait for the short post-boot pairing window).
 2. Put your device into Bluetooth pairing mode.
 3. Confirm the device on the OLED **Devices** / **Map Devices** screens.
 
@@ -93,11 +93,11 @@ Optional: remap one HID scancode to Amiga **Help** via `KEY_REMAP_HID_TO_HELP` i
 
 ### Llamatron dual-stick mode
 
-**Shift + Left Amiga + L** enables Llamatron / twin-stick style routing on Port 1 (one dual-stick gamepad shared across ports). Mutually exclusive with Port 1 CD32. See the OLED Port 1 mode label (**LLAMA**).
+**Shift + Left Amiga + L** enables Llamatron / twin-stick style routing (one dual-stick gamepad shared across ports: left stick → Port 2 move, right stick → Port 1 aim). Works with **Port 2 CD32** on; mutually exclusive with **Port 1 CD32**. See the OLED Port 1 mode label (**Llama**).
 
 ### CD32 seven-button mode
 
-**Shift + Left Amiga + C** toggles Port 2 into the Amiga CD32 serial pad protocol (seven buttons + D-pad). Port 1 CD32 is selected via the OLED **Left** button cycle (**MOUSE → JOY → LLAMA → CD32**). Both ports support CD32. Known limitation: Bluetooth pad routing when one of two pads disconnects — see [`doc/future_work.md`](./doc/future_work.md).
+**Shift + Left Amiga + C** toggles Port 2 into the Amiga CD32 serial pad protocol (seven buttons + D-pad). Port 1 CD32 is selected via the OLED **Left** button cycle (**Ami Ms → Joy → CD32 → Llama → Atr Ms**). Both ports support CD32. Known limitation: Bluetooth pad routing when one of two pads disconnects — see [`doc/future_work.md`](./doc/future_work.md).
 
 # OLED UI
 
@@ -105,11 +105,14 @@ An SSD1306 OLED and three buttons are supported on the ultrausbt Amiga board (op
 
 | Control | Action |
 |---------|--------|
-| **Left** | Cycle Port 1 mode: MOUSE → JOY → LLAMA → CD32 |
+| **Left** | Cycle Port 1: Ami Ms → Joy → CD32 → Llama → Atr Ms |
+| **Right** | Cycle Port 2: Joy ↔ CD32 |
 | **Middle** | Cycle screens (splash → Devices → Map Devices) |
-| **Right** | Toggle Bluetooth pairing (splash) |
+| **Middle + Left** | Toggle Bluetooth pairing |
 | **Left + Right** (hold 5 s) | Clear stored Bluetooth pairing keys |
 | **Middle + Right** (hold 2 s) | Toggle USB **host** ↔ **device** mode (saves and reboots) |
+
+Splash shows **Controller Mode**, both ports in large type (`1:Ami Ms` / `2:Joy`), pairing status bottom-left, and firmware version bottom-right. **Ami Ms** = Amiga mouse, **Atr Ms** = Atari ST mouse pinout on Port 1.
 
 # USB device mode (Amiga keyboard on a PC)
 

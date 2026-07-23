@@ -28,12 +28,7 @@
 #endif
 
 #if ENABLE_BLUEPAD32
-#include "platform/amiga/joystick_port1.h"
-#include "platform/amiga/cd32_pad.h"
 #include "platform/amiga/port_mode.h"
-#include "platform/amiga/quad_mouse.h"
-// Forward declarations for Llamatron mode functions
-extern bool usb_hid_get_llamatron_mode(void);
 #endif
 
 // Software version is defined in config.h (included above)
@@ -74,6 +69,7 @@ static bool bt_wipe_combo_done = false;
 static absolute_time_t bt_wipe_combo_start;
 static uint32_t bt_wipe_overlay_last_seconds = UINT32_MAX;
 static uint32_t splash_pair_countdown_last_seconds = UINT32_MAX;
+static bool bt_pair_combo_latched = false;  /* Middle+Left edge already handled */
 #endif
 
 #if ENABLE_BLUEPAD32
@@ -132,6 +128,7 @@ void display_init(void)
 void display_show_splash(void)
 {
     char version_buf[16];
+    char line[20];
 
 #if ENABLE_USB_DEVICE_MODE
     // In USB device mode the Amiga-output subsystems (port_mode, Bluetooth) are not
@@ -150,43 +147,22 @@ void display_show_splash(void)
 #endif
 
     ssd1306_clear(&disp);
-    
-    // Show Port 1 mode as title (AMIGA, ATARI, JOYSTICK, or LLAMA, centered, scale 2x)
-#if ENABLE_BLUEPAD32
-    port1_mode_t port1_mode = port_mode_get_port1();
-    const char* title;
-    int x_pos;
 
-    if (port1_mode == PORT1_MODE_LLAMA) {
-        title = "LLAMA";
-        x_pos = 25;
-    } else if (port1_mode == PORT1_MODE_CD32) {
-        title = "CD32";
-        x_pos = 30;
-    } else if (port1_mode == PORT1_MODE_JOY) {
-        title = "JOYSTICK";
-        x_pos = 5;
-    } else {
-        mouse_type_t mouse_type = amiga_quad_mouse_get_type();
-        title = (mouse_type == MOUSE_TYPE_ATARI) ? "ATARI" : "AMIGA";
-        x_pos = 25;
-    }
-    ssd1306_draw_string(&disp, x_pos, 0, 2, (char*)title);
-#else
-    ssd1306_draw_string(&disp, 25, 0, 2, (char*)"AMIGA");
-#endif
-    
-    // Branding
-    ssd1306_draw_string(&disp, 4, 24, 1, (char*)"ultramegausb.com");
-    
-    // Version
-    sprintf(version_buf, "v%d.%d.%d", SOFTWARE_VERSION_MAJOR, SOFTWARE_VERSION_MINOR, SOFTWARE_VERSION_PATCH);
-    ssd1306_draw_string(&disp, 40, 40, 1, version_buf);
-    
 #if ENABLE_BLUEPAD32
-    // Show pairing status / action on splash screen.
+    /* Heading (scale 1), then Port 1 / Port 2 status (scale 2). */
+    ssd1306_draw_string(&disp, 0, 0, 1, (char*)"Controller Mode");
+    snprintf(line, sizeof(line), "1:%s", port_mode_port1_label());
+    ssd1306_draw_string(&disp, 0, 16, 2, line);
+    snprintf(line, sizeof(line), "2:%s", port_mode_port2_label());
+    ssd1306_draw_string(&disp, 0, 34, 2, line);
+#else
+    ssd1306_draw_string(&disp, 0, 0, 1, (char*)"Controller Mode");
+#endif
+
+    sprintf(version_buf, "v%d.%d.%d", SOFTWARE_VERSION_MAJOR, SOFTWARE_VERSION_MINOR, SOFTWARE_VERSION_PATCH);
+#if ENABLE_BLUEPAD32
+    // Bottom: pairing status left, firmware version right (no PAIR hint).
     char pair_status[20];
-    bool bt_enabled = bluepad32_is_enabled();
     uint32_t secs = 0;
     if (bluepad32_pairing_is_active()) {
         secs = bluepad32_pairing_remaining_seconds();
@@ -199,12 +175,18 @@ void display_show_splash(void)
         snprintf(pair_status, sizeof(pair_status), "Pair OFF");
     }
     ssd1306_draw_string(&disp, 0, 55, 1, pair_status);
-    if (bt_enabled) {
-        ssd1306_draw_string(&disp, 96, 55, 1, (char*)"PAIR");
+    {
+        int ver_x = 128 - ((int)strlen(version_buf) * 6);
+        if (ver_x < 0) {
+            ver_x = 0;
+        }
+        ssd1306_draw_string(&disp, ver_x, 55, 1, version_buf);
     }
     splash_pair_countdown_last_seconds = secs;
+#else
+    ssd1306_draw_string(&disp, 40, 40, 1, version_buf);
 #endif
-    
+
     ssd1306_show(&disp);
     current_screen = DISPLAY_SCREEN_SPLASH;
 }
@@ -235,15 +217,10 @@ void display_show_devices(void)
 #if ENABLE_BLUEPAD32
     sprintf(buf, "Port1:  %s", port_mode_port1_label());
     ssd1306_draw_string(&disp, 0, 36, 1, buf);
-    if (port_mode_get_port1() == PORT1_MODE_MOUSE) {
-        mouse_type_t mouse_type = amiga_quad_mouse_get_type();
-        sprintf(buf, "Type:   %s", mouse_type == MOUSE_TYPE_ATARI ? "Atari" : "Amiga");
-        ssd1306_draw_string(&disp, 0, 45, 1, buf);
-    }
 #endif
 #if HIDPICO_REV_ATARI_BOARD
-    sprintf(buf, "Port2:  %s", port_mode_get_port2_cd32() ? "CD32" : "STD");
-    ssd1306_draw_string(&disp, 0, 55, 1, buf);
+    sprintf(buf, "Port2:  %s", port_mode_port2_label());
+    ssd1306_draw_string(&disp, 0, 45, 1, buf);
 #endif
     
     ssd1306_show(&disp);
@@ -400,6 +377,34 @@ void display_handle_buttons(void)
     }
 #endif
 
+#if ENABLE_BLUEPAD32
+    // Middle + Left: toggle Bluetooth pairing (edge-triggered while both held).
+    if (!gpio_get(GPIO_BUTTON_MIDDLE) && !left_state) {
+        if (!bt_pair_combo_latched) {
+            bt_pair_combo_latched = true;
+            if (bluepad32_is_enabled()) {
+                if (bluepad32_pairing_is_active()) {
+                    bluepad32_pairing_stop();
+                    printf("Bluetooth pairing OFF\n");
+                } else {
+                    bluepad32_pairing_start();
+                    printf("Bluetooth pairing ON\n");
+                }
+                if (current_screen == DISPLAY_SCREEN_SPLASH) {
+                    display_show_splash();
+                }
+            } else {
+                printf("Bluetooth not enabled\n");
+            }
+        }
+        button_left_debounce = 0;
+        button_middle_debounce = 0;
+        button_right_pressed = false;
+        return;
+    }
+    bt_pair_combo_latched = false;
+#endif
+
     if (!left_state) {
         if (button_left_debounce <= BUTTON_DEBOUNCE_COUNT) {
             if (++button_left_debounce == BUTTON_DEBOUNCE_COUNT) {
@@ -420,12 +425,11 @@ void display_handle_buttons(void)
         button_left_debounce = 0;
     }
     
-    // Handle MIDDLE button (cycle through screens: SPLASH -> DEVICES -> MAP_DEVICES -> SPLASH)
+    // Handle MIDDLE button alone (cycle screens: SPLASH -> DEVICES -> MAP_DEVICES -> SPLASH)
     bool middle_state = gpio_get(GPIO_BUTTON_MIDDLE);
     if (!middle_state) {
         if (button_middle_debounce <= BUTTON_DEBOUNCE_COUNT) {
             if (++button_middle_debounce == BUTTON_DEBOUNCE_COUNT) {
-                // Button pressed - cycle through screens
                 if (current_screen == DISPLAY_SCREEN_SPLASH) {
                     display_show_devices();
                 } else if (current_screen == DISPLAY_SCREEN_DEVICES) {
@@ -439,7 +443,7 @@ void display_handle_buttons(void)
         button_middle_debounce = 0;
     }
     
-    // Handle RIGHT button (single button only)
+    // Handle RIGHT button: Port 2 CD32 toggle (splash / devices)
     if (!right_state && !button_right_pressed) {
         button_right_pressed = true;
         button_right_press_start = get_absolute_time();
@@ -449,29 +453,12 @@ void display_handle_buttons(void)
         if (press_ms < BT_PAIR_PRESS_MIN_MS) {
             return;
         }
-        if (current_screen == DISPLAY_SCREEN_SPLASH) {
+        if (current_screen == DISPLAY_SCREEN_SPLASH || current_screen == DISPLAY_SCREEN_DEVICES) {
 #if ENABLE_BLUEPAD32
-            if (!bluepad32_is_enabled()) {
-                printf("Bluetooth not enabled\n");
-                return;
-            }
-            if (bluepad32_pairing_is_active()) {
-                bluepad32_pairing_stop();
-                printf("Bluetooth pairing OFF\n");
+            port_mode_cycle_port2();
+            if (current_screen == DISPLAY_SCREEN_SPLASH) {
+                display_show_splash();
             } else {
-                bluepad32_pairing_start();
-                printf("Bluetooth pairing ON\n");
-            }
-            display_show_splash();
-#endif
-        } else if (current_screen == DISPLAY_SCREEN_DEVICES) {
-            // On devices screen: Toggle mouse type if Port 1 is in mouse mode
-#if ENABLE_BLUEPAD32
-            bool is_joy_mode = amiga_joystick_port1_is_joystick_mode();
-            if (!is_joy_mode) {
-                amiga_quad_mouse_toggle_type();
-                mouse_type_t mouse_type = amiga_quad_mouse_get_type();
-                printf("Mouse type: %s\n", mouse_type == MOUSE_TYPE_ATARI ? "Atari" : "Amiga");
                 display_show_devices();
             }
 #endif
