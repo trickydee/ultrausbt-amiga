@@ -85,8 +85,12 @@ volatile mouse_type_t g_mouse_type = MOUSE_TYPE_AMIGA;
 // Update periods based on reference implementations
 // Amiga: 170μs tested in Yaumataca (leads to ~704μs actual period)
 // Atari: 450μs tested in Yaumataca (leads to ~2ms actual period, more stable)
+// Core 1 ticks with busy_wait_us(50); convert period → loop count.
 #define AMIGA_UPDATE_PERIOD_US 170
 #define ATARI_UPDATE_PERIOD_US 450
+#define CORE1_BUSY_WAIT_US 50
+#define AMIGA_LOOPS_PER_UPDATE ((AMIGA_UPDATE_PERIOD_US + CORE1_BUSY_WAIT_US - 1) / CORE1_BUSY_WAIT_US)  // 4
+#define ATARI_LOOPS_PER_UPDATE ((ATARI_UPDATE_PERIOD_US + CORE1_BUSY_WAIT_US - 1) / CORE1_BUSY_WAIT_US)  // 9
 
 // Mouse speed multiplier (1.0 = normal, higher = faster)
 // Can be adjusted for different mouse sensitivities
@@ -271,9 +275,8 @@ void amiga_quad_mouse_motion()
     // Prefer a loop-based period over absolute_time: after BT flash lockout on
     // Core 1, time_diff checks were never firing (consumed/quad_gpio stayed 0
     // while heartbeat and motion_feeds kept rising).
+    // Amiga ~170us (4×50us); Atari ~450us (9×50us) so fast flicks don't overrun the host.
     uint32_t loops_since_update = 0;
-    // ~170us target with busy_wait_us(50) ≈ 4 loops
-    const uint32_t loops_per_update = 4;
     
     /**
      * Quadrature motion uses a hardware-side counter with two signal lines per axis.
@@ -307,10 +310,14 @@ void amiga_quad_mouse_motion()
 
         __dmb();
         bool pending_motion = motion_flag;
+        mouse_type_t mouse_type = g_mouse_type;
         __dmb();
+        const uint32_t loops_per_update = (mouse_type == MOUSE_TYPE_ATARI)
+            ? ATARI_LOOPS_PER_UPDATE
+            : AMIGA_LOOPS_PER_UPDATE;
 
         loops_since_update++;
-        // Always service pending motion immediately; otherwise tick at ~170us.
+        // Always service pending motion immediately; otherwise tick at Amiga/Atari period.
         if (pending_motion || loops_since_update >= loops_per_update) {
             loops_since_update = 0;
             g_core1_period_ticks++;
@@ -472,7 +479,7 @@ void amiga_quad_mouse_motion()
         }
         
         // busy_wait only — sleep_us can hang on Core 1 after BT flash/bond activity
-        busy_wait_us(50);
+        busy_wait_us(CORE1_BUSY_WAIT_US);
     }
 }
 

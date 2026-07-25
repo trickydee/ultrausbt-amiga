@@ -24,6 +24,7 @@
 // v4.0.2: Splash shows both port modes; Right=Port2, Middle+Left=BT pairing.
 // v4.0.3: Port1 cycle includes Ami/Atari mouse; Port2 Joy↔CD32.
 // v4.0.4: Splash "Controller Mode" heading; Ami Ms / Atr Ms labels; Port1 above Port2.
+// v4.0.5: Atari mouse quadrature uses ATARI_UPDATE_PERIOD_US (~450us) on Core 1.
 #ifndef SOFTWARE_VERSION_MAJOR
 #  define SOFTWARE_VERSION_MAJOR 4
 #endif
@@ -31,7 +32,7 @@
 #  define SOFTWARE_VERSION_MINOR 0
 #endif
 #ifndef SOFTWARE_VERSION_PATCH
-#  define SOFTWARE_VERSION_PATCH 4
+#  define SOFTWARE_VERSION_PATCH 5
 #endif
 
 // USB device mode ("PC keyboard" mode): read a real Amiga keyboard (and mouse) on the

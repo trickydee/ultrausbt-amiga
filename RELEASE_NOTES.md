@@ -2,6 +2,10 @@
 
 Firmware version source of truth: `SOFTWARE_VERSION_*` in [`src/config.h`](./src/config.h).
 
+## v4.0.5
+
+* Atari mouse mode: Core 1 quadrature tick uses `ATARI_UPDATE_PERIOD_US` (~450 µs) instead of Amiga ~170 µs — should fix fast-flick “held back” cursor
+
 ## v4.0.4
 
 * Splash heading **Controller Mode**; Port 1 above Port 2; labels `1:Ami Ms` / `2:Joy`
