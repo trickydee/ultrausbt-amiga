@@ -167,7 +167,7 @@ void display_show_splash(void)
     if (bluepad32_pairing_is_active()) {
         secs = bluepad32_pairing_remaining_seconds();
         if (secs > 0) {
-            snprintf(pair_status, sizeof(pair_status), "Pair ON %lus", (unsigned long)secs);
+            snprintf(pair_status, sizeof(pair_status), "Pair ON %lu ", (unsigned long)secs);
         } else {
             snprintf(pair_status, sizeof(pair_status), "Pair ON");
         }
@@ -176,7 +176,8 @@ void display_show_splash(void)
     }
     ssd1306_draw_string(&disp, 0, 55, 1, pair_status);
     {
-        int ver_x = 128 - ((int)strlen(version_buf) * 6);
+        /* Right-aligned, then nudge two character cells left. */
+        int ver_x = 128 - ((int)strlen(version_buf) * 6) - 12;
         if (ver_x < 0) {
             ver_x = 0;
         }
