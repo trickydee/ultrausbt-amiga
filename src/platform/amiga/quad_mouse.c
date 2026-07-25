@@ -28,9 +28,15 @@
 #include "hardware/gpio.h"
 #include "hardware/sync.h"  // For memory barriers (__dmb)
 
-// mouse motion values, used between core0 and core1
-volatile int8_t x = 0, y = 0;
+// Pending HID motion backlog between Core 0 (feed) and Core 1 (consume).
+// int16 lets a couple of HID reports stack; keep the clamp modest so Atari's
+// slower edge rate does not build a long coasting tail (lag / overrun).
+volatile int16_t x = 0, y = 0;
 volatile bool motion_flag = false;
+#define PENDING_MOTION_CLAMP 255
+// Soft cap on pulse queues (jjmz adapter uses sat-255 for both modes).
+#define ATARI_PULSE_QUEUE_MAX 255
+#define AMIGA_PULSE_QUEUE_MAX 255
 // Core 0 diagnostics: non-zero motion samples fed into Core 1
 volatile uint32_t g_mouse_motion_feed_count = 0;
 volatile int8_t g_mouse_last_dx = 0;
@@ -166,28 +172,32 @@ void amiga_quad_mouse_button(enum amiga_quad_mouse_buttons button, bool pressed)
 void amiga_quad_mouse_set_motion(int8_t in_x, int8_t in_y)
 {
     // Apply speed multiplier for acceleration support
-    int8_t scaled_x = (int8_t)((double)in_x * MOUSE_SPEED_MULTIPLIER);
-    int8_t scaled_y = (int8_t)((double)in_y * MOUSE_SPEED_MULTIPLIER);
-    
+    int16_t scaled_x = (int16_t)((double)in_x * MOUSE_SPEED_MULTIPLIER);
+    int16_t scaled_y = (int16_t)((double)in_y * MOUSE_SPEED_MULTIPLIER);
+
     // Accumulate motion to handle rapid updates smoothly
     // This allows multiple small movements to be combined
     if (scaled_x != 0 || scaled_y != 0) {
-        g_mouse_last_dx = scaled_x;
-        g_mouse_last_dy = scaled_y;
+        g_mouse_last_dx = in_x;
+        g_mouse_last_dy = in_y;
         g_mouse_motion_feed_count++;
 
-        // Add to existing values (with overflow protection)
-        int16_t new_x = (int16_t)x + (int16_t)scaled_x;
-        int16_t new_y = (int16_t)y + (int16_t)scaled_y;
-        
-        // Clamp to int8_t range to prevent overflow
-        if (new_x > 127) new_x = 127;
-        if (new_x < -128) new_x = -128;
-        if (new_y > 127) new_y = 127;
-        if (new_y < -128) new_y = -128;
-        
-        x = (int8_t)new_x;
-        y = (int8_t)new_y;
+        if (scaled_x != 0) {
+            int16_t nx = (int16_t)__atomic_add_fetch(&x, scaled_x, __ATOMIC_SEQ_CST);
+            if (nx > PENDING_MOTION_CLAMP) {
+                __atomic_store_n(&x, (int16_t)PENDING_MOTION_CLAMP, __ATOMIC_SEQ_CST);
+            } else if (nx < -PENDING_MOTION_CLAMP) {
+                __atomic_store_n(&x, (int16_t)-PENDING_MOTION_CLAMP, __ATOMIC_SEQ_CST);
+            }
+        }
+        if (scaled_y != 0) {
+            int16_t ny = (int16_t)__atomic_add_fetch(&y, scaled_y, __ATOMIC_SEQ_CST);
+            if (ny > PENDING_MOTION_CLAMP) {
+                __atomic_store_n(&y, (int16_t)PENDING_MOTION_CLAMP, __ATOMIC_SEQ_CST);
+            } else if (ny < -PENDING_MOTION_CLAMP) {
+                __atomic_store_n(&y, (int16_t)-PENDING_MOTION_CLAMP, __ATOMIC_SEQ_CST);
+            }
+        }
         __dmb();  // x,y must be visible to Core 1 before the flag
         motion_flag = true;
         __dmb();
@@ -315,90 +325,85 @@ void amiga_quad_mouse_motion()
         const uint32_t loops_per_update = (mouse_type == MOUSE_TYPE_ATARI)
             ? ATARI_LOOPS_PER_UPDATE
             : AMIGA_LOOPS_PER_UPDATE;
+        const uint16_t pulse_queue_max = (mouse_type == MOUSE_TYPE_ATARI)
+            ? ATARI_PULSE_QUEUE_MAX
+            : AMIGA_PULSE_QUEUE_MAX;
 
+        // Consume HID backlog as soon as it arrives — do NOT couple this to the
+        // quadrature emit period (emit-on-pending made Atari edges too fast on
+        // bursts; Amiga travel trade-off preferred period-gated emit).
+        if (pending_motion) {
+            int16_t new_x = __atomic_exchange_n(&x, (int16_t)0, __ATOMIC_SEQ_CST);
+            int16_t new_y = __atomic_exchange_n(&y, (int16_t)0, __ATOMIC_SEQ_CST);
+            motion_flag = false;
+            __dmb();
+            g_core1_motion_consumed++;
+
+            int16_t scaled_x = (int16_t)((double)new_x * MOUSE_SPEED_MULTIPLIER);
+            int16_t scaled_y = (int16_t)((double)new_y * MOUSE_SPEED_MULTIPLIER);
+
+            if (scaled_x != 0) {
+                bool neg_mvmt = (scaled_x < 0);
+                uint16_t abs_mvmt = (uint16_t)(neg_mvmt ? -scaled_x : scaled_x);
+                abs_mvmt /= MOUSE_SDIV;
+
+                // jjmz Atari adapter: opposite HID while pulses remain cancels the
+                // queue. If more remains than the cancel, keep the *original*
+                // direction (flip the incoming sense) — do not reverse the tail.
+                if (xcnt && (neg_mvmt != prev_x_neg)) {
+                    if ((uint16_t)xcnt >= abs_mvmt) {
+                        xcnt = (uint8_t)(xcnt - abs_mvmt);
+                        neg_mvmt = !neg_mvmt;
+                    } else {
+                        uint16_t after = abs_mvmt - xcnt;
+                        if (after > pulse_queue_max) after = pulse_queue_max;
+                        xcnt = (uint8_t)after;
+                    }
+                } else {
+                    uint16_t new_xcnt = (uint16_t)xcnt + abs_mvmt;
+                    if (new_xcnt > pulse_queue_max) new_xcnt = pulse_queue_max;
+                    xcnt = (uint8_t)new_xcnt;
+                }
+                prev_x_neg = neg_mvmt;
+
+                uint16_t delta = MOUSE_MINF + MOUSE_SMUL * xcnt;
+                if (delta > MOUSE_MAXF) delta = MOUSE_MAXF;
+                xdelta = neg_mvmt ? -(int16_t)delta : (int16_t)delta;
+            }
+
+            if (scaled_y != 0) {
+                bool neg_mvmt = (scaled_y < 0);
+                uint16_t abs_mvmt = (uint16_t)(neg_mvmt ? -scaled_y : scaled_y);
+                abs_mvmt /= MOUSE_SDIV;
+
+                if (ycnt && (neg_mvmt != prev_y_neg)) {
+                    if ((uint16_t)ycnt >= abs_mvmt) {
+                        ycnt = (uint8_t)(ycnt - abs_mvmt);
+                        neg_mvmt = !neg_mvmt;
+                    } else {
+                        uint16_t after = abs_mvmt - ycnt;
+                        if (after > pulse_queue_max) after = pulse_queue_max;
+                        ycnt = (uint8_t)after;
+                    }
+                } else {
+                    uint16_t new_ycnt = (uint16_t)ycnt + abs_mvmt;
+                    if (new_ycnt > pulse_queue_max) new_ycnt = pulse_queue_max;
+                    ycnt = (uint8_t)new_ycnt;
+                }
+                prev_y_neg = neg_mvmt;
+
+                uint16_t delta = MOUSE_MINF + MOUSE_SMUL * ycnt;
+                if (delta > MOUSE_MAXF) delta = MOUSE_MAXF;
+                ydelta = neg_mvmt ? -(int16_t)delta : (int16_t)delta;
+            }
+        }
+
+        // Emit quadrature edges only at the Amiga/Atari period
         loops_since_update++;
-        // Always service pending motion immediately; otherwise tick at Amiga/Atari period.
-        if (pending_motion || loops_since_update >= loops_per_update) {
+        if (loops_since_update >= loops_per_update) {
             loops_since_update = 0;
             g_core1_period_ticks++;
 
-            // Process new motion input
-            __dmb();
-            if (motion_flag) {
-                // Read motion atomically
-                int8_t new_x = x;
-                int8_t new_y = y;
-                x = y = 0;
-                motion_flag = false;
-                __dmb();
-                g_core1_motion_consumed++;
-
-                // Apply speed multiplier
-                int8_t scaled_x = (int8_t)((double)new_x * MOUSE_SPEED_MULTIPLIER);
-                int8_t scaled_y = (int8_t)((double)new_y * MOUSE_SPEED_MULTIPLIER);
-                
-                // Process X axis movement
-                if (scaled_x != 0) {
-                    bool neg_mvmt = (scaled_x < 0);
-                    uint8_t abs_mvmt = neg_mvmt ? -scaled_x : scaled_x;
-                    abs_mvmt /= MOUSE_SDIV;
-                    
-                    // Direction change handling (prevents bounce-back)
-                    if (xcnt && (neg_mvmt != prev_x_neg)) {
-                        // Direction changed while movement pending
-                        if (xcnt >= abs_mvmt) {
-                            xcnt -= abs_mvmt;
-                            prev_x_neg = !prev_x_neg;
-                        } else {
-                            xcnt = abs_mvmt - xcnt;
-                            prev_x_neg = neg_mvmt;
-                        }
-                    } else {
-                        // Normal accumulation with saturation
-                        uint16_t new_xcnt = xcnt + abs_mvmt;
-                        if (new_xcnt > 255) new_xcnt = 255;
-                        xcnt = (uint8_t)new_xcnt;
-                        prev_x_neg = neg_mvmt;
-                    }
-                    
-                    // Calculate delta (speed-proportional)
-                    uint16_t delta = MOUSE_MINF + MOUSE_SMUL * xcnt;
-                    if (delta > MOUSE_MAXF) delta = MOUSE_MAXF;
-                    xdelta = prev_x_neg ? -(int16_t)delta : (int16_t)delta;
-                } else {
-                    xdelta = 0;
-                }
-                
-                // Process Y axis movement
-                if (scaled_y != 0) {
-                    bool neg_mvmt = (scaled_y < 0);
-                    uint8_t abs_mvmt = neg_mvmt ? -scaled_y : scaled_y;
-                    abs_mvmt /= MOUSE_SDIV;
-                    
-                    // Direction change handling
-                    if (ycnt && (neg_mvmt != prev_y_neg)) {
-                        if (ycnt >= abs_mvmt) {
-                            ycnt -= abs_mvmt;
-                            prev_y_neg = !prev_y_neg;
-                        } else {
-                            ycnt = abs_mvmt - ycnt;
-                            prev_y_neg = neg_mvmt;
-                        }
-                    } else {
-                        uint16_t new_ycnt = ycnt + abs_mvmt;
-                        if (new_ycnt > 255) new_ycnt = 255;
-                        ycnt = (uint8_t)new_ycnt;
-                        prev_y_neg = neg_mvmt;
-                    }
-                    
-                    uint16_t delta = MOUSE_MINF + MOUSE_SMUL * ycnt;
-                    if (delta > MOUSE_MAXF) delta = MOUSE_MAXF;
-                    ydelta = prev_y_neg ? -(int16_t)delta : (int16_t)delta;
-                } else {
-                    ydelta = 0;
-                }
-            }
-            
             // Update accumulators and extract phase
             // NOTE: Allow natural wraparound (no clamping) - matches reference implementation
             // When accumulator wraps from 65535->0 or 0->65535, phase still changes correctly
@@ -409,13 +414,13 @@ void amiga_quad_mouse_motion()
                     // Add delta directly - allow natural uint16_t wraparound
                     xval = (uint16_t)((int32_t)xval + (int32_t)xdelta);
                 }
-                
+
                 // Extract phase from upper 8 bits
                 uint8_t new_xph = (xval >> 8) & 0xFF;
                 if (new_xph != xph) {
                     xph = new_xph;
                     if (xcnt > 0) xcnt--;
-                    
+
                     // Update GPIO based on phase (quadrature encoding)
                     // Quadrature lookup tables (from Yaumataca reference)
                     // lut_a: {0, 1, 1, 0} - Signal A
@@ -441,7 +446,7 @@ void amiga_quad_mouse_motion()
                 }
                 if (xcnt == 0) xdelta = 0;
             }
-            
+
             if (ydelta != 0 || ycnt > 0) {
                 // Continue processing as long as ycnt > 0, even if ydelta == 0
                 // This allows the accumulator to keep updating and ycnt to decrement
@@ -449,12 +454,12 @@ void amiga_quad_mouse_motion()
                     // Add delta directly - allow natural uint16_t wraparound
                     yval = (uint16_t)((int32_t)yval + (int32_t)ydelta);
                 }
-                
+
                 uint8_t new_yph = (yval >> 8) & 0xFF;
                 if (new_yph != yph) {
                     yph = new_yph;
                     if (ycnt > 0) ycnt--;
-                    
+
                     __dmb();
                     bool joy_mode = amiga_joystick_port1_is_joystick_mode();
 #if HIDPICO_REV_ATARI_BOARD

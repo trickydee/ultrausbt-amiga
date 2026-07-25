@@ -2,6 +2,30 @@
 
 Firmware version source of truth: `SOFTWARE_VERSION_*` in [`src/config.h`](./src/config.h).
 
+## v4.0.11
+
+* Mouse: revert emit-on-pending (v4.0.10); back to period-gated quadrature emit with separate HID consume — preferred after A/B on Ami/Atr Ms
+
+## v4.0.10
+
+* Mouse: restore emit-on-pending (as well as on Amiga/Atari period) so HID bursts can drain faster — A/B for Amiga travel vs Atari edge rate
+
+## v4.0.9
+
+* Atari mouse: raise pulse queue max from 96 → 255 (match jjmz sat-255) so fast flicks drop less travel
+
+## v4.0.8
+
+* Mouse quadrature: fix direction-cancel on partial opposite HID — keep remaining pulses in the original direction (jjmz adapter semantics). Stops fast flicks from tracking then reversing, especially visible in slower Atari emit mode.
+
+## v4.0.7
+
+* Atari mouse: separate HID consume from quadrature emit; drop leftover recirculation (was forcing ~50 µs edges and a long coasting tail → lag/overrun); modest pending clamp (±255) and shorter Atari pulse queue (96)
+
+## v4.0.6
+
+* Atari/Amiga mouse: Core 0 pending X/Y widened to int16 (±1023) so fast HID bursts are not discarded at ±127; excess beyond Core 1’s pulse queue is kept in the backlog
+
 ## v4.0.5
 
 * Atari mouse mode: Core 1 quadrature tick uses `ATARI_UPDATE_PERIOD_US` (~450 µs) instead of Amiga ~170 µs — should fix fast-flick “held back” cursor
