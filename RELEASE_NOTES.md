@@ -2,6 +2,10 @@
 
 Firmware version source of truth: `SOFTWARE_VERSION_*` in [`src/config.h`](./src/config.h).
 
+## v4.0.12
+
+* OLED: swap Middle/Right GPIOs so Up/Down/# modules map Up=Left, Down=Right, #=Middle (functions unchanged)
+
 ## v4.0.11
 
 * Mouse: revert emit-on-pending (v4.0.10); back to period-gated quadrature emit with separate HID consume — preferred after A/B on Ami/Atr Ms

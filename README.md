@@ -20,7 +20,7 @@ On a **Pico 2 W** you can mix USB and Bluetooth devices. USB-only builds work on
 Please visit and star the upstream project:  
 **https://github.com/borb/amigahid-pico**
 
-Current firmware: **v4.0.11** · [Release notes](./RELEASE_NOTES.md) · License: [EPL-2.0](./LICENSE) · [NOTICE](./NOTICE)
+Current firmware: **v4.0.12** · [Release notes](./RELEASE_NOTES.md) · License: [EPL-2.0](./LICENSE) · [NOTICE](./NOTICE)
 
 ![A2000 USB/BT Adapter](./doc/images/A2000-USB-BT-Adapter.jpg)
 
@@ -56,11 +56,11 @@ Bluetooth keyboards, mice, and gamepads are supported on the **Raspberry Pi Pico
 
 ### Pairing
 
-1. On the OLED splash screen, hold **Middle + Left** to enable pairing (or wait for the short post-boot pairing window).
+1. On the OLED splash screen, hold **Middle + Left** (# + Up) to enable pairing (or wait for the short post-boot pairing window).
 2. Put your device into Bluetooth pairing mode.
 3. Confirm the device on the OLED **Devices** / **Map Devices** screens.
 
-To clear stored pairing keys, hold **Left + Right** for 5 seconds on the splash screen (on-screen countdown).
+To clear stored pairing keys, hold **Left + Right** (Up + Down) for 5 seconds on the splash screen (on-screen countdown).
 
 **Note:** Bluetooth support is intended for Pico 2 W. Prefer Pico 2 W for wireless builds.
 
@@ -101,16 +101,16 @@ Optional: remap one HID scancode to Amiga **Help** via `KEY_REMAP_HID_TO_HELP` i
 
 # OLED UI
 
-An SSD1306 OLED and three buttons are supported on the ultrausbt Amiga board (optional for a bare Pico, but recommended).
+An SSD1306 OLED and three buttons are supported on the ultrausbt Amiga board (optional for a bare Pico, but recommended). On modules with **Up / Down / #** keys: **Up** = Left, **Down** = Right, **#** = Middle.
 
 | Control | Action |
 |---------|--------|
-| **Left** | Cycle Port 1: Ami Ms → Joy → CD32 → Llama → Atr Ms |
-| **Right** | Cycle Port 2: Joy ↔ CD32 |
-| **Middle** | Cycle screens (splash → Devices → Map Devices) |
-| **Middle + Left** | Toggle Bluetooth pairing |
-| **Left + Right** (hold 5 s) | Clear stored Bluetooth pairing keys |
-| **Middle + Right** (hold 2 s) | Toggle USB **host** ↔ **device** mode (saves and reboots) |
+| **Left** (Up) | Cycle Port 1: Ami Ms → Joy → CD32 → Llama → Atr Ms |
+| **Right** (Down) | Cycle Port 2: Joy ↔ CD32 |
+| **Middle** (#) | Cycle screens (splash → Devices → Map Devices) |
+| **Middle + Left** (# + Up) | Toggle Bluetooth pairing |
+| **Left + Right** (Up + Down, hold 5 s) | Clear stored Bluetooth pairing keys |
+| **Middle + Right** (# + Down, hold 2 s) | Toggle USB **host** ↔ **device** mode (saves and reboots) |
 
 Splash shows **Controller Mode**, both ports in large type (`1:Ami Ms` / `2:Joy`), pairing status bottom-left, and firmware version bottom-right. **Ami Ms** = Amiga mouse, **Atr Ms** = Atari ST mouse pinout on Port 1.
 
@@ -118,7 +118,7 @@ Splash shows **Controller Mode**, both ports in large type (`1:Ami Ms` / `2:Joy`
 
 The adapter can run in reverse: read a real Amiga keyboard (KCLK/KDAT) and Port 1 mouse, and present itself to a host PC as a composite USB HID keyboard + mouse.
 
-* Toggle with **Middle + Right** (hold 2 s) on the OLED.
+* Toggle with **Middle + Right** (# + Down, hold 2 s) on the OLED.
 * The mode is stored in flash; the board reboots into host or device role (single USB PHY).
 * Protocol and diagnostics: [`doc/archive/amiga-usb-device-mode.md`](./doc/archive/amiga-usb-device-mode.md).
 

@@ -47,9 +47,9 @@ Port 1 buttons remain on GPIO **2** and **3** (already non-ADC).
 
 | Button | Rev 5 GPIO | **Rev 6 GPIO** | Firmware define |
 |--------|------------|----------------|-----------------|
-| Left | 18 | **26** | `GPIO_BUTTON_LEFT` |
-| Middle | 17 | **27** | `GPIO_BUTTON_MIDDLE` |
-| Right | 16 | **28** | `GPIO_BUTTON_RIGHT` |
+| Left | 18 | **26** | `GPIO_BUTTON_LEFT` (Up) |
+| Middle | 16 | **28** | `GPIO_BUTTON_MIDDLE` (#) |
+| Right | 17 | **27** | `GPIO_BUTTON_RIGHT` (Down) |
 
 ADC pins are fine here: they are inputs with pull-ups tied to 3.3V tactile switches, never exposed to Amiga 5V.
 

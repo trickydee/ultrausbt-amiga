@@ -25,6 +25,7 @@
 // v4.0.3: Port1 cycle includes Ami/Atari mouse; Port2 Joy↔CD32.
 // v4.0.4: Splash "Controller Mode" heading; Ami Ms / Atr Ms labels; Port1 above Port2.
 // v4.0.5: Atari mouse quadrature uses ATARI_UPDATE_PERIOD_US (~450us) on Core 1.
+// v4.0.12: OLED Up/Down/# → Left/Right/Middle (swap Middle/Right GPIOs).
 #ifndef SOFTWARE_VERSION_MAJOR
 #  define SOFTWARE_VERSION_MAJOR 4
 #endif
@@ -32,7 +33,7 @@
 #  define SOFTWARE_VERSION_MINOR 0
 #endif
 #ifndef SOFTWARE_VERSION_PATCH
-#  define SOFTWARE_VERSION_PATCH 11
+#  define SOFTWARE_VERSION_PATCH 12
 #endif
 
 // USB device mode ("PC keyboard" mode): read a real Amiga keyboard (and mouse) on the
@@ -227,9 +228,10 @@
 #  define SSD1306_HEIGHT 64                 // Display height in pixels
 
 // GPIO assignments for UI buttons (matches Atari board)
-#  define GPIO_BUTTON_LEFT   18             // Left button (Port 1 mode; with right: hold 5s clears BT keys)
-#  define GPIO_BUTTON_MIDDLE 17             // Center button (toggle screens)
-#  define GPIO_BUTTON_RIGHT  16             // Right button (toggle BT pairing on splash)
+// Physical OLED module (Up/Down/#): Up=Left, Down=Right, #=Middle
+#  define GPIO_BUTTON_LEFT   18             // Up — Port 1 mode; with Right: hold 5s clears BT keys
+#  define GPIO_BUTTON_MIDDLE 16             // # — cycle screens; combos with Left/Right
+#  define GPIO_BUTTON_RIGHT  17             // Down — Port 2 Joy↔CD32
 #elif HIDPICO_REVISION == 6
 // Rev 6: direct 5V on RP2350 (Pico 2) without level shifters.
 // OLED UI buttons move to ADC pins 26-28 (3.3V only, no Amiga 5V).
@@ -283,9 +285,10 @@
 #  define SSD1306_HEIGHT 64
 
 // OLED UI buttons on ADC pins — 3.3V tactile switches only (not 5V-tolerant lines)
-#  define GPIO_BUTTON_LEFT   26             // Was GPIO 18 on Rev 5
-#  define GPIO_BUTTON_MIDDLE 27             // Was GPIO 17 on Rev 5
-#  define GPIO_BUTTON_RIGHT  28             // Was GPIO 16 on Rev 5
+// Physical OLED module (Up/Down/#): Up=Left, Down=Right, #=Middle
+#  define GPIO_BUTTON_LEFT   26             // Up — was GPIO 18 on Rev 5
+#  define GPIO_BUTTON_MIDDLE 28             // # — was GPIO 16 on Rev 5 (logical Middle)
+#  define GPIO_BUTTON_RIGHT  27             // Down — was GPIO 17 on Rev 5 (logical Right)
 #else
 #  error "HIDPICO_REVISION must be 2, 4, 5, or 6. Current value is not recognized."
 #endif
