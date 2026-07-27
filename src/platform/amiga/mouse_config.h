@@ -30,6 +30,8 @@ bool mouse_config_save(mouse_type_t mouse_type);
 
 void port_config_load(port_config_data_t* out);
 bool port_config_save(const port_config_data_t* config);
+/** Always write now (never defer). Use for USB role changes before reboot. */
+bool port_config_save_immediate(const port_config_data_t* config);
 void port_config_flush_pending(void);
 
 #endif

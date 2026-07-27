@@ -2,6 +2,13 @@
 
 Firmware version source of truth: `SOFTWARE_VERSION_*` in [`src/config.h`](./src/config.h).
 
+## v4.0.13
+
+* OLED **Settings** screen carousel page: Clear BT pair (with confirm) and Host/Device Mode toggle; remove Left+Right / Middle+Right hold chords
+* PC KBD / Host Mode carousel is Splash ↔ Settings only (Devices / Map Devices hidden)
+* Splash titles: **Device Mode** (Amiga adapter) / **Host Mode** (Amiga kbd → PC); Settings defaults to **Back**
+* Document screen-carousel UX in `doc/archive/oled-ui-style-guide.md`
+
 ## v4.0.12
 
 * OLED: swap Middle/Right GPIOs so Up/Down/# modules map Up=Left, Down=Right, #=Middle (functions unchanged)
@@ -70,7 +77,7 @@ Firmware version source of truth: `SOFTWARE_VERSION_*` in [`src/config.h`](./src
 ## v3.2.0
 
 * USB device mode: Amiga keyboard + Port 1 mouse → PC as HID
-* OLED Middle + Right (2 s) toggles host ↔ device; persisted + reboot
+* OLED Middle + Right (2 s) toggles host ↔ device; persisted + reboot → **superseded in v4.0.13** by Settings carousel
 
 ## v3.1.0
 

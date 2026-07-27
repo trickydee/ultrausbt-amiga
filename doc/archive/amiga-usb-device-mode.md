@@ -20,13 +20,15 @@ is stored in flash and selected at boot.
 
 ## Switching modes
 
-Hold the **Middle + Right OLED buttons together for 2 seconds**. The screen shows the
-mode you are about to switch to (`PC KBD` or `AMIGA`); after the hold, the setting is
-saved to flash and the adapter **reboots into the new mode**.
+Open the OLED **Settings** page on the **screen carousel** (`#` advances pages; in
+**Device Mode**: Splash → Devices → Map Devices → Settings; in **Host Mode**:
+Splash → Settings only). The Settings row shows the role you will switch **to** (**Device Mode**
+or **Host Mode**); select it with Up/Down and confirm with `#`. The
+setting is saved to flash and the adapter **reboots into the new mode**.
 
 > A reboot is used (rather than live USB re-init) so the host PC always gets a clean
-> USB enumeration and neither I/O subsystem is left half-initialised. The UX is still a
-> single OLED gesture. Live re-init could be added later if desired.
+> USB enumeration and neither I/O subsystem is left half-initialised. Live re-init
+> could be added later if desired.
 
 ## Wiring (reading the keyboard)
 

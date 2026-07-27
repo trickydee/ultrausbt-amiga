@@ -26,6 +26,7 @@
 // v4.0.4: Splash "Controller Mode" heading; Ami Ms / Atr Ms labels; Port1 above Port2.
 // v4.0.5: Atari mouse quadrature uses ATARI_UPDATE_PERIOD_US (~450us) on Core 1.
 // v4.0.12: OLED Up/Down/# → Left/Right/Middle (swap Middle/Right GPIOs).
+// v4.0.13: Settings carousel page — Clear BT pair + USB mode (no hold chords).
 #ifndef SOFTWARE_VERSION_MAJOR
 #  define SOFTWARE_VERSION_MAJOR 4
 #endif
@@ -33,7 +34,7 @@
 #  define SOFTWARE_VERSION_MINOR 0
 #endif
 #ifndef SOFTWARE_VERSION_PATCH
-#  define SOFTWARE_VERSION_PATCH 12
+#  define SOFTWARE_VERSION_PATCH 13
 #endif
 
 // USB device mode ("PC keyboard" mode): read a real Amiga keyboard (and mouse) on the
@@ -229,9 +230,9 @@
 
 // GPIO assignments for UI buttons (matches Atari board)
 // Physical OLED module (Up/Down/#): Up=Left, Down=Right, #=Middle
-#  define GPIO_BUTTON_LEFT   18             // Up — Port 1 mode; with Right: hold 5s clears BT keys
-#  define GPIO_BUTTON_MIDDLE 16             // # — cycle screens; combos with Left/Right
-#  define GPIO_BUTTON_RIGHT  17             // Down — Port 2 Joy↔CD32
+#  define GPIO_BUTTON_LEFT   18             // Up — Port 1 mode / Settings cursor
+#  define GPIO_BUTTON_MIDDLE 16             // # — screen carousel / Settings confirm
+#  define GPIO_BUTTON_RIGHT  17             // Down — Port 2 mode / Settings cursor
 #elif HIDPICO_REVISION == 6
 // Rev 6: direct 5V on RP2350 (Pico 2) without level shifters.
 // OLED UI buttons move to ADC pins 26-28 (3.3V only, no Amiga 5V).

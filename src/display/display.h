@@ -15,11 +15,14 @@
 
 #include <stdint.h>
 
-// Display screens
+// Screen carousel pages (# advances; wraps to splash).
+// Amiga host: Splash → Devices → Map Devices → Settings → Splash
+// PC KBD / USB adapter: Splash → Settings → Splash (Devices/Map hidden)
 typedef enum {
     DISPLAY_SCREEN_SPLASH = 0,
     DISPLAY_SCREEN_DEVICES = 1,
     DISPLAY_SCREEN_MAP_DEVICES = 2,
+    DISPLAY_SCREEN_SETTINGS = 3,
 } display_screen_t;
 
 /**
@@ -50,6 +53,11 @@ void display_show_devices(void);
 void display_show_map_devices(void);
 
 /**
+ * Show the Settings carousel page (Clear BT pair / USB Amiga↔PC KBD)
+ */
+void display_show_settings(void);
+
+/**
  * Get current device counts (for external access)
  */
 void display_get_counts(uint8_t *usb_kb, uint8_t *usb_mouse, uint8_t *usb_joy,
@@ -63,7 +71,7 @@ void display_set_bt_counts(uint8_t kb, uint8_t mouse, uint8_t joy);
 
 /**
  * Handle button presses (call from main loop)
- * Checks center button and toggles between splash and devices screens
+ * Checks center button and advances the screen carousel
  */
 void display_handle_buttons(void);
 
@@ -81,4 +89,3 @@ void display_tick(void);
 void display_show_controller_detected(const char* controller_name, const char* controller_model, uint32_t duration_ms);
 
 #endif // _DISPLAY_DISPLAY_H
-

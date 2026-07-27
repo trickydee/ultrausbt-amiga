@@ -115,12 +115,12 @@ int main(void)
 
     // Decide our USB role: HOST (normal, USB/BT -> Amiga) or DEVICE (reverse, read
     // a real Amiga keyboard/mouse and present as a USB HID keyboard+mouse to a PC).
-    // Selected at boot from flash; toggled at runtime via the OLED (Middle+Right 2s).
+    // Selected at boot from flash; toggled at runtime via OLED Settings (screen carousel).
     usb_mode_init();
     printf("USB mode: %s\n", usb_mode_is_device()
            ? "DEVICE (Amiga keyboard/mouse -> PC)"
            : "HOST (USB/BT -> Amiga)");
-    printf("Switch USB mode: hold OLED Middle + Right buttons for 2 seconds\n");
+    printf("Switch USB mode: OLED Settings page (USB: Amiga / PC Kbd)\n");
     printf("========================================\n\n");
 
     // Bring up the TinyUSB stack in the selected role.

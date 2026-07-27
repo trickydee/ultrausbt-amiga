@@ -6,7 +6,8 @@ documentation; prefer the files in `doc/` (see [`../README.md`](../README.md)).
 Contents include session handoffs, superseded GPIO investigations, level-shifter
 experiments, joypad-os comparisons, old task lists, the CD32 implementation
 build spec (`CD32_BUILD_SPEC.md`), Amiga→PC USB device mode detail
-(`amiga-usb-device-mode.md`), upstream PCB errata (`borb-amigahid-errata.md`),
+(`amiga-usb-device-mode.md`), OLED screen-carousel UX conventions
+(`oled-ui-style-guide.md`), upstream PCB errata (`borb-amigahid-errata.md`),
 and long-form device troubleshooting (`device_troubleshooting.md`), and GPIO map
 detail (`amiga-code-atari-board-gpio-mappings.md`), and upstream hardware notes
 (`borb-amigahid-hardware.md`), and Stadia / Core 1 mouse verification

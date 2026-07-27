@@ -51,7 +51,7 @@ After pairing a BLE gamepad with BT keyboard + mouse already connected, verify o
 | **Joystick ports** | Port 1 (shared with mouse) and Port 2 still respond |
 | **OLED** | UI not frozen; Map Devices shows gamepad name after pair |
 | **Reboot** | Bonded devices reconnect without hang |
-| **Clear keys** | Left+Right 5 s on splash (or equivalent) → fresh pair works |
+| **Clear keys** | OLED Settings → Clear BT pair (confirm with #); was Left+Right 5 s before v4.0.13 |
 
 ---
 

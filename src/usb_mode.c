@@ -58,19 +58,29 @@ void usb_mode_request_toggle(void)
 #if ENABLE_USB_DEVICE_MODE
     port_config_data_t cfg;
     port_config_load(&cfg);
-    cfg.usb_device_mode = cfg.usb_device_mode ? 0 : 1;
+    uint8_t next = cfg.usb_device_mode ? 0 : 1;
+    cfg.usb_device_mode = next;
 
     printf("[USBMODE] Toggle requested -> %s; saving and rebooting\n",
-           cfg.usb_device_mode ? "DEVICE (Amiga->PC)" : "HOST (USB->Amiga)");
+           next ? "DEVICE / Host Mode UI" : "HOST / Device Mode UI");
 
-    // Persist synchronously, then reboot into the new mode. A reboot gives the host
-    // PC a clean re-enumeration and avoids tearing down half of two I/O subsystems
-    // live (a single USB PHY can only be one role at a time).
-    if (!port_config_save(&cfg)) {
+    // Must write immediately: a deferred BT-pause save would reboot before flush
+    // and leave the previous role in flash (often looks like "stuck in Host Mode").
+    if (!port_config_save_immediate(&cfg)) {
         printf("[USBMODE] ERROR: could not persist USB mode; staying in current mode\n");
         return;
     }
-    sleep_ms(50);
+
+    // Verify flash before reboot so a failed/partial write cannot silently revert.
+    port_config_data_t verify;
+    port_config_load(&verify);
+    if (verify.usb_device_mode != next) {
+        printf("[USBMODE] ERROR: flash verify failed (got %u, want %u); not rebooting\n",
+               (unsigned)verify.usb_device_mode, (unsigned)next);
+        return;
+    }
+
+    sleep_ms(100);
     watchdog_reboot(0, 0, 0);
     while (1) { tight_loop_contents(); }
 #endif

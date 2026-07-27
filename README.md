@@ -20,7 +20,7 @@ On a **Pico 2 W** you can mix USB and Bluetooth devices. USB-only builds work on
 Please visit and star the upstream project:  
 **https://github.com/borb/amigahid-pico**
 
-Current firmware: **v4.0.12** · [Release notes](./RELEASE_NOTES.md) · License: [EPL-2.0](./LICENSE) · [NOTICE](./NOTICE)
+Current firmware: **v4.0.13** · [Release notes](./RELEASE_NOTES.md) · License: [EPL-2.0](./LICENSE) · [NOTICE](./NOTICE)
 
 ![A2000 USB/BT Adapter](./doc/images/A2000-USB-BT-Adapter.jpg)
 
@@ -60,7 +60,9 @@ Bluetooth keyboards, mice, and gamepads are supported on the **Raspberry Pi Pico
 2. Put your device into Bluetooth pairing mode.
 3. Confirm the device on the OLED **Devices** / **Map Devices** screens.
 
-To clear stored pairing keys, hold **Left + Right** (Up + Down) for 5 seconds on the splash screen (on-screen countdown).
+To clear stored pairing keys, open the OLED **Settings** page on the screen carousel (`#` from Map Devices), select **Clear BT pair**, confirm with `#`.
+
+To turn pairing back on after it has timed out or been turned off: **Settings → Pair ON** (or **Middle + Left** / # + Up on Splash).
 
 **Note:** Bluetooth support is intended for Pico 2 W. Prefer Pico 2 W for wireless builds.
 
@@ -103,23 +105,34 @@ Optional: remap one HID scancode to Amiga **Help** via `KEY_REMAP_HID_TO_HELP` i
 
 An SSD1306 OLED and three buttons are supported on the ultrausbt Amiga board (optional for a bare Pico, but recommended). On modules with **Up / Down / #** keys: **Up** = Left, **Down** = Right, **#** = Middle.
 
+The UI is a **screen carousel**: press **#** to advance pages (wraps to Splash).
+
+| Mode | Carousel sequence |
+|------|-------------------|
+| **Device Mode** (USB/BT → Amiga) | Splash → Devices → Map Devices → Settings → Splash |
+| **Host Mode** (Amiga kbd/mouse → PC) | Splash → Settings → Splash (Devices / Map Devices hidden) |
+
 | Control | Action |
 |---------|--------|
-| **Left** (Up) | Cycle Port 1: Ami Ms → Joy → CD32 → Llama → Atr Ms |
-| **Right** (Down) | Cycle Port 2: Joy ↔ CD32 |
-| **Middle** (#) | Cycle screens (splash → Devices → Map Devices) |
-| **Middle + Left** (# + Up) | Toggle Bluetooth pairing |
-| **Left + Right** (Up + Down, hold 5 s) | Clear stored Bluetooth pairing keys |
-| **Middle + Right** (# + Down, hold 2 s) | Toggle USB **host** ↔ **device** mode (saves and reboots) |
+| **Left** (Up) | Splash/Devices: cycle Port 1 (Ami Ms → Joy → CD32 → Llama → Atr Ms). Settings: move cursor up |
+| **Right** (Down) | Splash/Devices: cycle Port 2 (Joy ↔ CD32). Settings: move cursor down |
+| **Middle** (#) | Advance screen carousel; on Settings: confirm selection |
+| **Middle + Left** (# + Up) | Toggle Bluetooth pairing (Splash) |
+| **Settings → Clear BT pair** | Clear stored Bluetooth pairing keys (`#` then confirm) |
+| **Settings → Pair ON / Pair OFF** | Enable or disable Bluetooth pairing (label is the target state) |
+| **Settings → Host Mode / Device Mode** | Switch to that role (`#` saves and reboots); label is the target, not current |
+| **Settings → Back** | Return to Splash (default selection) |
 
-Splash shows **Controller Mode**, both ports in large type (`1:Ami Ms` / `2:Joy`), pairing status bottom-left, and firmware version bottom-right. **Ami Ms** = Amiga mouse, **Atr Ms** = Atari ST mouse pinout on Port 1.
+Splash shows **Device Mode**, both ports in large type (`1:Ami Ms` / `2:Joy`), pairing status bottom-left, and firmware version bottom-right. **Ami Ms** = Amiga mouse, **Atr Ms** = Atari ST mouse pinout on Port 1.
 
-# USB device mode (Amiga keyboard on a PC)
+OLED UX conventions (carousel, in-page select, confirms): [`doc/archive/oled-ui-style-guide.md`](./doc/archive/oled-ui-style-guide.md).
+
+# USB Host Mode (Amiga keyboard on a PC)
 
 The adapter can run in reverse: read a real Amiga keyboard (KCLK/KDAT) and Port 1 mouse, and present itself to a host PC as a composite USB HID keyboard + mouse.
 
-* Toggle with **Middle + Right** (# + Down, hold 2 s) on the OLED.
-* The mode is stored in flash; the board reboots into host or device role (single USB PHY).
+* Toggle from the OLED **Settings** carousel page (**Host Mode** / **Device Mode**); the board saves the role and reboots.
+* In Host Mode the carousel is Splash ↔ Settings only.
 * Protocol and diagnostics: [`doc/archive/amiga-usb-device-mode.md`](./doc/archive/amiga-usb-device-mode.md).
 
 # Hardware

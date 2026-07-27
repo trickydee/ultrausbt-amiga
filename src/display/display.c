@@ -7,7 +7,8 @@
  *
  * Part of ultrausbt-amiga (fork of amigahid-pico by just nine / borb).
  *
- * Display interface for SSD1306 OLED
+ * Display interface for SSD1306 OLED — screen carousel + Settings page.
+ * See doc/archive/oled-ui-style-guide.md
  */
 
 #include "display/display.h"
@@ -31,14 +32,10 @@
 #include "platform/amiga/port_mode.h"
 #endif
 
-// Software version is defined in config.h (included above)
-
 #if HIDPICO_REV_ATARI_BOARD
 
-// Global display instance
 static ssd1306_t disp;
 
-// Device counts
 static uint8_t usb_kb_count = 0;
 static uint8_t usb_mouse_count = 0;
 static uint8_t usb_joy_count = 0;
@@ -46,81 +43,237 @@ static uint8_t bt_kb_count = 0;
 static uint8_t bt_mouse_count = 0;
 static uint8_t bt_joy_count = 0;
 
-// Current screen
 static display_screen_t current_screen = DISPLAY_SCREEN_SPLASH;
 
-// Button handling
 #define BUTTON_DEBOUNCE_COUNT 10
 #define BT_PAIR_PRESS_MIN_MS 50
-#define BT_WIPE_COMBO_HOLD_MS 5000
-#define USB_MODE_COMBO_HOLD_MS 2000
+
 static uint8_t button_middle_debounce = 0;
 static uint8_t button_left_debounce = 0;
+static uint8_t button_right_debounce = 0;
 static bool button_right_pressed = false;
 static absolute_time_t button_right_press_start;
-#if ENABLE_USB_DEVICE_MODE
-static bool usb_mode_combo_active = false;
-static absolute_time_t usb_mode_combo_start;
-static uint32_t usb_mode_overlay_last_seconds = UINT32_MAX;
-#endif
+
 #if ENABLE_BLUEPAD32
-static bool bt_wipe_combo_active = false;
-static bool bt_wipe_combo_done = false;
-static absolute_time_t bt_wipe_combo_start;
-static uint32_t bt_wipe_overlay_last_seconds = UINT32_MAX;
 static uint32_t splash_pair_countdown_last_seconds = UINT32_MAX;
 static bool bt_pair_combo_latched = false;  /* Middle+Left edge already handled */
 #endif
 
+/* Settings carousel page: in-page select */
+enum {
+    SETTINGS_SEL_CLEAR_PAIR = 0,
+    SETTINGS_SEL_PAIRING = 1,
+    SETTINGS_SEL_USB_MODE = 2,
+    SETTINGS_SEL_BACK = 3,
+};
+static uint8_t settings_sel = SETTINGS_SEL_BACK;
+static bool settings_confirm_clear = false;
+
+static bool display_in_pc_kbd_mode(void)
+{
+#if ENABLE_USB_DEVICE_MODE
+    return usb_mode_is_device();
+#else
+    return false;
+#endif
+}
+
 #if ENABLE_BLUEPAD32
-static void display_show_bt_clear_overlay(uint32_t seconds_left) {
-    char countdown[20];
+static void display_show_clear_pair_confirm(void)
+{
     ssd1306_clear(&disp);
-    ssd1306_draw_string(&disp, 0, 10, 2, (char*)"Pairing");
-    ssd1306_draw_string(&disp, 0, 28, 2, (char*)"Clear");
-    snprintf(countdown, sizeof(countdown), "%2lus", (unsigned long)seconds_left);
-    ssd1306_draw_string(&disp, 96, 48, 1, countdown);
+    ssd1306_draw_string(&disp, 0, 10, 1, (char*)"Clear pairings?");
+    ssd1306_draw_string(&disp, 0, 28, 1, (char*)"#=yes  Down=no");
     ssd1306_show(&disp);
 }
+#endif
+
+static void settings_sel_clamp(void)
+{
+    if (display_in_pc_kbd_mode() &&
+        (settings_sel == SETTINGS_SEL_CLEAR_PAIR || settings_sel == SETTINGS_SEL_PAIRING)) {
+        settings_sel = SETTINGS_SEL_BACK;
+    }
+}
+
+/** Enter Settings with Back as the default selection. */
+static void display_enter_settings(void)
+{
+    settings_sel = SETTINGS_SEL_BACK;
+    display_show_settings();
+}
+
+void display_show_settings(void)
+{
+    char line[22];
+    int y = 12;
+
+    settings_confirm_clear = false;
+    settings_sel_clamp();
+
+    ssd1306_clear(&disp);
+    ssd1306_draw_string(&disp, 0, 0, 1, (char*)"Settings");
+
+#if ENABLE_BLUEPAD32
+    if (!display_in_pc_kbd_mode()) {
+        snprintf(line, sizeof(line), "%s Clear BT pair",
+                 (settings_sel == SETTINGS_SEL_CLEAR_PAIR) ? ">" : " ");
+        ssd1306_draw_string(&disp, 0, y, 1, line);
+        y += 10;
+
+        /* Label is the pairing state you will switch to. */
+        snprintf(line, sizeof(line), "%s Pair %s",
+                 (settings_sel == SETTINGS_SEL_PAIRING) ? ">" : " ",
+                 bluepad32_pairing_is_active() ? "OFF" : "ON");
+        ssd1306_draw_string(&disp, 0, y, 1, line);
+        y += 10;
+    }
 #endif
 
 #if ENABLE_USB_DEVICE_MODE
-static void display_show_usb_mode_overlay(bool to_device, uint32_t seconds_left) {
-    char buf[20];
-    ssd1306_clear(&disp);
-    ssd1306_draw_string(&disp, 0, 2, 1, (char*)"Switch to:");
-    ssd1306_draw_string(&disp, 0, 18, 2, to_device ? (char*)"PC KBD" : (char*)"AMIGA");
-    snprintf(buf, sizeof(buf), "hold M+R %lus", (unsigned long)seconds_left);
-    ssd1306_draw_string(&disp, 0, 50, 1, buf);
-    ssd1306_show(&disp);
-}
+    {
+        /* Label is the role you will switch to (not the current role). */
+        bool device = usb_mode_is_device();
+        snprintf(line, sizeof(line), "%s %s",
+                 (settings_sel == SETTINGS_SEL_USB_MODE) ? ">" : " ",
+                 device ? "Device Mode" : "Host Mode");
+        ssd1306_draw_string(&disp, 0, y, 1, line);
+        y += 10;
+    }
+#else
+    (void)line;
 #endif
+
+    snprintf(line, sizeof(line), "%s Back",
+             (settings_sel == SETTINGS_SEL_BACK) ? ">" : " ");
+    ssd1306_draw_string(&disp, 0, y, 1, line);
+
+    ssd1306_draw_string(&disp, 0, 55, 1, (char*)"#=ok ^/v=sel");
+    ssd1306_show(&disp);
+    current_screen = DISPLAY_SCREEN_SETTINGS;
+}
+
+static void settings_activate(void)
+{
+    if (settings_sel == SETTINGS_SEL_BACK) {
+        display_show_splash();
+        return;
+    }
+#if ENABLE_BLUEPAD32
+    if (settings_sel == SETTINGS_SEL_CLEAR_PAIR && !display_in_pc_kbd_mode()) {
+        settings_confirm_clear = true;
+        display_show_clear_pair_confirm();
+        return;
+    }
+    if (settings_sel == SETTINGS_SEL_PAIRING && !display_in_pc_kbd_mode()) {
+        if (bluepad32_is_enabled()) {
+            if (bluepad32_pairing_is_active()) {
+                bluepad32_pairing_stop();
+                printf("Bluetooth pairing OFF\n");
+            } else {
+                bluepad32_pairing_start();
+                printf("Bluetooth pairing ON\n");
+            }
+            display_show_settings();
+        } else {
+            printf("Bluetooth not enabled\n");
+        }
+        return;
+    }
+#endif
+#if ENABLE_USB_DEVICE_MODE
+    if (settings_sel == SETTINGS_SEL_USB_MODE) {
+        printf("[USBMODE] Settings: toggle USB role\n");
+        usb_mode_request_toggle();  /* persists + reboots, does not return */
+    }
+#endif
+}
+
+static void settings_confirm_yes(void)
+{
+#if ENABLE_BLUEPAD32
+    if (settings_confirm_clear) {
+        bluepad32_delete_pairing_keys();
+        printf("Bluetooth pairing keys deleted\n");
+        settings_confirm_clear = false;
+        display_show_settings();
+    }
+#else
+    (void)0;
+#endif
+}
+
+static void settings_confirm_no(void)
+{
+    if (settings_confirm_clear) {
+        settings_confirm_clear = false;
+        display_show_settings();
+    }
+}
+
+static void settings_move_sel(int delta)
+{
+    /* Build ordered list of valid selections for current mode */
+    uint8_t opts[4];
+    uint8_t n = 0;
+#if ENABLE_BLUEPAD32
+    if (!display_in_pc_kbd_mode()) {
+        opts[n++] = SETTINGS_SEL_CLEAR_PAIR;
+        opts[n++] = SETTINGS_SEL_PAIRING;
+    }
+#endif
+#if ENABLE_USB_DEVICE_MODE
+    opts[n++] = SETTINGS_SEL_USB_MODE;
+#endif
+    opts[n++] = SETTINGS_SEL_BACK;
+    if (n == 0) {
+        return;
+    }
+
+    int idx = 0;
+    bool found = false;
+    for (uint8_t i = 0; i < n; i++) {
+        if (opts[i] == settings_sel) {
+            idx = (int)i;
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        idx = (int)n - 1;  /* default to Back */
+    }
+
+    idx += delta;
+    while (idx < 0) {
+        idx += (int)n;
+    }
+    idx %= (int)n;
+
+    settings_sel = opts[idx];
+    display_show_settings();
+}
 
 void display_init(void)
 {
-    // Setup the I2C interface to the display (same order as Atari code)
     i2c_init(SSD1306_I2C, 400000);
     gpio_set_function(SSD1306_SDA, GPIO_FUNC_I2C);
     gpio_set_function(SSD1306_SCL, GPIO_FUNC_I2C);
     gpio_pull_up(SSD1306_SDA);
     gpio_pull_up(SSD1306_SCL);
 
-    // Setup button GPIOs (all active low)
     gpio_init(GPIO_BUTTON_LEFT);
     gpio_set_dir(GPIO_BUTTON_LEFT, GPIO_IN);
     gpio_pull_up(GPIO_BUTTON_LEFT);
-    
+
     gpio_init(GPIO_BUTTON_MIDDLE);
     gpio_set_dir(GPIO_BUTTON_MIDDLE, GPIO_IN);
     gpio_pull_up(GPIO_BUTTON_MIDDLE);
-    
+
     gpio_init(GPIO_BUTTON_RIGHT);
     gpio_set_dir(GPIO_BUTTON_RIGHT, GPIO_IN);
     gpio_pull_up(GPIO_BUTTON_RIGHT);
 
-    // Initialise the display library
     if (ssd1306_init(&disp, SSD1306_WIDTH, SSD1306_HEIGHT, SSD1306_ADDR, SSD1306_I2C)) {
-        // Show splash screen on successful init
         display_show_splash();
     }
 }
@@ -131,13 +284,11 @@ void display_show_splash(void)
     char line[20];
 
 #if ENABLE_USB_DEVICE_MODE
-    // In USB device mode the Amiga-output subsystems (port_mode, Bluetooth) are not
-    // initialised, so show a dedicated splash and skip the host-mode status below.
     if (usb_mode_is_device()) {
         ssd1306_clear(&disp);
-        ssd1306_draw_string(&disp, 0, 0, 2, (char*)"PC KBD");
-        ssd1306_draw_string(&disp, 0, 22, 1, (char*)"Amiga kbd -> USB");
-        ssd1306_draw_string(&disp, 0, 34, 1, (char*)"M+R 2s: to Amiga");
+        ssd1306_draw_string(&disp, 0, 0, 1, (char*)"Host Mode");
+        ssd1306_draw_string(&disp, 0, 16, 1, (char*)"Amiga kbd -> USB");
+        ssd1306_draw_string(&disp, 0, 28, 1, (char*)"# Settings");
         sprintf(version_buf, "v%d.%d.%d", SOFTWARE_VERSION_MAJOR, SOFTWARE_VERSION_MINOR, SOFTWARE_VERSION_PATCH);
         ssd1306_draw_string(&disp, 0, 52, 1, version_buf);
         ssd1306_show(&disp);
@@ -149,19 +300,18 @@ void display_show_splash(void)
     ssd1306_clear(&disp);
 
 #if ENABLE_BLUEPAD32
-    /* Heading (scale 1), then Port 1 / Port 2 status (scale 2). */
-    ssd1306_draw_string(&disp, 0, 0, 1, (char*)"Controller Mode");
+    ssd1306_draw_string(&disp, 0, 0, 1, (char*)"Device Mode");
     snprintf(line, sizeof(line), "1:%s", port_mode_port1_label());
     ssd1306_draw_string(&disp, 0, 16, 2, line);
     snprintf(line, sizeof(line), "2:%s", port_mode_port2_label());
     ssd1306_draw_string(&disp, 0, 34, 2, line);
 #else
-    ssd1306_draw_string(&disp, 0, 0, 1, (char*)"Controller Mode");
+    ssd1306_draw_string(&disp, 0, 0, 1, (char*)"Device Mode");
+    (void)line;
 #endif
 
     sprintf(version_buf, "v%d.%d.%d", SOFTWARE_VERSION_MAJOR, SOFTWARE_VERSION_MINOR, SOFTWARE_VERSION_PATCH);
 #if ENABLE_BLUEPAD32
-    // Bottom: pairing status left, firmware version right (no PAIR hint).
     char pair_status[20];
     uint32_t secs = 0;
     if (bluepad32_pairing_is_active()) {
@@ -176,7 +326,6 @@ void display_show_splash(void)
     }
     ssd1306_draw_string(&disp, 0, 55, 1, pair_status);
     {
-        /* Right-aligned, then nudge two character cells left. */
         int ver_x = 128 - ((int)strlen(version_buf) * 6) - 12;
         if (ver_x < 0) {
             ver_x = 0;
@@ -195,26 +344,24 @@ void display_show_splash(void)
 void display_show_devices(void)
 {
     char buf[32];
-    
+
+    if (display_in_pc_kbd_mode()) {
+        display_show_splash();
+        return;
+    }
+
     ssd1306_clear(&disp);
-    
-    // Title at the top
     ssd1306_draw_string(&disp, 0, 0, 1, (char*)"Devices");
-    
-    // Combined layout with aligned spacing:
-    // Keybd   U X BT X
-    // Mouse  U X BT X
-    // Game    U X BT X
-    // Use fixed-width labels (6 chars) so U/BT align properly
+
     sprintf(buf, "Keybd   U %d BT %d", usb_kb_count, bt_kb_count);
     ssd1306_draw_string(&disp, 0, 9, 1, buf);
-    
+
     sprintf(buf, "Mouse   U %d BT %d", usb_mouse_count, bt_mouse_count);
     ssd1306_draw_string(&disp, 0, 18, 1, buf);
-    
+
     sprintf(buf, "Game    U %d BT %d", usb_joy_count, bt_joy_count);
     ssd1306_draw_string(&disp, 0, 27, 1, buf);
-    
+
 #if ENABLE_BLUEPAD32
     sprintf(buf, "Port1:  %s", port_mode_port1_label());
     ssd1306_draw_string(&disp, 0, 36, 1, buf);
@@ -223,18 +370,19 @@ void display_show_devices(void)
     sprintf(buf, "Port2:  %s", port_mode_port2_label());
     ssd1306_draw_string(&disp, 0, 45, 1, buf);
 #endif
-    
+
     ssd1306_show(&disp);
     current_screen = DISPLAY_SCREEN_DEVICES;
 }
 
 void display_update_devices(void)
 {
-    // If we're on the devices screen, update it
+    if (display_in_pc_kbd_mode()) {
+        return;
+    }
     if (current_screen == DISPLAY_SCREEN_DEVICES) {
         display_show_devices();
     }
-    // Also update Map Devices screen if active
     if (current_screen == DISPLAY_SCREEN_MAP_DEVICES) {
         display_show_map_devices();
     }
@@ -265,15 +413,17 @@ void display_set_bt_counts(uint8_t kb, uint8_t mouse, uint8_t joy)
     bt_mouse_count = mouse;
     bt_joy_count = joy;
     display_update_devices();
-    
-    // Refresh splash screen if it's active (to update mode display)
-    if (current_screen == DISPLAY_SCREEN_SPLASH) {
+
+    if (current_screen == DISPLAY_SCREEN_SPLASH && !display_in_pc_kbd_mode()) {
         display_show_splash();
     }
 }
 
 void display_show_controller_detected(const char* controller_name, const char* controller_model, uint32_t duration_ms)
 {
+    if (display_in_pc_kbd_mode()) {
+        return;
+    }
     ssd1306_clear(&disp);
     ssd1306_draw_string(&disp, 25, 10, 2, (char*)controller_name);
     if (controller_model) {
@@ -281,106 +431,74 @@ void display_show_controller_detected(const char* controller_name, const char* c
     }
     ssd1306_show(&disp);
     sleep_ms(duration_ms);
-    /* Restore splash screen after the delay so the controller message clears automatically */
     display_show_splash();
 }
 
 void display_handle_buttons(void)
 {
-    // Handle LEFT button
-    bool left_state = gpio_get(GPIO_BUTTON_LEFT);
-    bool right_state = gpio_get(GPIO_BUTTON_RIGHT);
+    bool left_state = gpio_get(GPIO_BUTTON_LEFT);    /* Up — active low: pressed == 0 */
+    bool right_state = gpio_get(GPIO_BUTTON_RIGHT);  /* Down */
+    bool middle_state = gpio_get(GPIO_BUTTON_MIDDLE); /* # */
 
 #if ENABLE_USB_DEVICE_MODE
-    // Middle + Right held for 2s toggles between normal (USB->Amiga) and PC keyboard
-    // (Amiga->USB) mode. This works in both modes; the toggle persists and reboots.
-    bool middle_now = gpio_get(GPIO_BUTTON_MIDDLE);
-    if (!middle_now && !right_state) {
-        bool to_device = !usb_mode_is_device();
-        if (!usb_mode_combo_active) {
-            usb_mode_combo_active = true;
-            usb_mode_combo_start = get_absolute_time();
-            usb_mode_overlay_last_seconds = UINT32_MAX;
-            printf("[USBMODE] Hold M+R to switch to %s...\n", to_device ? "PC KBD" : "AMIGA");
-        }
-        uint32_t held_ms = (uint32_t)(absolute_time_diff_us(usb_mode_combo_start, get_absolute_time()) / 1000);
-        uint32_t remaining_ms = (held_ms >= USB_MODE_COMBO_HOLD_MS) ? 0 : (USB_MODE_COMBO_HOLD_MS - held_ms);
-        uint32_t remaining_s = (remaining_ms + 999) / 1000;
-        if (remaining_s != usb_mode_overlay_last_seconds) {
-            usb_mode_overlay_last_seconds = remaining_s;
-            display_show_usb_mode_overlay(to_device, remaining_s);
-        }
-        if (held_ms >= USB_MODE_COMBO_HOLD_MS) {
-            usb_mode_request_toggle();  // persists + reboots, does not return
-        }
-        button_left_debounce = 0;
-        button_middle_debounce = 0;
-        button_right_pressed = false;
-        return;
-    } else if (usb_mode_combo_active) {
-        usb_mode_combo_active = false;
-        usb_mode_overlay_last_seconds = UINT32_MAX;
-        // Combo aborted before completing: restore the current screen.
-        if (current_screen == DISPLAY_SCREEN_SPLASH) display_show_splash();
-        else if (current_screen == DISPLAY_SCREEN_DEVICES) display_show_devices();
-        else if (current_screen == DISPLAY_SCREEN_MAP_DEVICES) display_show_map_devices();
-    }
-
-    // In device mode the Bluetooth / port-mode button actions below are not valid
-    // (those subsystems are not initialised); only the mode-toggle combo applies.
+    /* PC KBD mode: only Splash ↔ Settings carousel + Settings actions */
     if (usb_mode_is_device()) {
-        return;
-    }
-#endif
+        if (settings_confirm_clear) {
+            settings_confirm_clear = false;
+        }
 
-#if ENABLE_BLUEPAD32
-    // Left+Right combo: hold 5s to clear Bluetooth pairing keys.
-    if (!left_state && !right_state) {
-        if (!bt_wipe_combo_active) {
-            bt_wipe_combo_active = true;
-            bt_wipe_combo_done = false;
-            bt_wipe_combo_start = get_absolute_time();
-            bt_wipe_overlay_last_seconds = 5;
-            display_show_bt_clear_overlay(5);
-        } else if (!bt_wipe_combo_done) {
-            uint32_t combo_ms = (uint32_t)(absolute_time_diff_us(bt_wipe_combo_start, get_absolute_time()) / 1000);
-            uint32_t remaining_ms = (combo_ms >= BT_WIPE_COMBO_HOLD_MS) ? 0 : (BT_WIPE_COMBO_HOLD_MS - combo_ms);
-            uint32_t remaining_s = (remaining_ms + 999) / 1000;
-            if (remaining_s != bt_wipe_overlay_last_seconds) {
-                bt_wipe_overlay_last_seconds = remaining_s;
-                display_show_bt_clear_overlay(remaining_s);
+        if (current_screen == DISPLAY_SCREEN_SETTINGS) {
+            if (!left_state) {
+                if (button_left_debounce <= BUTTON_DEBOUNCE_COUNT) {
+                    if (++button_left_debounce == BUTTON_DEBOUNCE_COUNT) {
+                        settings_move_sel(-1);
+                    }
+                }
+            } else {
+                button_left_debounce = 0;
             }
-            if (combo_ms >= BT_WIPE_COMBO_HOLD_MS) {
-                bluepad32_delete_pairing_keys();
-                printf("Bluetooth pairing keys deleted\n");
-                bt_wipe_combo_done = true;
-                bt_wipe_overlay_last_seconds = UINT32_MAX;
-                display_show_splash();
+
+            if (!right_state) {
+                if (button_right_debounce <= BUTTON_DEBOUNCE_COUNT) {
+                    if (++button_right_debounce == BUTTON_DEBOUNCE_COUNT) {
+                        settings_move_sel(1);
+                    }
+                }
+            } else {
+                button_right_debounce = 0;
             }
+
+            if (!middle_state) {
+                if (button_middle_debounce <= BUTTON_DEBOUNCE_COUNT) {
+                    if (++button_middle_debounce == BUTTON_DEBOUNCE_COUNT) {
+                        settings_activate();
+                    }
+                }
+            } else {
+                button_middle_debounce = 0;
+            }
+            return;
+        }
+
+        /* Splash: # → Settings */
+        if (!middle_state) {
+            if (button_middle_debounce <= BUTTON_DEBOUNCE_COUNT) {
+                if (++button_middle_debounce == BUTTON_DEBOUNCE_COUNT) {
+                    display_enter_settings();
+                }
+            }
+        } else {
+            button_middle_debounce = 0;
         }
         button_left_debounce = 0;
-        button_right_pressed = false;
+        button_right_debounce = 0;
         return;
-    } else {
-        bool combo_was_active = bt_wipe_combo_active;
-        bt_wipe_combo_active = false;
-        bt_wipe_combo_done = false;
-        bt_wipe_overlay_last_seconds = UINT32_MAX;
-        if (combo_was_active) {
-            if (current_screen == DISPLAY_SCREEN_SPLASH) {
-                display_show_splash();
-            } else if (current_screen == DISPLAY_SCREEN_DEVICES) {
-                display_show_devices();
-            } else if (current_screen == DISPLAY_SCREEN_MAP_DEVICES) {
-                display_show_map_devices();
-            }
-        }
     }
 #endif
 
 #if ENABLE_BLUEPAD32
-    // Middle + Left: toggle Bluetooth pairing (edge-triggered while both held).
-    if (!gpio_get(GPIO_BUTTON_MIDDLE) && !left_state) {
+    /* Middle + Left: toggle Bluetooth pairing (edge-triggered). */
+    if (!middle_state && !left_state) {
         if (!bt_pair_combo_latched) {
             bt_pair_combo_latched = true;
             if (bluepad32_is_enabled()) {
@@ -400,12 +518,71 @@ void display_handle_buttons(void)
         }
         button_left_debounce = 0;
         button_middle_debounce = 0;
+        button_right_debounce = 0;
         button_right_pressed = false;
         return;
     }
     bt_pair_combo_latched = false;
 #endif
 
+    /* Settings page: confirm overlay, in-page select, or # activate */
+    if (current_screen == DISPLAY_SCREEN_SETTINGS) {
+        if (settings_confirm_clear) {
+            if (!middle_state) {
+                if (button_middle_debounce <= BUTTON_DEBOUNCE_COUNT) {
+                    if (++button_middle_debounce == BUTTON_DEBOUNCE_COUNT) {
+                        settings_confirm_yes();
+                    }
+                }
+            } else {
+                button_middle_debounce = 0;
+            }
+            if (!right_state) {
+                if (button_right_debounce <= BUTTON_DEBOUNCE_COUNT) {
+                    if (++button_right_debounce == BUTTON_DEBOUNCE_COUNT) {
+                        settings_confirm_no();
+                    }
+                }
+            } else {
+                button_right_debounce = 0;
+            }
+            button_left_debounce = 0;
+            return;
+        }
+
+        if (!left_state) {
+            if (button_left_debounce <= BUTTON_DEBOUNCE_COUNT) {
+                if (++button_left_debounce == BUTTON_DEBOUNCE_COUNT) {
+                    settings_move_sel(-1);
+                }
+            }
+        } else {
+            button_left_debounce = 0;
+        }
+
+        if (!right_state) {
+            if (button_right_debounce <= BUTTON_DEBOUNCE_COUNT) {
+                if (++button_right_debounce == BUTTON_DEBOUNCE_COUNT) {
+                    settings_move_sel(1);
+                }
+            }
+        } else {
+            button_right_debounce = 0;
+        }
+
+        if (!middle_state) {
+            if (button_middle_debounce <= BUTTON_DEBOUNCE_COUNT) {
+                if (++button_middle_debounce == BUTTON_DEBOUNCE_COUNT) {
+                    settings_activate();
+                }
+            }
+        } else {
+            button_middle_debounce = 0;
+        }
+        return;
+    }
+
+    /* Up (Left): Port 1 cycle on Splash / Devices */
     if (!left_state) {
         if (button_left_debounce <= BUTTON_DEBOUNCE_COUNT) {
             if (++button_left_debounce == BUTTON_DEBOUNCE_COUNT) {
@@ -425,9 +602,8 @@ void display_handle_buttons(void)
     } else {
         button_left_debounce = 0;
     }
-    
-    // Handle MIDDLE button alone (cycle screens: SPLASH -> DEVICES -> MAP_DEVICES -> SPLASH)
-    bool middle_state = gpio_get(GPIO_BUTTON_MIDDLE);
+
+    /* # (Middle): advance screen carousel */
     if (!middle_state) {
         if (button_middle_debounce <= BUTTON_DEBOUNCE_COUNT) {
             if (++button_middle_debounce == BUTTON_DEBOUNCE_COUNT) {
@@ -436,6 +612,8 @@ void display_handle_buttons(void)
                 } else if (current_screen == DISPLAY_SCREEN_DEVICES) {
                     display_show_map_devices();
                 } else if (current_screen == DISPLAY_SCREEN_MAP_DEVICES) {
+                    display_enter_settings();
+                } else {
                     display_show_splash();
                 }
             }
@@ -443,8 +621,8 @@ void display_handle_buttons(void)
     } else {
         button_middle_debounce = 0;
     }
-    
-    // Handle RIGHT button: Port 2 CD32 toggle (splash / devices)
+
+    /* Down (Right): Port 2 cycle on Splash / Devices */
     if (!right_state && !button_right_pressed) {
         button_right_pressed = true;
         button_right_press_start = get_absolute_time();
@@ -469,20 +647,16 @@ void display_handle_buttons(void)
 
 void display_tick(void)
 {
-#if ENABLE_USB_DEVICE_MODE
-    // Don't redraw over the mode-switch overlay while the combo is being held.
-    if (usb_mode_combo_active) {
-        return;
-    }
-#endif
 #if ENABLE_BLUEPAD32
-    if (current_screen != DISPLAY_SCREEN_SPLASH || bt_wipe_combo_active || !bluepad32_is_enabled()) {
+    if (current_screen != DISPLAY_SCREEN_SPLASH || display_in_pc_kbd_mode() || !bluepad32_is_enabled()) {
         return;
     }
     uint32_t secs = bluepad32_pairing_remaining_seconds();
     if (secs != splash_pair_countdown_last_seconds) {
         display_show_splash();
     }
+#else
+    (void)0;
 #endif
 }
 
@@ -503,6 +677,11 @@ static void display_draw_map_line(int y, const char* label, const char* bt_name,
 
 void display_show_map_devices(void)
 {
+    if (display_in_pc_kbd_mode()) {
+        display_show_splash();
+        return;
+    }
+
     ssd1306_clear(&disp);
     ssd1306_draw_string(&disp, 0, 0, 1, (char*)"Map Devices");
 
@@ -517,7 +696,6 @@ void display_show_map_devices(void)
     bt_m1 = bluepad32_get_device_name('M', 0);
 #endif
 
-    // J2 = first gamepad slot (port 2); J1 = second (port 1 when in joystick mode)
     display_draw_map_line(9, "J2", bt_j2, usb_map_get_gamepad(0));
     display_draw_map_line(18, "J1", bt_j1, usb_map_get_gamepad(1));
     display_draw_map_line(27, "K1", bt_k1, usb_map_get_keyboard());
@@ -528,11 +706,11 @@ void display_show_map_devices(void)
 }
 
 #else
-// For non-Rev5 boards, provide stub implementations
 void display_init(void) {}
 void display_show_splash(void) {}
 void display_show_devices(void) {}
 void display_show_map_devices(void) {}
+void display_show_settings(void) {}
 void display_update_devices(void) {}
 void display_get_counts(uint8_t *usb_kb, uint8_t *usb_mouse, uint8_t *usb_joy,
                        uint8_t *bt_kb, uint8_t *bt_mouse, uint8_t *bt_joy) {}
@@ -542,4 +720,3 @@ void display_handle_buttons(void) {}
 void display_tick(void) {}
 void display_show_controller_detected(const char* controller_name, const char* controller_model, uint32_t duration_ms) {}
 #endif // HIDPICO_REV_ATARI_BOARD
-

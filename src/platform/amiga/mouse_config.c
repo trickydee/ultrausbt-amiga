@@ -138,11 +138,12 @@ void port_config_load(port_config_data_t* out) {
         }
         out->port2_cd32 = flash->port2_cd32 != 0;
         out->usb_device_mode = (flash->usb_device_mode == 1) ? 1 : 0;
-        printf("[CONFIG] Loaded v%lu: mouse=%s port1=%u port2_cd32=%d\n",
+        printf("[CONFIG] Loaded v%lu: mouse=%s port1=%u port2_cd32=%d usb_mode=%s\n",
                (unsigned long)flash->version,
                out->mouse_type == MOUSE_TYPE_ATARI ? "Atari" : "Amiga",
                (unsigned)out->port1_mode,
-               out->port2_cd32 ? 1 : 0);
+               out->port2_cd32 ? 1 : 0,
+               out->usb_device_mode ? "DEVICE(Host Mode UI)" : "HOST(Device Mode UI)");
         return;
     }
 
@@ -156,7 +157,9 @@ void port_config_load(port_config_data_t* out) {
             out->port1_mode = (port1_mode_t)legacy_sector->port1_mode;
         }
         out->port2_cd32 = legacy_sector->port2_cd32 != 0;
-        printf("[CONFIG] Migrating config from legacy flash sector\n");
+        out->usb_device_mode = (legacy_sector->usb_device_mode == 1) ? 1 : 0;
+        printf("[CONFIG] Migrating config from legacy flash sector (usb_mode=%u)\n",
+               (unsigned)out->usb_device_mode);
         port_config_save_now(out);
         return;
     }
@@ -191,6 +194,15 @@ bool port_config_save(const port_config_data_t* config) {
         return true;
     }
 
+    g_port_config_pending = false;
+    return port_config_save_now(config);
+}
+
+bool port_config_save_immediate(const port_config_data_t* config) {
+    if (config == NULL) {
+        return false;
+    }
+    /* USB role toggle reboots immediately — never defer this write. */
     g_port_config_pending = false;
     return port_config_save_now(config);
 }
