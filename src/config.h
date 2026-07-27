@@ -27,14 +27,15 @@
 // v4.0.5: Atari mouse quadrature uses ATARI_UPDATE_PERIOD_US (~450us) on Core 1.
 // v4.0.12: OLED Up/Down/# → Left/Right/Middle (swap Middle/Right GPIOs).
 // v4.0.13: Settings carousel page — Clear BT pair + USB mode (no hold chords).
+// v4.1.0: Release-candidate minor bump — Settings carousel + Host/Device UX.
 #ifndef SOFTWARE_VERSION_MAJOR
 #  define SOFTWARE_VERSION_MAJOR 4
 #endif
 #ifndef SOFTWARE_VERSION_MINOR
-#  define SOFTWARE_VERSION_MINOR 0
+#  define SOFTWARE_VERSION_MINOR 1
 #endif
 #ifndef SOFTWARE_VERSION_PATCH
-#  define SOFTWARE_VERSION_PATCH 13
+#  define SOFTWARE_VERSION_PATCH 0
 #endif
 
 // USB device mode ("PC keyboard" mode): read a real Amiga keyboard (and mouse) on the

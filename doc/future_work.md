@@ -1,7 +1,7 @@
 # Future work & known limitations
 
 **Last updated:** July 2026  
-**Firmware:** v4.0.13 (`feature/releasecandidate` / `main`)  
+**Firmware:** v4.1.0 (`feature/releasecandidate` / `main`)  
 **Purpose:** Open bugs, roadmap, and pointers to deeper archive notes — not a build checklist.
 
 Public doc index: [`README.md`](./README.md). Historical task lists: [`archive/todo.md`](./archive/todo.md).

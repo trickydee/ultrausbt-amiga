@@ -2,6 +2,10 @@
 
 Firmware version source of truth: `SOFTWARE_VERSION_*` in [`src/config.h`](./src/config.h).
 
+## v4.1.0
+
+* Minor bump for release candidate: OLED Settings screen carousel (Clear BT pair, Pair ON/OFF, Host/Device Mode), Device/Host Mode naming, USB role persistence hardened
+
 ## v4.0.13
 
 * OLED **Settings** screen carousel page: Clear BT pair (with confirm) and Host/Device Mode toggle; remove Left+Right / Middle+Right hold chords
