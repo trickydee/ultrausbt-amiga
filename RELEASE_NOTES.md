@@ -2,6 +2,10 @@
 
 Firmware version source of truth: `SOFTWARE_VERSION_*` in [`src/config.h`](./src/config.h).
 
+## v4.2.0
+
+* Host Mode Port 2 Atari two-button stick → USB HID gamepad (dedicated HID interface; dirs on Axis 0/1 + hat; fire = B0 / button 2 = B1) — validated on Mac and MiSTer
+
 ## v4.1.4
 
 * Host Mode Port 2: do not map directions to buttons 12–15 (bit 12 is Mode; was colliding with MiSTer menu/autofire shortcuts)

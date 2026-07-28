@@ -24,7 +24,7 @@ On a **Pico 2 W** you can mix USB and Bluetooth devices. USB-only builds work on
 Please visit and star the upstream project:  
 **https://github.com/borb/amigahid-pico**
 
-Current firmware: **v4.1.4** (`feature/host-mode-port2-joystick`) · [Release notes](./RELEASE_NOTES.md) · Architecture: [`doc/architecture.md`](./doc/architecture.md) · License: [EPL-2.0](./LICENSE) · [NOTICE](./NOTICE)
+Current firmware: **v4.2.0** (`feature/host-mode-port2-joystick`) · [Release notes](./RELEASE_NOTES.md) · Architecture: [`doc/architecture.md`](./doc/architecture.md) · License: [EPL-2.0](./LICENSE) · [NOTICE](./NOTICE)
 
 ![A2000 USB/BT Adapter](./doc/images/A2000-USB-BT-Adapter.jpg)
 
