@@ -26,6 +26,7 @@
 #include "usb_hid_device.h"
 #include "platform/amiga/keyboard_host_in.h"
 #include "platform/amiga/mouse_host_in.h"
+#include "platform/amiga/joystick_port2_host_in.h"
 #endif
 
 #include "display/display.h"
@@ -128,10 +129,11 @@ int main(void)
 
 #if ENABLE_USB_DEVICE_MODE
     if (usb_mode_is_device()) {
-        // USB device mode: read the Amiga keyboard (and Port 1 mouse). Do NOT init the
-        // Amiga output emulation (keyboard TX / quadrature / joystick / CD32 / BT).
+        // USB device mode: read the Amiga keyboard, Port 1 mouse, and Port 2 stick.
+        // Do NOT init the Amiga output emulation (keyboard TX / quadrature / joy out / CD32 / BT).
         keyboard_host_in_init();
         mouse_host_in_init();
+        joystick_port2_host_in_init();
 #if HIDPICO_REV_ATARI_BOARD
         display_show_splash();
 #endif
@@ -194,8 +196,9 @@ int main(void)
             usb_hid_device_task();
             keyboard_host_in_task();
             mouse_host_in_task();
+            joystick_port2_host_in_task();
 #if HIDPICO_REV_ATARI_BOARD
-            display_handle_buttons();  // Middle+Right 2s toggles back to host mode
+            display_handle_buttons();  // Settings carousel can toggle back to Device Mode
             display_tick();
 #endif
             continue;

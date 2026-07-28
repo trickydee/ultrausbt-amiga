@@ -2,6 +2,22 @@
 
 Firmware version source of truth: `SOFTWARE_VERSION_*` in [`src/config.h`](./src/config.h).
 
+## v4.1.4
+
+* Host Mode Port 2: do not map directions to buttons 12–15 (bit 12 is Mode; was colliding with MiSTer menu/autofire shortcuts)
+
+## v4.1.3
+
+* Host Mode Port 2: directions as digital **Axis 0/1** + hat switch; fire = B0, button 2 = B1
+
+## v4.1.2
+
+* Host Mode: expose Port 2 gamepad on a **second HID interface** (kbd/mouse stay on IF0) so macOS/Chrome Gamepad API can see it
+
+## v4.1.1
+
+* Host Mode: Port 2 Atari-style two-button joystick → USB HID gamepad (dirs + fire + button 2)
+
 ## v4.1.0
 
 * Minor bump for release candidate: OLED Settings screen carousel (Clear BT pair, Pair ON/OFF, Host/Device Mode), Device/Host Mode naming, USB role persistence hardened

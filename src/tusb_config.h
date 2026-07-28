@@ -47,9 +47,9 @@
 #endif
 
 #if CFG_TUD_ENABLED
-#   define CFG_TUD_HID            1  // single HID interface, composite (kbd+mouse) report
+#   define CFG_TUD_HID            2  // IF0 kbd+mouse, IF1 gamepad (separate for macOS Gamepad API)
 #   define CFG_TUD_ENDPOINT0_SIZE 64
-#   define CFG_TUD_HID_EP_BUFSIZE 16
+#   define CFG_TUD_HID_EP_BUFSIZE 32  /* kbd/mouse + gamepad report (+ report ID) */
 #endif
 
 // max speed from board

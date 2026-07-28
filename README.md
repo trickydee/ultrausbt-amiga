@@ -8,19 +8,23 @@ The project was created so I could connect my modern peripherals with my Amiga 2
 
 The example adapter hardware for the project is focused on the Amiga 2000, although it can be adapted easily for other Amigas.
 
-The adapter is bi-directional, allowing not only modern USB and BT HID hardware to be connected to the amiga, but also allowing for Amiga Keyboards to be connected as a USB HID Keyboard to a modern computer - soon this will be extended to allow attachment of Amiga/Atari Mice and Atari/CD32 DSUM style Joysticks.
+The adapter is bi-directional:
+
+* **Device Mode** (default): modern USB/Bluetooth HID → Amiga keyboard, mouse, joystick, and CD32 pad signalling
+* **Host Mode**: real Amiga keyboard + Port 1 mouse → composite USB HID keyboard/mouse on a modern PC
+
+Joystick/CD32 pads are supported toward the Amiga in Device Mode. In Host Mode, Port 2 accepts an Atari-style two-button stick as a USB HID gamepad (Mega Drive pads deferred — see [`doc/host-mode-port2-joystick.md`](./doc/host-mode-port2-joystick.md)).
 
 The device is connected to the Amiga using straight through cables, I am using 2 x 9 Pin DSub to Dsub and 1 x 5 Pin DIN (MIDI) cables.
 
-
 On a **Pico 2 W** you can mix USB and Bluetooth devices. USB-only builds work on any Pico / Pico 2.
 
-**This project is a fork of [amigahid-pico](https://github.com/borb/amigahid-pico)** by **just nine** (borb). That project is the foundation for Amiga keyboard and mouse signalling on the Pico. This fork builds on that work for the ultrausbt Amiga Adapter board: OLED UI, dual joystick ports, CD32 pad protocol, Bluetooth (Bluepad32), many modern USB controllers, and USB **device** mode (Amiga keyboard → PC).
+**This project is a fork of [amigahid-pico](https://github.com/borb/amigahid-pico)** by **just nine** (borb). That project is the foundation for Amiga keyboard and mouse signalling on the Pico. This fork builds on that work for the ultrausbt Amiga Adapter board: OLED UI, dual joystick ports, CD32 pad protocol, Bluetooth (Bluepad32), many modern USB controllers, and USB **device** mode (Amiga keyboard/mouse → PC).
 
 Please visit and star the upstream project:  
 **https://github.com/borb/amigahid-pico**
 
-Current firmware: **v4.1.0** · [Release notes](./RELEASE_NOTES.md) · License: [EPL-2.0](./LICENSE) · [NOTICE](./NOTICE)
+Current firmware: **v4.1.4** (`feature/host-mode-port2-joystick`) · [Release notes](./RELEASE_NOTES.md) · Architecture: [`doc/architecture.md`](./doc/architecture.md) · License: [EPL-2.0](./LICENSE) · [NOTICE](./NOTICE)
 
 ![A2000 USB/BT Adapter](./doc/images/A2000-USB-BT-Adapter.jpg)
 
@@ -86,10 +90,11 @@ These combos are handled by the adapter (USB **and** Bluetooth keyboards) and ar
 |----------|----------|
 | **Ctrl + Left Amiga + Right Amiga** | Amiga hard reset (classic) |
 | **Ctrl + Left Amiga + Backspace** | Amiga hard reset (alternate for keyboards without Right Amiga/GUI) |
-| **Shift + Left Amiga + J** | Toggle Port 1 between mouse, joystick and CD32 mode|
-| **Shift + Left Amiga + L** | Toggle Llamatron / Robotron style twin-stick mode (Port2 Direction + Port 1 Fire) |
-| **Shift + Left Amiga + C** | Toggle Port 2 CD32 Controller Emulation seven-button mode |
-Reset is signalled by holding the Amiga keyboard **CLOCK** line low (as a real Amiga keyboard MCU does), with a minimum hold time so it still works when a keyboard drops a combo key from its HID report.
+| **Shift + Left Amiga + J** | Toggle Port 1 between Amiga mouse and joystick |
+| **Shift + Left Amiga + L** | Toggle Llamatron / Robotron style twin-stick mode (Port 2 move + Port 1 aim) |
+| **Shift + Left Amiga + C** | Toggle Port 2 CD32 seven-button pad mode |
+
+Port 1 full cycle (Ami Ms → Joy → CD32 → Llama → Atr Ms) is on the OLED **Left** button. Reset is signalled by holding the Amiga keyboard **CLOCK** line low (as a real Amiga keyboard MCU does), with a minimum hold time so it still works when a keyboard drops a combo key from its HID report.
 
 Optional: remap one HID scancode to Amiga **Help** via `KEY_REMAP_HID_TO_HELP` in `src/config.h` (default: Logitech MX `| / ~ #` key). Set to `0` to disable. This is useful for mapping the quit key in WHDload.
 
@@ -99,7 +104,12 @@ Optional: remap one HID scancode to Amiga **Help** via `KEY_REMAP_HID_TO_HELP` i
 
 ### CD32 seven-button mode
 
-**Shift + Left Amiga + C** toggles Port 2 into the Amiga CD32 serial pad protocol (seven buttons + D-pad). Port 1 CD32 is selected via the OLED **Left** button cycle (**Ami Ms → Joy → CD32 → Llama → Atr Ms**). Both ports support CD32. Known limitation: Bluetooth pad routing when one of two pads disconnects — see [`doc/future_work.md`](./doc/future_work.md).
+**CD32 pad emulation is complete and working** on both ports:
+
+* **Port 2:** **Shift + Left Amiga + C**, or OLED **Right** (Joy ↔ CD32)
+* **Port 1:** OLED **Left** cycle to **CD32** (Ami Ms → Joy → CD32 → Llama → Atr Ms)
+
+Uses the Amiga CD32 serial pad protocol (seven buttons + D-pad). Compatible with Llamatron on Port 2 CD32; exclusive with Port 1 CD32. Protocol detail: [`doc/archive/CD32_BUILD_SPEC.md`](./doc/archive/CD32_BUILD_SPEC.md).
 
 # OLED UI
 
@@ -127,13 +137,14 @@ Splash shows **Device Mode**, both ports in large type (`1:Ami Ms` / `2:Joy`), p
 
 OLED UX conventions (carousel, in-page select, confirms): [`doc/archive/oled-ui-style-guide.md`](./doc/archive/oled-ui-style-guide.md).
 
-# USB Host Mode (Amiga keyboard on a PC)
+# USB Host Mode (Amiga keyboard / mouse / Port 2 stick on a PC)
 
-The adapter can run in reverse: read a real Amiga keyboard (KCLK/KDAT) and Port 1 mouse, and present itself to a host PC as a composite USB HID keyboard + mouse.
+The adapter can run in reverse: read a real Amiga keyboard (KCLK/KDAT), Port 1 mouse, and an **Atari-style two-button joystick on Port 2**, and present itself to a host PC (or MiSTer) as a composite USB HID keyboard + mouse + gamepad.
 
 * Toggle from the OLED **Settings** carousel page (**Host Mode** / **Device Mode**); the board saves the role and reboots.
 * In Host Mode the carousel is Splash ↔ Settings only.
-* Protocol and diagnostics: [`doc/archive/amiga-usb-device-mode.md`](./doc/archive/amiga-usb-device-mode.md).
+* Port 2: straight DB-9 cable; directions + fire (pin 6) + button 2 (pin 9). No remapper needed for Atari sticks.
+* Protocol and diagnostics: [`doc/archive/amiga-usb-device-mode.md`](./doc/archive/amiga-usb-device-mode.md). Research / future Mega Drive: [`doc/host-mode-port2-joystick.md`](./doc/host-mode-port2-joystick.md).
 
 # Hardware
 
@@ -173,6 +184,7 @@ Index: [`doc/README.md`](./doc/README.md)
 | Doc | Topic |
 |-----|--------|
 | [`RELEASE_NOTES.md`](./RELEASE_NOTES.md) | Firmware changelog |
+| [`doc/architecture.md`](./doc/architecture.md) | Architecture + developer/agent quickstart |
 | [`doc/future_work.md`](./doc/future_work.md) | Known limitations / roadmap |
 | [`doc/gpio_rev6_adc_avoidance.md`](./doc/gpio_rev6_adc_avoidance.md) | Rev 6 pin rationale |
 | [`doc/BT_PAIRING_BEST_PRACTICES.md`](./doc/BT_PAIRING_BEST_PRACTICES.md) | Bluetooth pairing |

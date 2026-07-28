@@ -28,6 +28,10 @@
 // v4.0.12: OLED Up/Down/# → Left/Right/Middle (swap Middle/Right GPIOs).
 // v4.0.13: Settings carousel page — Clear BT pair + USB mode (no hold chords).
 // v4.1.0: Release-candidate minor bump — Settings carousel + Host/Device UX.
+// v4.1.1: Host Mode Port 2 Atari 2-btn stick → USB HID gamepad.
+// v4.1.2: Host Mode gamepad on its own HID interface (macOS/Chrome detection).
+// v4.1.3: Host Mode Port 2 dirs → Axis 0/1 + hat.
+// v4.1.4: Stop mirroring dirs onto buttons 12–15 (bit 12 = Mode → MiSTer OSD/autofire).
 #ifndef SOFTWARE_VERSION_MAJOR
 #  define SOFTWARE_VERSION_MAJOR 4
 #endif
@@ -35,7 +39,7 @@
 #  define SOFTWARE_VERSION_MINOR 1
 #endif
 #ifndef SOFTWARE_VERSION_PATCH
-#  define SOFTWARE_VERSION_PATCH 0
+#  define SOFTWARE_VERSION_PATCH 4
 #endif
 
 // USB device mode ("PC keyboard" mode): read a real Amiga keyboard (and mouse) on the
