@@ -79,7 +79,7 @@ See [`BT_PAIRING_BEST_PRACTICES.md`](./BT_PAIRING_BEST_PRACTICES.md) and [`archi
 |------|-------|
 | Rev 6 shipping | Port 2 fire/B2/B3 on GPIO **16/17/18**; OLED buttons on ADC **26/27/28**; UART on 0/1 — [`gpio_rev6_adc_avoidance.md`](./gpio_rev6_adc_avoidance.md) |
 | USB gamepad → Port 1 | First USB pad still drives Port 2 by default; Port 1 CD32 is typically a second BT pad (or dual-pad setup) |
-| Host Mode Port 2 Atari stick | Atari 2-btn → USB gamepad on `feature/host-mode-port2-joystick`; Mega Drive still on hold — [`host-mode-port2-joystick.md`](./host-mode-port2-joystick.md) |
+| Host Mode Port 2 Atari stick | Complete in v4.2.0 (Atari 2-btn → USB gamepad); Mega Drive still on hold — [`host-mode-port2-joystick.md`](./host-mode-port2-joystick.md) |
 | Submodule / SDK bump | Re-test BT + mouse after pico-sdk / bluepad32 updates ([`submodule-versions.md`](./submodule-versions.md)) |
 
 ---
