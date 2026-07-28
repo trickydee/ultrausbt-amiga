@@ -1,6 +1,6 @@
 # Research: Host Mode Port 2 controllers → USB (PC / MiSTer)
 
-**Status:** Phase 1 (Atari 2-button) implemented — **v4.2.0** on `feature/host-mode-port2-joystick`  
+**Status:** Phase 1 (Atari 2-button) implemented — **v4.2.0**  
 **Date:** July 2026  
 **Goal:** While the adapter is in **Host Mode** (Amiga/Atari I/O → USB), read DB-9 controllers on **Port 2** and present them as a standard USB HID gamepad for PC and [MiSTer FPGA](https://github.com/MiSTer-devel/Wiki_MiSTer/wiki/Input-devices).
 
