@@ -150,9 +150,12 @@ The adapter can run in reverse: read a real Amiga keyboard (KCLK/KDAT), Port 1 m
 
 Note: The hardware adapter for this project is unique to this repo; the GPIOs differ from the original amigahid-pico adapters by nine/borb.
 
-* **Amiga 2000 Adapter v2.4** — KiCad project + manufacturing gerbers under [`kicad/`](./kicad/) (`amiga-generic-dsub.*`, [`kicad/gerbers/`](./kicad/gerbers/))
-* **Rev 5** firmware map — level-shifted Amiga I/O (`HIDPICO_REVISION=5` in root `CMakeLists.txt`)
-* **Rev 6** firmware map — direct 5V-tolerant I/O on Pico 2 / Pico 2 W; Port 2 fire/B2/B3 on GPIO 16/17/18; OLED buttons on ADC 26/27/28 — see [`doc/gpio_rev6_adc_avoidance.md`](./doc/gpio_rev6_adc_avoidance.md)
+The [`kicad/`](./kicad/) directory includes an **Amiga 2000** reference board design and manufacturing gerbers (**Amiga 2000 Adapter v2.4**, `amiga-generic-dsub.*` + [`kicad/gerbers/`](./kicad/gerbers/)). More board designs will follow.
+
+Firmware board maps:
+
+* **Rev 5** — level-shifted Amiga I/O (`HIDPICO_REVISION=5` in root `CMakeLists.txt`)
+* **Rev 6** — direct 5V-tolerant I/O on Pico 2 / Pico 2 W; Port 2 fire/B2/B3 on GPIO 16/17/18; OLED buttons on ADC 26/27/28 — see [`doc/gpio_rev6_adc_avoidance.md`](./doc/gpio_rev6_adc_avoidance.md)
 
 Historical upstream PCB notes/errata (amigahid-pico / borb) remain in [`doc/archive/borb-amigahid-hardware.md`](./doc/archive/borb-amigahid-hardware.md) and [`doc/archive/borb-amigahid-errata.md`](./doc/archive/borb-amigahid-errata.md).
 
