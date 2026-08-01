@@ -7,7 +7,7 @@ This document describes the core platform architecture, how USB and Bluetooth in
 `ultrausbt-amiga` runs on RP2040/RP2350-based Pico hardware and supports two runtime USB roles:
 
 - `USB_MODE_HOST` (normal adapter path): USB/Bluetooth input devices are translated into Amiga keyboard/mouse/joystick/CD32 electrical signaling.
-- `USB_MODE_DEVICE` (reverse path): real Amiga keyboard/mouse signals are read and re-exposed as a composite USB HID keyboard+mouse to a modern host (PC/Mac/Linux).
+- `USB_MODE_DEVICE` (reverse path / UI **Host Mode**): real Amiga keyboard, Port 1 mouse, and Port 2 Atari stick are read and re-exposed as USB HID keyboard + mouse + gamepad to a modern host (PC/Mac/Linux/MiSTer).
 
 The role is persisted in flash and selected at boot.
 
@@ -68,6 +68,7 @@ The role is persisted in flash and selected at boot.
 - Mode manager: `src/platform/amiga/port_mode.c`
 - Reverse keyboard in (Amiga -> USB): `src/platform/amiga/keyboard_host_in.c`
 - Reverse mouse in (Amiga -> USB): `src/platform/amiga/mouse_host_in.c`
+- Reverse Port 2 stick in (Atari -> USB gamepad): `src/platform/amiga/joystick_port2_host_in.c`
 
 ### UI + device map
 
@@ -88,12 +89,13 @@ The role is persisted in flash and selected at boot.
 3. Bluepad32 device data is polled and fed into the same logical handlers.
 4. Amiga GPIO lines are driven active-low with open-drain-safe behavior.
 
-### Device mode (Amiga -> USB HID)
+### Device mode (Amiga -> USB HID) — UI name **Host Mode**
 
-1. TinyUSB device stack (`tud_task()`) enumerates as composite keyboard+mouse.
+1. TinyUSB device stack (`tud_task()`) enumerates as HID keyboard+mouse (IF0) + gamepad (IF1).
 2. Amiga keyboard serial receive ISR/task reconstructs keycodes and modifiers.
 3. Amiga quadrature mouse polling decodes movement/button state.
-4. `usb_hid_device_task()` publishes HID keyboard/mouse reports to USB host.
+4. Port 2 Atari stick polling (`joystick_port2_host_in_task`) builds digital axes/hat/buttons.
+5. `usb_hid_device_task()` publishes HID reports to the USB host.
 
 ## 4) USB + Bluetooth Integration Model
 
@@ -199,6 +201,11 @@ All primary Amiga-facing outputs are active-low GPIO semantics (line driven low 
 - Mouse input:
   - Poll quadrature states, decode Gray-code transitions into deltas.
   - Emit HID mouse reports via `usb_hid_device_send_mouse()`.
+- Port 2 Atari stick input:
+  - Poll dirs/fire/B2 as inputs with pull-ups (`joystick_port2_host_in.c`).
+  - Emit HID gamepad on IF1 via `usb_hid_device_send_gamepad(x, y, hat, buttons)`.
+  - Dirs on Axis 0/1 + hat; fire = B0; do **not** use buttons 12–15 (Mode clash on MiSTer).
+  - Detail: [`host-mode-port2-joystick.md`](./host-mode-port2-joystick.md).
 
 ## 8) Architecture Diagrams
 
@@ -284,29 +291,31 @@ Shows module layers and the shared normalization path. Arrows are logical data f
 ```text
 +==========================================================================+
 |                              main.c                                      |
-|  usb_mode = DEVICE → keyboard_host_in + mouse_host_in → tud_task loop    |
+|  usb_mode = DEVICE → kbd/mouse/joy2 host_in → tud_task loop              |
 +==========================================================================+
-          |                              |                         |
-          v                              v                         v
-+---------------------+    +---------------------------+   +----------------+
-| keyboard_host_in.c  |    | mouse_host_in.c           |   | display.c      |
-| KCLK ISR → frames   |    | poll H/HQ V/VQ + buttons  |   | Splash↔Settings|
-| Amiga → HID keys    |    | Gray-code → dx/dy         |   | (USB role only)|
-+----------+----------+    +-------------+-------------+   +----------------+
-           |                             |
-           |  usb_hid_device_send_*       |
-           v                             v
-           +--------------+--------------+
-                          |
-                          v
-               +------------------------+
-               | usb_hid_device.c        |
-               | composite HID kbd+mouse|
-               | TinyUSB device reports |
-               +-----------+------------+
-                           |
-                           v
-                      USB to PC host
+     |                        |                         |              |
+     v                        v                         v              v
++----------------+  +------------------+  +------------------------+ +-----------+
+| keyboard_      |  | mouse_host_in.c  |  | joystick_port2_       | | display.c |
+| host_in.c      |  | poll quad+btns   |  | host_in.c             | | Splash↔   |
+| KCLK → HID kbd |  | → HID mouse      |  | Atari dirs/fire/B2    | | Settings  |
++-------+--------+  +--------+---------+  | → HID gamepad         | +-----------+
+        |                    |            +-----------+------------+
+        |                    |                        |
+        |  usb_hid_device_send_*                      |
+        v                    v                        v
+        +--------------------+------------------------+
+                             |
+                             v
+                  +---------------------------+
+                  | usb_hid_device.c           |
+                  | IF0: kbd + mouse          |
+                  | IF1: gamepad (macOS/Chrome|
+                  |      need separate IF)    |
+                  +-------------+-------------+
+                                |
+                                v
+                           USB to PC / MiSTer
 ```
 
 Cross-cutting (both modes):
@@ -373,6 +382,7 @@ Debug toggles:
 | Keyboard HID→Amiga map | `src/platform/amiga/keyboard.h` + `keyboard_serial_io.c` |
 | Port modes (mouse/joy/CD32/Llama) | `src/platform/amiga/port_mode.c` |
 | USB host↔device role | `src/usb_mode.c`, `mouse_config.c`, OLED Settings in `display.c` |
+| Host Mode Port 2 stick → PC | `joystick_port2_host_in.c`, `usb_hid_device.c` (`CFG_TUD_HID` = 2) |
 | BT pairing / device slots | `src/bluepad32_platform.c` |
 | OLED screens / buttons | `src/display/display.c` |
 | GPIO pin map | `src/config.h` (`HIDPICO_REVISION`) |
@@ -431,13 +441,15 @@ BT work often interacts with Core 1 mouse timing and flash bonding:
 - [ ] Prefer `busy_wait_*` inside BT callbacks (not `sleep_ms` / `__wfe`) — see `bluepad32_platform.c`
 - [ ] Config saves during BT pause are deferred (`port_config_flush_pending`); USB role toggle must use `port_config_save_immediate`
 
-### Checklist: USB device mode (Amiga → PC)
+### Checklist: USB device mode (Amiga → PC / Host Mode UI)
 
 - [ ] OLED Settings → switch to Host Mode UI path (persists + reboots)
 - [ ] Real Amiga keyboard types into the PC
 - [ ] Port 1 mouse moves cursor; buttons map L/R/M
 - [ ] Caps Lock toggle aligns (synthetic pulse path)
+- [ ] Port 2 Atari stick → HID gamepad (Axis 0/1 or hat + B0 fire); re-define on MiSTer after firmware changes
 - [ ] Switch back to Device Mode (Amiga adapter) and verify host path still works
+- [ ] Note: macOS **System Settings → Game Controllers** often ignores generic HID pads; use browser Gamepad API / `ioreg` instead
 
 ### Common pitfalls (agents especially)
 

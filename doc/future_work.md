@@ -1,6 +1,6 @@
 # Future work & known limitations
 
-**Last updated:** July 2026  
+**Last updated:** August 2026  
 **Firmware:** v4.2.0 (`main`)  
 **Purpose:** Open bugs, roadmap, and pointers to deeper archive notes — not a build checklist.
 
@@ -8,7 +8,7 @@ Public doc index: [`README.md`](./README.md). Architecture / agent quickstart: [
 
 ---
 
-## Current status (v4.1.0)
+## Current status (v4.2.0)
 
 Shipped and working on `main`:
 
@@ -21,6 +21,7 @@ Shipped and working on `main`:
 | Llamatron twin-stick | Complete (works with Port 2 CD32) |
 | Settings carousel / USB role toggle | Complete (v4.1.0) |
 | Atari/Amiga mouse feel tuning | Complete (v4.0.5–4.0.11) |
+| Host Mode Port 2 Atari stick → USB | Complete (v4.2.0; Mac + MiSTer validated) |
 
 ---
 
@@ -79,7 +80,7 @@ See [`BT_PAIRING_BEST_PRACTICES.md`](./BT_PAIRING_BEST_PRACTICES.md) and [`archi
 |------|-------|
 | Rev 6 shipping | Port 2 fire/B2/B3 on GPIO **16/17/18**; OLED buttons on ADC **26/27/28**; UART on 0/1 — [`gpio_rev6_adc_avoidance.md`](./gpio_rev6_adc_avoidance.md) |
 | USB gamepad → Port 1 | First USB pad still drives Port 2 by default; Port 1 CD32 is typically a second BT pad (or dual-pad setup) |
-| Host Mode Port 2 Atari stick | Complete in v4.2.0 (Atari 2-btn → USB gamepad); Mega Drive still on hold — [`host-mode-port2-joystick.md`](./host-mode-port2-joystick.md) |
+| Host Mode Mega Drive / CD32 pad **input** | On hold / not started — [`host-mode-port2-joystick.md`](./host-mode-port2-joystick.md) |
 | Submodule / SDK bump | Re-test BT + mouse after pico-sdk / bluepad32 updates ([`submodule-versions.md`](./submodule-versions.md)) |
 
 ---
@@ -90,6 +91,7 @@ See [`BT_PAIRING_BEST_PRACTICES.md`](./BT_PAIRING_BEST_PRACTICES.md) and [`archi
 |------|------|
 | **CD32 Port 1 + Port 2 seven-button protocol** | Complete — OLED + shortcuts; ghost-button fix (CLOCK-fall shift) |
 | OLED Settings carousel + Host/Device Mode | v4.1.0 |
+| Host Mode Port 2 Atari stick → USB HID gamepad | v4.2.0 (dedicated HID IF1; Mac + MiSTer) |
 | Atari/Amiga quadrature mouse feel | v4.0.5–4.0.11 |
 | OLED Up/Down/# → Left/Right/Middle remap | v4.0.12 |
 | USB device mode (Amiga kbd/mouse → PC) | v3.2.0+; Caps Lock macOS hold in v3.2.1 |
@@ -108,6 +110,7 @@ See [`BT_PAIRING_BEST_PRACTICES.md`](./BT_PAIRING_BEST_PRACTICES.md) and [`archi
 | [`../README.md`](../README.md) | Product overview, shortcuts, build |
 | [`architecture.md`](./architecture.md) | Software architecture + developer/agent quickstart |
 | [`BT_PAIRING_BEST_PRACTICES.md`](./BT_PAIRING_BEST_PRACTICES.md) | BT pairing practices |
+| [`host-mode-port2-joystick.md`](./host-mode-port2-joystick.md) | Host Mode Port 2 Atari (done) + MD research |
 | [`gpio_rev6_adc_avoidance.md`](./gpio_rev6_adc_avoidance.md) | Rev 6 pin rationale |
 | [`submodule-versions.md`](./submodule-versions.md) | Pinned SDK / Bluepad32 / TinyUSB |
 | [`archive/`](./archive/) | Build specs, troubleshooting, upstream borb notes, WIP |

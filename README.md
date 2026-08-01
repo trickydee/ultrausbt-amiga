@@ -11,7 +11,7 @@ The example adapter hardware for the project is focused on the Amiga 2000, altho
 The adapter is bi-directional:
 
 * **Device Mode** (default): modern USB/Bluetooth HID → Amiga keyboard, mouse, joystick, and CD32 pad signalling
-* **Host Mode**: real Amiga keyboard + Port 1 mouse → composite USB HID keyboard/mouse on a modern PC
+* **Host Mode**: real Amiga keyboard + Port 1 mouse + Port 2 Atari stick → USB HID keyboard/mouse/gamepad on a modern PC
 
 Joystick/CD32 pads are supported toward the Amiga in Device Mode. In Host Mode, Port 2 accepts an Atari-style two-button stick as a USB HID gamepad (Mega Drive pads deferred — see [`doc/host-mode-port2-joystick.md`](./doc/host-mode-port2-joystick.md)).
 

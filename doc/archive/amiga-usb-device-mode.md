@@ -5,6 +5,10 @@ the Amiga, it **reads a real Amiga keyboard (and Port 1 mouse) and presents the 
 to a host PC as a USB HID keyboard + mouse**. It lets you use an Amiga 2000 (or other
 Amiga) keyboard on a modern computer.
 
+**Port 2 Atari stick → USB gamepad** is implemented separately (v4.2.0+): see
+[`../host-mode-port2-joystick.md`](../host-mode-port2-joystick.md). This archive note
+focuses on keyboard/mouse protocol detail.
+
 It is modelled on the "ADB host mode" feature of the sibling
 `ultramegausb-apple-adb` firmware.
 
@@ -140,5 +144,6 @@ notices.
 - If mouse axes are mirrored, flip the sign in `mouse_host_in_task()`.
 - Mouse quadrature is currently polled from the main loop; if fast motion is dropped,
   move the decode to a GPIO IRQ or PIO state machine.
-- Joystick-to-PC (gamepad HID) is not implemented; it would add a third
-  `TUD_HID_REPORT_DESC_GAMEPAD` interface + `tud_hid_gamepad_report()`.
+- **Port 2 joystick → PC (HID gamepad):** implemented in v4.2.0 — see
+  [`../host-mode-port2-joystick.md`](../host-mode-port2-joystick.md) (dedicated HID
+  interface; dirs on Axis 0/1 + hat; fire = B0).
