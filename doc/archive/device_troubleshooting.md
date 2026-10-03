@@ -98,7 +98,7 @@ Added `flash_safe_execute_core_init()` to Core 1's entry function to coordinate 
 ### Reference Implementation
 
 This fix was based on the Atari keyboard adapter implementation:
-- **Location**: `/Users/rich/Documents/Code/Pico/Atari-Keyboard/ultramegausb-atari-st-rpikbd/src/main.cpp`
+- **Location**: `/Users/rich/Documents/Code/Pico/Atari-Keyboard/ultrausbt-atari-st-rpikbd/src/main.cpp`
 - **Line 179**: `flash_safe_execute_core_init();` in `core1_entry()`
 - **Comment**: "CRITICAL: Initialize flash-safe execution FIRST. This allows Core 0 to coordinate with Core 1 when Bluetooth writes to flash (TLV storage). Without this, Core 1 can freeze when Bluetooth tries to access flash."
 

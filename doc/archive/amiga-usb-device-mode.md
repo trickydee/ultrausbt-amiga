@@ -10,7 +10,7 @@ Amiga) keyboard on a modern computer.
 focuses on keyboard/mouse protocol detail.
 
 It is modelled on the "ADB host mode" feature of the sibling
-`ultramegausb-apple-adb` firmware.
+`ultrausbt-apple-adb-adapter` firmware.
 
 ## Modes
 
@@ -48,7 +48,7 @@ The Port 1 mouse (quadrature + buttons) is read on the usual Port 1 GPIOs
 
 > **Electrical note:** `KDAT` must be **bidirectional** — the keyboard drives it while
 > transmitting data, and the adapter must drive it low for the handshake/ACK. `KCLK` is
-> read-only (keyboard is always the clock master). On the ultramegausb Atari board
+> read-only (keyboard is always the clock master). On the ultrausbt Atari board
 > (Rev 5) both directions work as wired; the RP2350 is 5V-tolerant on these pins. If a
 > board used a fixed-direction (output-only toward the Amiga) buffer on `KDAT`, the
 > handshake could not reach the keyboard and it would sit in its resync loop forever
@@ -139,7 +139,7 @@ notices.
 
 ## Status / testing notes
 
-- **Verified working on real hardware** (Amiga 2000 keyboard → ultramegausb Rev 5 board
+- **Verified working on real hardware** (Amiga 2000 keyboard → ultrausbt Rev 5 board
   → macOS host). The resync recovery above was the fix that made typing reliable.
 - If mouse axes are mirrored, flip the sign in `mouse_host_in_task()`.
 - Mouse quadrature is currently polled from the main loop; if fast motion is dropped,

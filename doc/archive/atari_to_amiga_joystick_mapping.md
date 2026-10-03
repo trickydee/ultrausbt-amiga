@@ -4,7 +4,7 @@ This document maps the Atari ST joystick port GPIO pins to equivalent Amiga joys
 
 ## Atari ST Joystick Port GPIO Definitions
 
-Based on `ultramegausb-atari-st-rpikbd/include/config.h`:
+Based on `ultrausbt-atari-st-rpikbd/include/config.h`:
 
 ### Joystick 1 (Atari)
 | Function | GPIO Pin | Signal Name |
@@ -229,8 +229,8 @@ To use Atari hardware with Amiga software, you would need to:
 ## Code References
 
 ### Atari Project
-- GPIO definitions: `/Users/rich/Documents/Code/Pico/Atari-Keyboard/ultramegausb-atari-st-rpikbd/include/config.h`
-- Joystick handling: `/Users/rich/Documents/Code/Pico/Atari-Keyboard/ultramegausb-atari-st-rpikbd/src/HidInput.cpp` (lines 517-526, 2034-2047)
+- GPIO definitions: `/Users/rich/Documents/Code/Pico/Atari-Keyboard/ultrausbt-atari-st-rpikbd/include/config.h`
+- Joystick handling: `/Users/rich/Documents/Code/Pico/Atari-Keyboard/ultrausbt-atari-st-rpikbd/src/HidInput.cpp` (lines 517-526, 2034-2047)
 
 ### Amiga Project
 - GPIO definitions: `src/config.h` (Revision 5)

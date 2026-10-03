@@ -1,6 +1,6 @@
 # Code cleanup and optimization candidates
 
-Advisory review of the original borb/amigahid-pico codebase versus ultramegausb additions. **No changes implemented** — use this as a checklist when hardening release builds or reducing maintenance burden.
+Advisory review of the original borb/amigahid-pico codebase versus ultrausbt additions. **No changes implemented** — use this as a checklist when hardening release builds or reducing maintenance burden.
 
 **Branch context:** `feature/cd32` (firmware v2.2.10 at time of review).
 
@@ -8,7 +8,7 @@ Advisory review of the original borb/amigahid-pico codebase versus ultramegausb 
 
 ## Executive summary
 
-The **borb core** (keyboard serial bit-bang, `amiga_service()`, TinyUSB callbacks) is still the spine and should stay. A fair amount around it is either **legacy from the original tree**, **debug left on after bring-up**, or **parallel implementations** added during the ultramegausb expansion.
+The **borb core** (keyboard serial bit-bang, `amiga_service()`, TinyUSB callbacks) is still the spine and should stay. A fair amount around it is either **legacy from the original tree**, **debug left on after bring-up**, or **parallel implementations** added during the ultrausbt expansion.
 
 The biggest wins are:
 
@@ -153,7 +153,7 @@ CD32 still works for those via **delegation in `joystick_port2.c`**, but two map
 - TinyUSB mount/report callbacks in `usb_hid.c` (grew huge, but role is same).
 - EPL-2.0 file headers on modified originals.
 
-### Effectively replaced (borb intent, ultramegausb implementation)
+### Effectively replaced (borb intent, ultrausbt implementation)
 
 | borb idea | Today |
 |-----------|--------|

@@ -1,6 +1,6 @@
-# Ultramegausb family — Bluetooth pairing & gamepad best practices
+# Ultrausbt family — Bluetooth pairing & gamepad best practices
 
-**Audience:** LLM or developer working on any **ultramegausb** Pico / Pico 2 W HID adapter  
+**Audience:** LLM or developer working on any **ultrausbt** Pico / Pico 2 W HID adapter  
 (Atari ST IKBD, Amiga keyboard/joystick, Apple ADB, or a future sibling).
 
 **Purpose:** Standalone rules of thumb distilled from production debugging across the family.  
@@ -10,9 +10,9 @@ Copy this file into another repo’s `docs/` (or paste into an LLM session) with
 
 | Project | Notes |
 |---------|--------|
-| `ultramegausb-atari-st-rpikbd` | v22.1.0+ pairing hardening (`main.cpp`, `bluepad32_platform.c`, `config.h`, `NVSettings.cpp`) |
+| `ultrausbt-atari-st-rpikbd` | v22.1.0+ pairing hardening (`main.cpp`, `bluepad32_platform.c`, `config.h`, `NVSettings.cpp`) |
 | `ultrausbt-amiga` | v2.2.18+ Core 1 motion consume fix (`quad_mouse.c`); Stadia DIAG lessons |
-| `ultramegausb-apple-adb` | Pause/refcount + `flash_safe_execute_core_init` patterns |
+| `ultrausbt-apple-adb-adapter` | Pause/refcount + `flash_safe_execute_core_init` patterns |
 
 **Related deeper write-ups (optional):** project-local `archive/BT_PAIRING_HANDOFF.md`, Amiga `archive/stadia-controller-verification.md`.
 
@@ -242,7 +242,7 @@ Copy and tick:
 
 ## 10. One-paragraph paste for another LLM
 
-> Ultramegausb Pico 2 W adapters share Core 0 (Bluepad32/TinyUSB) + Core 1 (XIP timing: IKBD / Amiga quad mouse / ADB). BLE gamepads (especially Stadia `0x18D1/0x9400` and Xbox Wireless) stress BTstack TLV flash via `flash_safe_execute`. Required: `flash_safe_execute_core_init` on Core 1; refcounted pause on gamepad discovery only (not mice/KB); no double-pause; `busy_wait_us` only in BT callbacks; ~30 ms settle / ~100 ms resume; flash layout must not overlap TLV. Quiet failure mode: Core 1 heartbeat alive but host motion dead because work was gated on `absolute_time` after bond — use loop-counter periods and consume pending work immediately (Amiga v2.2.18). Do not blame GPIO remaps without feed/consume diagnostics. Retest KB+mouse+Stadia/Xbox on hardware after any Core 1 or callback change.
+> Ultrausbt Pico 2 W adapters share Core 0 (Bluepad32/TinyUSB) + Core 1 (XIP timing: IKBD / Amiga quad mouse / ADB). BLE gamepads (especially Stadia `0x18D1/0x9400` and Xbox Wireless) stress BTstack TLV flash via `flash_safe_execute`. Required: `flash_safe_execute_core_init` on Core 1; refcounted pause on gamepad discovery only (not mice/KB); no double-pause; `busy_wait_us` only in BT callbacks; ~30 ms settle / ~100 ms resume; flash layout must not overlap TLV. Quiet failure mode: Core 1 heartbeat alive but host motion dead because work was gated on `absolute_time` after bond — use loop-counter periods and consume pending work immediately (Amiga v2.2.18). Do not blame GPIO remaps without feed/consume diagnostics. Retest KB+mouse+Stadia/Xbox on hardware after any Core 1 or callback change.
 
 ---
 

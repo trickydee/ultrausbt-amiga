@@ -200,7 +200,7 @@ Index: [`doc/README.md`](./doc/README.md)
 
 * **[amigahid-pico](https://github.com/borb/amigahid-pico)** by **just nine** \<[nine@aphlor.org](mailto:nine@aphlor.org)\> — the original Amiga HID-on-Pico work this firmware forks and extends. Without that project this adapter would not exist.
 
-The “ultrausbt” / ultramegausb name is tongue-in-cheek and highlights the capabilities made possible by TinyUSB, Bluepad32, and the Pico ecosystem.
+The “ultrausbt” name is tongue-in-cheek and highlights the capabilities made possible by TinyUSB, Bluepad32, and the Pico ecosystem.
 
 This fork also relies on:
 
@@ -214,8 +214,8 @@ This fork also relies on:
 
 **Other Projects**
 I also have a number of other Retro Computer adapter projects:
-[Atari Mega ST/TT IKBD - USB/BT Adapater](https://github.com/trickydee/ultramegausb-atari-st-rpikbd).
-[Apple ADB - USB/BT Adapater](https://github.com/trickydee/TBC).
+[Atari Mega ST/TT IKBD - USB/BT Adapater](https://github.com/trickydee/ultrausbt-atari-st-rpikbd).
+[Apple ADB - USB/BT Adapater](https://github.com/trickydee/ultrausbt-apple-adb-adapter).
 [PC XT / AT / PS2 - USB/BT Adapater](https://github.com/trickydee/TBC).
 
 

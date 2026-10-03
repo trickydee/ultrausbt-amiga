@@ -73,7 +73,7 @@
 #  define CONTROLLER_DEBUG 0
 #endif
 
-// Bluetooth gamepad pairing — Core 1 pause timing (Atari v22.1.0 / ultramegausb family)
+// Bluetooth gamepad pairing — Core 1 pause timing (Atari v22.1.0 / ultrausbt family)
 #ifndef BT_GAMEPAD_DISCOVERY_SETTLE_MS
 #  define BT_GAMEPAD_DISCOVERY_SETTLE_MS 30
 #endif
@@ -300,7 +300,7 @@
 #  error "HIDPICO_REVISION must be 2, 4, 5, or 6. Current value is not recognized."
 #endif
 
-// Rev 5 and Rev 6 share ultramegausb Atari-board firmware (OLED, CD32, dual-port).
+// Rev 5 and Rev 6 share ultrausbt Atari-board firmware (OLED, CD32, dual-port).
 #if HIDPICO_REVISION == 5 || HIDPICO_REVISION == 6
 #  define HIDPICO_REV_ATARI_BOARD 1
 #endif

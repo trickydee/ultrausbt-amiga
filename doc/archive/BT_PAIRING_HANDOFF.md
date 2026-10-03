@@ -1,21 +1,21 @@
 # Bluetooth pairing hangs — handoff notes (Pico / Bluepad32 / dual-core)
 
-**Audience:** LLM or developer working on another **ultramegausb** Pico 2 W HID adapter that sees **random Bluetooth pairing hangs** while keyboards/mice work until a gamepad pairs.
+**Audience:** LLM or developer working on another **ultrausbt** Pico 2 W HID adapter that sees **random Bluetooth pairing hangs** while keyboards/mice work until a gamepad pairs.
 
 **Standalone family best practices (share this with Atari / Apple / future adapters):**  
 [`doc/BT_PAIRING_BEST_PRACTICES.md`](./BT_PAIRING_BEST_PRACTICES.md)
 
 **Applies to:** Any sibling project with the same architecture — e.g. **Atari ST IKBD**, **Amiga** keyboard/joystick USB/BT bridge, **Apple ADB** mouse/keyboard adapter — not one host protocol only.
 
-**Reference implementation (fixes shipped):** `ultramegausb-atari-st-rpikbd` — **v22.1.0** (`RELEASE_NOTES.md` §22.1.0).
+**Reference implementation (fixes shipped):** `ultrausbt-atari-st-rpikbd` — **v22.1.0** (`RELEASE_NOTES.md` §22.1.0).
 
-**This repo:** `ultramegausb-amiga` — see **[Amiga project status](#amiga-project-status-this-repo)** below for what is already done vs what still needs porting from Atari v22.1.0.
+**This repo:** `ultrausbt-amiga` — see **[Amiga project status](#amiga-project-status-this-repo)** below for what is already done vs what still needs porting from Atari v22.1.0.
 
 **Start here for implementation work:** [`doc/future_work.md`](./future_work.md) § Bluetooth pairing alignment (Atari v22.1.0).
 
 ---
 
-## Ultramegausb family — what is usually the same
+## Ultrausbt family — what is usually the same
 
 | Layer | Typical across adapters | Varies per product |
 |-------|-------------------------|-------------------|
@@ -204,10 +204,10 @@ Stay on **pico-sdk–pinned BTstack** (v1.6.2 era) unless you port `hids_host` +
 **Diff against Atari (canonical):**
 
 ```
-ultramegausb-atari-st-rpikbd/src/main.cpp          → Core 1 pause/refcount/diagnostics
-ultramegausb-atari-st-rpikbd/src/bluepad32_platform.c → callback timing + discovery/ready/disconnect
-ultramegausb-atari-st-rpikbd/include/config.h      → BT_GAMEPAD_*_MS constants
-ultramegausb-atari-st-rpikbd/src/NVSettings.cpp    → flash sector layout pattern
+ultrausbt-atari-st-rpikbd/src/main.cpp          → Core 1 pause/refcount/diagnostics
+ultrausbt-atari-st-rpikbd/src/bluepad32_platform.c → callback timing + discovery/ready/disconnect
+ultrausbt-atari-st-rpikbd/include/config.h      → BT_GAMEPAD_*_MS constants
+ultrausbt-atari-st-rpikbd/src/NVSettings.cpp    → flash sector layout pattern
 ```
 
 **Amiga Stadia/mouse consume lesson (port knowledge, not pin maps):**
@@ -296,4 +296,4 @@ Do **not** use `__wfe()` on Core 0 inside BT callbacks — it may never wake if 
 
 ## One-paragraph summary for paste into another LLM session
 
-> **Context:** ultramegausb-amiga (Pico 2 W, Bluepad32, dual-core). Core 1 = quadrature mouse from XIP (`quad_mouse.c`). **Problems:** (1) BLE gamepad pairing hangs — multicore flash race during BTstack TLV; (2) after Stadia bond, mouse motion dead while Core 1 heartbeat alive — `motion_feeds↑` / `consumed=0` because consume was gated on `absolute_time` (fixed v2.2.18 with loop-counter period). **GPIO Rev 6 remap was not the mouse-dead cause.** **Port knowledge to siblings:** do not gate Core 1 host-output on `absolute_time` across BT flash; Atari already uses loop counters for Core 1 heartbeat; Apple ADB has pause/refcount — audit any absolute_time-gated output. **Read:** `doc/BT_PAIRING_HANDOFF.md` §9, `doc/stadia-controller-verification.md`, `doc/future_work.md`.
+> **Context:** ultrausbt-amiga (Pico 2 W, Bluepad32, dual-core). Core 1 = quadrature mouse from XIP (`quad_mouse.c`). **Problems:** (1) BLE gamepad pairing hangs — multicore flash race during BTstack TLV; (2) after Stadia bond, mouse motion dead while Core 1 heartbeat alive — `motion_feeds↑` / `consumed=0` because consume was gated on `absolute_time` (fixed v2.2.18 with loop-counter period). **GPIO Rev 6 remap was not the mouse-dead cause.** **Port knowledge to siblings:** do not gate Core 1 host-output on `absolute_time` across BT flash; Atari already uses loop counters for Core 1 heartbeat; Apple ADB has pause/refcount — audit any absolute_time-gated output. **Read:** `doc/BT_PAIRING_HANDOFF.md` §9, `doc/stadia-controller-verification.md`, `doc/future_work.md`.

@@ -151,7 +151,7 @@ This document tracks outstanding tasks and improvements for the amigahid-pico pr
   - [ ] Verify multi-keyboard support works correctly
 
 - [ ] **Display testing**
-  - [ ] Verify splash screen shows "ultramegausb.com" correctly
+  - [ ] Verify splash screen shows "ultrausbt.com" correctly
   - [ ] Test all three display screens (SPLASH, DEVICES, BT_NAMES)
   - [ ] Verify button navigation works correctly
   - [ ] Test device counter updates in real-time

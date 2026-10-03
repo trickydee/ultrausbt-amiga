@@ -2,7 +2,7 @@
 
 **Audience:** firmware / docs maintainers.  
 **Related code:** [`src/display/display.c`](../../src/display/display.c), [`src/display/display.h`](../../src/display/display.h).  
-**Sibling pattern:** Apple ADB adapter Mode screen + `#` carousel (`ultramegausb-apple-adb`); adapted here for **three buttons only** (no `*` quick-toggle GPIO).
+**Sibling pattern:** Apple ADB adapter Mode screen + `#` carousel (`ultrausbt-apple-adb-adapter`); adapted here for **three buttons only** (no `*` quick-toggle GPIO).
 
 ## Terminology
 

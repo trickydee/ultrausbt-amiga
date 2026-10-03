@@ -72,7 +72,7 @@ See [`BT_PAIRING_BEST_PRACTICES.md`](./BT_PAIRING_BEST_PRACTICES.md) and [`archi
 | Item | Notes |
 |------|-------|
 | Cycle gamepad bindings on Map Devices | Atari UI unification Phase 2; helps dual-pad reconnect routing |
-| Portable OLED spec | Local: `local/ULTRAMEGAUSB_OLED_UI_SPEC.md` (gitignored) |
+| Portable OLED spec | Local: `local/ULTRAUSBT_OLED_UI_SPEC.md` (gitignored) |
 
 ### Hardware / firmware
 

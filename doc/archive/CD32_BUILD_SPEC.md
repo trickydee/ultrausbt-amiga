@@ -2,7 +2,7 @@
 
 **Branch:** `feature/cd32`  
 **Status:** Implemented (v2.2.2) — dual Port 1 + Port 2 CD32; **known instability** (see §9 risks + [`../future_work.md`](../future_work.md))  
-**Hardware target:** Rev 5 (`HIDPICO_REVISION == 5`) — Pico 2 W + ultramegausb board  
+**Hardware target:** Rev 5 (`HIDPICO_REVISION == 5`) — Pico 2 W + ultrausbt board  
 **Prior research:** [`cd32_pad_implementation_plan.md`](./cd32_pad_implementation_plan.md) (2024 draft — superseded; kept for protocol background)  
 **Protocol reference:** [PSCD32 Development Diary, 9 Aug 2019](https://www.mrdictionary.net/PSCD32/diary/2019_08_09.htm) (Mathew Carr) — analysis of Gerd Kautzmann’s CD32 pad schematic; **authoritative DB-9 pin roles** below.
 

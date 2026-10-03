@@ -96,7 +96,7 @@ The failure was found while bringing up Rev 6 GPIO maps, which made it easy to b
 
 ## USB report formats (Amiga vs Atari)
 
-The Amiga Stadia USB implementation was checked against the Atari IKBD build (`ultramegausb-atari-st-rpikbd`). The Amiga code supports **both** report formats used or documented there.
+The Amiga Stadia USB implementation was checked against the Atari IKBD build (`ultrausbt-atari-st-rpikbd`). The Amiga code supports **both** report formats used or documented there.
 
 ### Atari build behaviour
 
