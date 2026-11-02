@@ -60,6 +60,7 @@ target_sources(amigahid-pico PRIVATE
 # Add Bluepad32 source files if enabled
 if(ENABLE_BLUEPAD32)
     target_sources(amigahid-pico PRIVATE
+        bluepad32_adv_debug.c
         bluepad32_init.c
         bluepad32_platform.c
     )
@@ -94,14 +95,25 @@ target_link_libraries(amigahid-pico PUBLIC
 # Add Bluepad32 libraries if enabled
 if(ENABLE_BLUEPAD32)
     # Add bluepad32 subdirectory first
-    add_subdirectory(${CMAKE_SOURCE_DIR}/bluepad32/src/components/bluepad32 libbluepad32)
+    add_subdirectory(${BLUEPAD32_SOURCE_DIR}/src/components/bluepad32 libbluepad32)
     
+    if(BLUEPAD32_SOURCE_DIR STREQUAL "${CMAKE_SOURCE_DIR}/bluepad32")
+        include(${CMAKE_SOURCE_DIR}/cmake/bluepad32_reconnect.cmake)
+    else()
+        # The shared checkout implements reconnect itself; never apply the legacy patch.
+        message(STATUS "Bluepad32: shared PR checkout ${BLUEPAD32_SOURCE_DIR}")
+        target_sources(amigahid-pico PRIVATE bluepad32_bonded_reconnect.c)
+        target_compile_definitions(amigahid-pico PRIVATE BLUEPAD32_NATIVE_RECONNECT=1)
+        target_compile_options(bluepad32 PRIVATE
+            "$<$<COMPILE_LANGUAGE:C>:-include;${CMAKE_CURRENT_SOURCE_DIR}/bluepad32_sdk_compat.h>")
+    endif()
+
     # Add include directory for btstack_config.h to bluepad32 library
     target_include_directories(bluepad32 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     
     # Add Bluepad32 include directories
     target_include_directories(amigahid-pico PRIVATE
-        ${CMAKE_SOURCE_DIR}/bluepad32/src/components/bluepad32/include
+        ${BLUEPAD32_SOURCE_DIR}/src/components/bluepad32/include
         ${CMAKE_CURRENT_SOURCE_DIR}  # For btstack_config.h and sdkconfig.h
         ${PICO_SDK_PATH}/lib/btstack/src  # For btstack headers
     )

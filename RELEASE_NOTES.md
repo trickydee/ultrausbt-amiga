@@ -2,6 +2,25 @@
 
 Firmware version source of truth: `SOFTWARE_VERSION_*` in [`src/config.h`](./src/config.h).
 
+## v4.3.0 (local Bluepad32 PR test build)
+
+* Optional `BLUEPAD32_SOURCE_DIR` selects the shared Bluepad32 develop-based reconnect checkout through `build-all.sh`; the pinned submodule remains the default.
+* The external build uses native bonded reconnect support, without the older adapter reconnect patch. Adapter-side saved BLE display names remain enabled.
+* Pairing/scanning stays enabled after boot; advertisement diagnostics default OFF. Manually disabling scanning prevents reconnection.
+* Amiga hardware testing of this develop-based firmware was reported successful on 5 October 2026. Cross-adapter testing is in progress; Steam Controller compatibility remains unverified.
+* See [local checkout testing](doc/bluepad32-local-testing.md) for the exact build command and test checklist.
+
+## v4.2.2 (Logitech investigation build)
+
+* Preserve BLE device display names across reconnects and adapter restarts using bond-associated name metadata. Older bonds use the reported model number where available until an advertised name is saved.
+* Clear pairing also clears saved names; unchanged names do not trigger additional flash writes.
+
+## v4.2.1 (Logitech investigation build)
+
+* Accept directed BLE reconnect advertisements from exact saved bond identities even without HID appearance; recover mouse/keyboard/controller class from the HID descriptor.
+* Keep unknown-device discovery and existing authentication behavior; no automatic bond clearing added.
+* ERGO trackball reconnect fix confirmed by hardware testing. Advertisement diagnostics now default OFF; continuously enabled boot scanning remains active on the investigation branch. See [test notes](doc/logitech-ble-investigation.md).
+
 ## v4.2.0
 
 * Host Mode Port 2 Atari two-button stick → USB HID gamepad (dedicated HID interface; dirs on Axis 0/1 + hat; fire = B0 / button 2 = B1) — validated on Mac and MiSTer

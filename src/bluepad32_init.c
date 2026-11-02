@@ -23,6 +23,8 @@
 #include <uni.h>
 #include "bluepad32_platform.h"
 
+void bluepad32_adv_debug_init(void);
+
 // Global async context for btstack (accessed from main.c)
 async_context_poll_t* g_btstack_async_context = NULL;
 
@@ -84,6 +86,7 @@ async_context_poll_t* bluepad32_init(void) {
 
     // Initialize Bluepad32
     uni_init(0, NULL);
+    bluepad32_adv_debug_init();
 
     g_btstack_async_context = &btstack_async_context;
     g_bluetooth_enabled = true;

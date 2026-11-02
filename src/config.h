@@ -16,6 +16,14 @@
 #ifndef _CONFIG_H
 #define _CONFIG_H
 
+// Temporary Logitech BLE investigation switches. See doc/logitech-ble-investigation.md.
+#ifndef BT_LOGI_ADV_DEBUG
+#  define BT_LOGI_ADV_DEBUG 0
+#endif
+#ifndef BT_PAIRING_ALWAYS_ON_TEST
+#  define BT_PAIRING_ALWAYS_ON_TEST 1
+#endif
+
 // Software version - single source of truth for main.c, OLED display, and serial output.
 // v3.0.0: Rev 5/6 GPIO maps + Core 1 loop-counter mouse consume (Stadia-safe).
 // v3.2.0: USB device mode — read a real Amiga keyboard/mouse and present as a USB HID to a PC.
@@ -37,7 +45,7 @@
 #  define SOFTWARE_VERSION_MAJOR 4
 #endif
 #ifndef SOFTWARE_VERSION_MINOR
-#  define SOFTWARE_VERSION_MINOR 2
+#  define SOFTWARE_VERSION_MINOR 3
 #endif
 #ifndef SOFTWARE_VERSION_PATCH
 #  define SOFTWARE_VERSION_PATCH 0

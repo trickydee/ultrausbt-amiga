@@ -1,0 +1,69 @@
+--- uni_bt_le.c
++++ uni_bt_le.c
+@@ -54,6 +54,7 @@
+  */
+ 
+ #include "bt/uni_bt_le.h"
++#include "bluepad32_bonded_reconnect.h"
+ 
+ #include <bluetooth_data_types.h>
+ #include <btstack.h>
+@@ -293,6 +294,14 @@
+                         logi("Client notifications enabled for for hids_cid=%d\n", hids_cid);
+ #endif
+ 
++                    if (device->cod == 0) ultrausbt_restore_ble_name(device);
++                    if (device->cod == 0 && !ultrausbt_classify_bonded_hid(device, hids_cid,
++                            gattservice_subevent_hid_service_connected_get_num_instances(packet))) {
++                        loge("[BLE-RECONNECT] Missing/ambiguous HID class; disconnecting\n");
++                        uni_hid_device_disconnect(device);
++                        break;
++                    }
++                    ultrausbt_save_ble_name(device);
+                     uni_hid_device_guess_controller_type_from_pid_vid(device);
+                     uni_hid_device_connect(device);
+                     uni_hid_device_set_ready(device);
+@@ -459,6 +468,15 @@
+                 logi("Model Number read failed, ATT Error 0x%02x\n", att_status);
+             } else {
+                 logi("Model Number:     %s\n", gattservice_subevent_device_information_model_number_get_value(packet));
++                device = uni_hid_device_get_instance_for_connection_handle(
++                    gattservice_subevent_device_information_model_number_get_con_handle(packet));
++                if (device && !device->name[0]) {
++                    ultrausbt_restore_ble_name(device);
++                    if (!device->name[0]) {
++                        uni_hid_device_set_name(device,
++                            gattservice_subevent_device_information_model_number_get_value(packet));
++                    }
++                }
+             }
+             break;
+ 
+@@ -794,8 +812,9 @@
+     }
+ 
+     adv_event_get_data(packet, &appearance, name);
+-
+-    if (appearance != UNI_BT_HID_APPEARANCE_GAMEPAD && appearance != UNI_BT_HID_APPEARANCE_JOYSTICK &&
++    bool bonded_directed = ultrausbt_bonded_directed_advertisement(packet);
++
++    if (!bonded_directed && appearance != UNI_BT_HID_APPEARANCE_GAMEPAD && appearance != UNI_BT_HID_APPEARANCE_JOYSTICK &&
+         appearance != UNI_BT_HID_APPEARANCE_MOUSE && appearance != UNI_BT_HID_APPEARANCE_KEYBOARD) {
+         // Don't log it. There too many devices advertising themselves.
+         if (appearance != 0 || strlen(name) != 0)
+@@ -829,8 +848,13 @@
+     logi(", rssi %u dBm", rssi);
+     logi(", name '%s'\n", name);
+ 
+-    if (uni_hid_device_on_device_discovered(addr, name, cod, rssi) != UNI_ERROR_SUCCESS)
+-        return;
++    if (bonded_directed && cod == 0) {
++        if (!ultrausbt_bonded_discovery_allowed(addr, rssi)) return;
++        logi("[BLE-RECONNECT] Accepting bonded directed advertisement from %s; class deferred\n",
++             bd_addr_to_str(addr));
++    } else if (uni_hid_device_on_device_discovered(addr, name, cod, rssi) != UNI_ERROR_SUCCESS) {
++        return;
++    }
+ 
+     uni_hid_device_t* d = uni_hid_device_create(addr);
+     if (!d) {
