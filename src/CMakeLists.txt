@@ -97,16 +97,13 @@ if(ENABLE_BLUEPAD32)
     # Add bluepad32 subdirectory first
     add_subdirectory(${BLUEPAD32_SOURCE_DIR}/src/components/bluepad32 libbluepad32)
     
-    if(BLUEPAD32_SOURCE_DIR STREQUAL "${CMAKE_SOURCE_DIR}/bluepad32")
-        include(${CMAKE_SOURCE_DIR}/cmake/bluepad32_reconnect.cmake)
-    else()
-        # The shared checkout implements reconnect itself; never apply the legacy patch.
-        message(STATUS "Bluepad32: shared PR checkout ${BLUEPAD32_SOURCE_DIR}")
-        target_sources(amigahid-pico PRIVATE bluepad32_bonded_reconnect.c)
-        target_compile_definitions(amigahid-pico PRIVATE BLUEPAD32_NATIVE_RECONNECT=1)
-        target_compile_options(bluepad32 PRIVATE
-            "$<$<COMPILE_LANGUAGE:C>:-include;${CMAKE_CURRENT_SOURCE_DIR}/bluepad32_sdk_compat.h>")
-    endif()
+    # The pinned fork and optional external checkouts provide native reconnect.
+    # Do not apply the legacy adapter patch to the native implementation.
+    message(STATUS "Bluepad32: native bonded reconnect from ${BLUEPAD32_SOURCE_DIR}")
+    target_sources(amigahid-pico PRIVATE bluepad32_bonded_reconnect.c)
+    target_compile_definitions(amigahid-pico PRIVATE BLUEPAD32_NATIVE_RECONNECT=1)
+    target_compile_options(bluepad32 PRIVATE
+        "$<$<COMPILE_LANGUAGE:C>:-include;${CMAKE_CURRENT_SOURCE_DIR}/bluepad32_sdk_compat.h>")
 
     # Add include directory for btstack_config.h to bluepad32 library
     target_include_directories(bluepad32 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

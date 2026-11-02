@@ -2,10 +2,10 @@
 
 Firmware version source of truth: `SOFTWARE_VERSION_*` in [`src/config.h`](./src/config.h).
 
-## v4.3.0 (local Bluepad32 PR test build)
+## v4.3.0 (Bluepad32 reconnect feature build)
 
-* Optional `BLUEPAD32_SOURCE_DIR` selects the shared Bluepad32 develop-based reconnect checkout through `build-all.sh`; the pinned submodule remains the default.
-* The external build uses native bonded reconnect support, without the older adapter reconnect patch. Adapter-side saved BLE display names remain enabled.
+* Default Bluepad32 dependency is pinned to fork commit `f7e94489be6ae29064a98c24c090dc5a5917c177` (`trickydee/bluepad32`, `codex/ble-reconnect-pr`). Optional `BLUEPAD32_SOURCE_DIR` still selects an external checkout through `build-all.sh`.
+* All builds use native bonded reconnect support, without the older adapter reconnect patch. Adapter-side saved BLE display names remain enabled.
 * Pairing/scanning stays enabled after boot; advertisement diagnostics default OFF. Manually disabling scanning prevents reconnection.
 * Amiga hardware testing of this develop-based firmware was reported successful on 5 October 2026. Cross-adapter testing is in progress; Steam Controller compatibility remains unverified.
 * See [local checkout testing](doc/bluepad32-local-testing.md) for the exact build command and test checklist.

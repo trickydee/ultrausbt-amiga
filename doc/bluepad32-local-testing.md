@@ -1,5 +1,21 @@
 # Testing the shared Bluepad32 reconnect branch
 
+## Reproducible default build — 2 November 2026
+
+The committed `bluepad32` submodule now uses `https://github.com/trickydee/bluepad32.git`,
+branch `codex/ble-reconnect-pr`, pinned to `f7e94489be6ae29064a98c24c090dc5a5917c177`.
+Use `git submodule update --init --recursive`, then `./build-all.sh` without an
+external-source override. The gitlink selects the exact fix; the branch metadata
+alone does not pin a revision. The fork's `main` does not contain this fix.
+Native reconnect is used for both the default and optional external checkout;
+the older build-tree patch is no longer applied.
+
+Follow-up: return to upstream after PR #236 is merged and its replacement revision
+has been validated on the adapters. Until then, retain this exact pin.
+
+The remaining notes record earlier investigation builds and their inputs.
+
+
 > Status update (2 November 2026): the upstream reconnect fix was submitted as
 > [Bluepad32 PR #236](https://github.com/ricardoquesada/bluepad32/pull/236).
 > The dated investigation and test notes below describe earlier stages; references
