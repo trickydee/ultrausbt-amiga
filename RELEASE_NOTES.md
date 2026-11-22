@@ -4,7 +4,9 @@ Firmware version source of truth: `SOFTWARE_VERSION_*` in [`src/config.h`](./src
 
 ## v4.3.0 (Bluepad32 reconnect feature build)
 
-* Default Bluepad32 dependency is pinned to fork commit `f7e94489be6ae29064a98c24c090dc5a5917c177` (`trickydee/bluepad32`, `codex/ble-reconnect-pr`). Optional `BLUEPAD32_SOURCE_DIR` still selects an external checkout through `build-all.sh`.
+* Rebased on upstream `ec42eb1`; preserve runtime HID device-type filtering on bonded reconnects. Amiga hardware validation on 22 November 2026 passed cold boot, peripheral power cycling, combined keyboard/mouse, dragging and controller coexistence.
+
+* Default Bluepad32 dependency is pinned to fork commit `06aed0361eb094f9ca6b6029da88ef60a200af95` (`trickydee/bluepad32`, `codex/ble-reconnect-develop-20261122`). Optional `BLUEPAD32_SOURCE_DIR` still selects an external checkout through `build-all.sh`.
 * All builds use native bonded reconnect support, without the older adapter reconnect patch. Adapter-side saved BLE display names remain enabled.
 * Pairing/scanning stays enabled after boot; advertisement diagnostics default OFF. Manually disabling scanning prevents reconnection.
 * Amiga hardware testing of this develop-based firmware was reported successful on 5 October 2026. Cross-adapter testing is in progress; Steam Controller compatibility remains unverified.
