@@ -1,5 +1,33 @@
 # Testing the shared Bluepad32 reconnect branch
 
+## Validated update — 22 November 2026
+
+The current feature build pins `trickydee/bluepad32` branch
+`codex/ble-reconnect-develop-20261122` to
+`06aed0361eb094f9ca6b6029da88ef60a200af95`, based on upstream
+`ec42eb1f904bab2f1e77575ac0428b8b5739a4ed`. This supersedes the older pins below.
+The updated patch preserves the runtime HID device-type filter after recovering
+a bonded reconnect's class. The adapter replaces the removed address getter with
+the same `memcpy` of `conn.btaddr`; SDK, GPIOs and signalling remain unchanged.
+
+User hardware testing confirmed all of the following on Amiga:
+
+- Logitech mouse reconnects automatically after a cold boot.
+- Mouse power-off/on reconnects while the adapter stays running.
+- MX Keys Mini reconnects, including simultaneous keyboard and mouse operation.
+- Mouse dragging works.
+- A controller works alongside the keyboard and mouse.
+
+Unmodified upstream `727f286` still reproduced the reconnect issue. The newer
+`ec42eb1` base adds only documentation changes beyond that baseline. Core host
+regressions passed 6/6, posix_imgui passed 1/1, and `build-all.sh` produced the
+Pico 2 W firmware successfully. These hardware results do not establish validation
+of the new pin on sibling adapters or Steam/Switch 2 hardware.
+
+Use `./build-all.sh` with the pinned submodule; firmware remains 4.3.0.
+Return to upstream after PR #236 is merged and the replacement revision is validated.
+
+
 ## Reproducible default build — 2 November 2026
 
 The committed `bluepad32` submodule now uses `https://github.com/trickydee/bluepad32.git`,

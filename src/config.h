@@ -48,7 +48,7 @@
 #  define SOFTWARE_VERSION_MINOR 3
 #endif
 #ifndef SOFTWARE_VERSION_PATCH
-#  define SOFTWARE_VERSION_PATCH 0
+#  define SOFTWARE_VERSION_PATCH 1
 #endif
 
 // USB device mode ("PC keyboard" mode): read a real Amiga keyboard (and mouse) on the

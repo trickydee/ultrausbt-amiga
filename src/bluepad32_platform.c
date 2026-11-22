@@ -351,7 +351,7 @@ static uni_error_t my_platform_on_device_ready(uni_hid_device_t* d) {
     
     // Get device address to match with discovered name
     bd_addr_t addr;
-    uni_bt_conn_get_address(&d->conn, addr);
+    memcpy(addr, d->conn.btaddr, sizeof(addr));
     
     // Try to get device name from pending storage (by address)
     const char* stored_name = get_pending_name_by_addr(addr);

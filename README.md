@@ -24,7 +24,7 @@ On a **Pico 2 W** you can mix USB and Bluetooth devices. USB-only builds work on
 Please visit and star the upstream project:  
 **https://github.com/borb/amigahid-pico**
 
-Current test firmware: **v4.3.0** (shared Bluepad32 reconnect PR testing; not yet released) · [Release notes](./RELEASE_NOTES.md) · Architecture: [`doc/architecture.md`](./doc/architecture.md) · License: [EPL-2.0](./LICENSE) · [NOTICE](./NOTICE)
+Current firmware: **v4.3.1** (`main`) · [Release notes](./RELEASE_NOTES.md) · Architecture: [`doc/architecture.md`](./doc/architecture.md) · License: [EPL-2.0](./LICENSE) · [NOTICE](./NOTICE)
 
 ![A2000 USB/BT Adapter](./doc/images/A2000-USB-BT-Adapter.jpg)
 
@@ -161,7 +161,7 @@ Historical upstream PCB notes/errata (amigahid-pico / borb) remain in [`doc/arch
 
 # Building the firmware
 
-For the 4.3.0 shared Bluepad32 test build, see [local checkout testing](doc/bluepad32-local-testing.md).
+For the pinned Bluepad32 reconnect dependency and test history, see [Bluepad32 build notes](doc/bluepad32-local-testing.md).
 
 The firmware can either be downloaded pre built from the Releases section, or you can build yourself with the 'build-all.sh' script. 
 
