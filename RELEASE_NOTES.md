@@ -2,6 +2,14 @@
 
 Firmware version source of truth: `SOFTWARE_VERSION_*` in [`src/config.h`](./src/config.h).
 
+## v4.3.1
+
+* Update Bluepad32 to fork commit `06aed0361eb094f9ca6b6029da88ef60a200af95`, based on upstream `develop` at `ec42eb1`, with the bonded BLE reconnect fix retained.
+* Respect upstream's runtime HID device-type filter when classifying bonded reconnects; adapt to the removed Bluetooth address getter.
+* Amiga hardware validation passed cold-boot reconnect, peripheral power-off/on, simultaneous Logitech mouse/MX Keys Mini, mouse dragging, and controller coexistence.
+* Pairing/scanning remains enabled after boot. Manual Pair OFF prevents reconnects; advertisement diagnostics remain off.
+* SDK, GPIO mappings and Amiga signalling are unchanged. Return to upstream after PR #236 is merged and a replacement pin is validated.
+
 ## v4.3.0 (Bluepad32 reconnect feature build)
 
 * Rebased on upstream `ec42eb1`; preserve runtime HID device-type filtering on bonded reconnects. Amiga hardware validation on 22 November 2026 passed cold boot, peripheral power cycling, combined keyboard/mouse, dragging and controller coexistence.
