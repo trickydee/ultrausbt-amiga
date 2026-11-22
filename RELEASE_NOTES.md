@@ -2,6 +2,25 @@
 
 Firmware version source of truth: `SOFTWARE_VERSION_*` in [`src/config.h`](./src/config.h).
 
+## v4.3.0 (Bluepad32 reconnect feature build)
+
+* Default Bluepad32 dependency is pinned to fork commit `f7e94489be6ae29064a98c24c090dc5a5917c177` (`trickydee/bluepad32`, `codex/ble-reconnect-pr`). Optional `BLUEPAD32_SOURCE_DIR` still selects an external checkout through `build-all.sh`.
+* All builds use native bonded reconnect support, without the older adapter reconnect patch. Adapter-side saved BLE display names remain enabled.
+* Pairing/scanning stays enabled after boot; advertisement diagnostics default OFF. Manually disabling scanning prevents reconnection.
+* Amiga hardware testing of this develop-based firmware was reported successful on 5 October 2026. Cross-adapter testing is in progress; Steam Controller compatibility remains unverified.
+* See [local checkout testing](doc/bluepad32-local-testing.md) for the exact build command and test checklist.
+
+## v4.2.2 (Logitech investigation build)
+
+* Preserve BLE device display names across reconnects and adapter restarts using bond-associated name metadata. Older bonds use the reported model number where available until an advertised name is saved.
+* Clear pairing also clears saved names; unchanged names do not trigger additional flash writes.
+
+## v4.2.1 (Logitech investigation build)
+
+* Accept directed BLE reconnect advertisements from exact saved bond identities even without HID appearance; recover mouse/keyboard/controller class from the HID descriptor.
+* Keep unknown-device discovery and existing authentication behavior; no automatic bond clearing added.
+* ERGO trackball reconnect fix confirmed by hardware testing. Advertisement diagnostics now default OFF; continuously enabled boot scanning remains active on the investigation branch. See [test notes](doc/logitech-ble-investigation.md).
+
 ## v4.2.0
 
 * Host Mode Port 2 Atari two-button stick → USB HID gamepad (dedicated HID interface; dirs on Axis 0/1 + hat; fire = B0 / button 2 = B1) — validated on Mac and MiSTer

@@ -8,6 +8,7 @@
 #   - Raspberry Pi Pico W (RP2040 with WiFi)
 #
 # Environment variables:
+#   BLUEPAD32_SOURCE_DIR - optional external checkout (default: pinned ./bluepad32)
 #   BUILD_BOARDS      - pico2_w (default), or comma-separated: pico,pico2,pico_w,pico2_w
 #                       use "all" for every board (release builds)
 #   CLEAN_BUILD_DIRS  - 1 (default) remove build-* dirs after UF2 copied to dist/
@@ -20,6 +21,17 @@
 ################################################################################
 
 set -e  # Exit on error
+# Explicit override for a shared PR checkout; no machine-specific path is committed.
+BLUEPAD32_SOURCE_OVERRIDE="${BLUEPAD32_SOURCE_DIR:-}"
+BLUEPAD32_SOURCE_DIR="${BLUEPAD32_SOURCE_DIR:-$(pwd)/bluepad32}"
+if [ -n "${BLUEPAD32_SOURCE_OVERRIDE}" ] && [ ! -f "${BLUEPAD32_SOURCE_DIR}/src/components/bluepad32/CMakeLists.txt" ]; then
+    echo "ERROR: Missing Bluepad32 checkout: ${BLUEPAD32_SOURCE_DIR}" >&2
+    exit 1
+fi
+if [ -d "${BLUEPAD32_SOURCE_DIR}" ]; then
+    BLUEPAD32_SOURCE_DIR=$(cd "${BLUEPAD32_SOURCE_DIR}" && pwd)
+fi
+echo "Bluepad32 source: ${BLUEPAD32_SOURCE_DIR}"
 
 read_firmware_version() {
     local ch="src/config.h"
@@ -141,7 +153,7 @@ if board_enabled pico2_w; then
     echo ""
 
     BLUEPAD32_OK=false
-    if [ -d "./bluepad32/src" ] && [ -f "./bluepad32/src/components/bluepad32/CMakeLists.txt" ]; then
+    if [ -f "${BLUEPAD32_SOURCE_DIR}/src/components/bluepad32/CMakeLists.txt" ]; then
         BLUEPAD32_OK=true
         echo "    ✅ Bluepad32 is properly initialized"
     else
@@ -159,16 +171,18 @@ if board_enabled pico2_w; then
         prepare_build_dir "${DIR_PICO2_W}"
 
         echo "    Configuring CMake for RP2350 WiFi/Bluetooth (pico2_w)..."
-        if ! cmake -B "${DIR_PICO2_W}" -S . -DPICO_BOARD=pico2_w \
+        if ! cmake -B "${DIR_PICO2_W}" -S . -DPICO_BOARD=pico2_w -DBLUEPAD32_SOURCE_DIR="${BLUEPAD32_SOURCE_DIR}" \
             > "${DIR_PICO2_W}/cmake.log" 2>&1; then
             echo "    ⚠️  Warning: CMake configuration failed for RP2350 WiFi/Bluetooth (pico2_w)!"
             tail -20 "${DIR_PICO2_W}/cmake.log"
+            exit 1
         else
             echo "    Compiling firmware for RP2350 WiFi/Bluetooth (this may take longer due to Bluepad32)..."
             if ! cmake --build "${DIR_PICO2_W}" -j"${JOBS}" \
                 > "${DIR_PICO2_W}/build.log" 2>&1; then
                 echo "    ⚠️  Warning: Build failed for RP2350 WiFi/Bluetooth (pico2_w)!"
                 tail -30 "${DIR_PICO2_W}/build.log"
+                exit 1
             else
                 echo "    ✅ RP2350 WiFi/Bluetooth (pico2_w) build complete!"
             fi
@@ -187,7 +201,7 @@ if board_enabled pico_w; then
     echo ""
 
     BLUEPAD32_OK=false
-    if [ -d "./bluepad32/src" ] && [ -f "./bluepad32/src/components/bluepad32/CMakeLists.txt" ]; then
+    if [ -f "${BLUEPAD32_SOURCE_DIR}/src/components/bluepad32/CMakeLists.txt" ]; then
         BLUEPAD32_OK=true
         echo "    ✅ Bluepad32 is properly initialized"
     else
@@ -205,7 +219,7 @@ if board_enabled pico_w; then
         prepare_build_dir "${DIR_PICOW}"
 
         echo "    Configuring CMake for RP2040 WiFi (pico_w)..."
-        if ! cmake -B "${DIR_PICOW}" -S . -DPICO_BOARD=pico_w \
+        if ! cmake -B "${DIR_PICOW}" -S . -DPICO_BOARD=pico_w -DBLUEPAD32_SOURCE_DIR="${BLUEPAD32_SOURCE_DIR}" \
             > "${DIR_PICOW}/cmake.log" 2>&1; then
             echo "ERROR: CMake configuration failed for RP2040 WiFi (pico_w)!"
             tail -20 "${DIR_PICOW}/cmake.log"

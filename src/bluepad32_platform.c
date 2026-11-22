@@ -24,6 +24,7 @@
 #include <bt/uni_bt.h>
 
 #include "config.h"
+#include "bluepad32_bonded_reconnect.h"
 #include "sdkconfig.h"
 #include "platform/amiga/quad_mouse.h"
 #include "display/display.h"
@@ -219,6 +220,9 @@ static void my_platform_init(int argc, const char** argv) {
     ARG_UNUSED(argv);
 
     logi("bluepad32_platform: init()\n");
+#ifdef BLUEPAD32_NATIVE_RECONNECT
+    logi("[BT] Shared Bluepad32 checkout: native bonded reconnect test\n");
+#endif
 }
 
 static void my_platform_on_init_complete(void) {
@@ -228,8 +232,13 @@ static void my_platform_on_init_complete(void) {
     bt_callback_busy_wait_ms(2000);
 
     bluepad32_pairing_start();
+#if BT_PAIRING_ALWAYS_ON_TEST
+    g_pairing_boot_window_active = false;
+    logi("[BT-TEST] Logitech investigation: boot pairing timeout disabled; Settings can stop scanning\n");
+#else
     g_pairing_boot_window_active = true;
     g_pairing_boot_deadline = make_timeout_time_ms(PAIRING_BOOT_WINDOW_MS);
+#endif
 
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
 }
@@ -275,6 +284,14 @@ static uni_error_t my_platform_on_device_discovered(bd_addr_t addr, const char* 
 }
 
 static void my_platform_on_device_connected(uni_hid_device_t* d) {
+#ifdef BLUEPAD32_NATIVE_RECONNECT
+    // Name persistence belongs to the adapter, not the upstream reconnect fix.
+    if (d->conn.protocol == UNI_BT_CONN_PROTOCOL_BLE) {
+        if (!d->name[0] || strncmp(d->name, "BLE ", 4) == 0)
+            ultrausbt_restore_ble_name(d);
+        ultrausbt_save_ble_name(d);
+    }
+#endif
     logi("bluepad32_platform: device connected: %p\n", d);
     // Discovery already pauses Core 1 for gamepads — do not pause again here.
 }
@@ -668,6 +685,7 @@ static void update_bt_device_counts(void)
 // Delete all stored Bluetooth pairing keys
 void bluepad32_delete_pairing_keys(void) {
     core1_force_release_bt_pause();
+    ultrausbt_clear_ble_names();
     uni_bt_del_keys_unsafe();
 }
 

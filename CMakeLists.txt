@@ -11,6 +11,8 @@ add_compile_options(-Wall)
 # Note: -Werror removed to allow btstack (pico-sdk) to compile with warnings
 # TODO: Re-enable -Werror once btstack warnings are resolved
 
+# Optional shared development checkout. Default remains the pinned submodule.
+set(BLUEPAD32_SOURCE_DIR "${CMAKE_SOURCE_DIR}/bluepad32" CACHE PATH "Bluepad32 source checkout")
 # configuration options
 
 # Uncomment for verbose UART debug (ahprintf, Core1 DIAG, BT pause DIAG, etc.)

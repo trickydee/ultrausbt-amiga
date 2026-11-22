@@ -25,6 +25,13 @@ Shipped and working on `main`:
 
 ---
 
+## Planned Bluetooth policy follow-up
+
+See [BLE pairing/reconnection policy specification](ble-pairing-reconnection-policy-spec.md).
+For 4.3.0, keep pairing/scanning enabled at startup with no automatic timeout and
+advertisement logging off. Pair OFF still prevents BLE reconnects. A later feature
+will separate timed new pairing, known-device reconnection and connections closed.
+
 ## Known issues
 
 ### Bluetooth gamepad slot routing on disconnect

@@ -11,10 +11,16 @@ Public docs for the Amiga USB/Bluetooth adapter firmware (Pico / Pico 2 / Pico 2
 | [`../RELEASE_NOTES.md`](../RELEASE_NOTES.md) | Firmware changelog |
 | [`gpio_rev6_adc_avoidance.md`](./gpio_rev6_adc_avoidance.md) | Why Rev 6 moved Port 2 / OLED pins |
 
+- [Testing the shared Bluepad32 checkout](bluepad32-local-testing.md): 4.3.0 reconnect PR firmware.
+- [Cross-adapter reconnect testing](bluepad32-cross-adapter-testing.md): common source revision, builds and hardware checklist.
+
 ## Features
+
+[BLE pairing/reconnection policy specification](./ble-pairing-reconnection-policy-spec.md) — planned follow-up after 4.3.0.
 
 | Doc | Topic |
 |-----|--------|
+| [`logitech-ble-investigation.md`](./logitech-ble-investigation.md) | Logitech directed BLE reconnect investigation and test procedure |
 | [`BT_PAIRING_BEST_PRACTICES.md`](./BT_PAIRING_BEST_PRACTICES.md) | Bluetooth pairing on Pico 2 W |
 | [`host-mode-port2-joystick.md`](./host-mode-port2-joystick.md) | Host Mode Port 2: Atari stick → USB (done); Mega Drive research (on hold) |
 | [`future_work.md`](./future_work.md) | Known limitations & roadmap |
